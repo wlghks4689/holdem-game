@@ -1,4 +1,5 @@
-import { kv } from "@vercel/kv";
+import { createClient } from "@vercel/kv";
+import Redis from "ioredis";
 import type { GameState, PlayerIndex } from "@/holdem/types";
 
 export type RoomBlob = {
@@ -9,24 +10,86 @@ export type RoomBlob = {
 
 const key = (roomId: string) => `holdem:room:${roomId}`;
 
+const ROOM_TTL_SEC = 60 * 60 * 72;
+
 const devMem = new Map<string, string>();
 
-function useKv(): boolean {
-  return Boolean(
-    process.env.KV_REST_API_URL?.length && process.env.KV_REST_API_TOKEN?.length,
-  );
+function redisUrl(): string | undefined {
+  const u =
+    process.env.HOLDEM_LIMIT_GAME_REDIS_URL?.trim() ||
+    process.env.REDIS_URL?.trim() ||
+    process.env.UPSTASH_REDIS_URL?.trim();
+  return u && u.length > 0 ? u : undefined;
 }
 
-/** 프로덕션(Vercel)에서 영구 저장소 필요 */
+function useRedis(): boolean {
+  return Boolean(redisUrl());
+}
+
+function kvRestUrl(): string | undefined {
+  const u =
+    process.env.KV_REST_API_URL?.trim() ||
+    process.env.UPSTASH_REDIS_REST_URL?.trim();
+  return u && u.length > 0 ? u : undefined;
+}
+
+function kvRestToken(): string | undefined {
+  const t =
+    process.env.KV_REST_API_TOKEN?.trim() ||
+    process.env.UPSTASH_REDIS_REST_TOKEN?.trim();
+  return t && t.length > 0 ? t : undefined;
+}
+
+function useKv(): boolean {
+  return Boolean(kvRestUrl() && kvRestToken());
+}
+
+const redisGlobal = globalThis as unknown as {
+  __holdemRedis?: Redis;
+  __holdemKv?: ReturnType<typeof createClient>;
+};
+
+function getKvClient(): ReturnType<typeof createClient> {
+  const url = kvRestUrl();
+  const token = kvRestToken();
+  if (!url || !token) {
+    throw new Error("KV REST URL/token not configured");
+  }
+  if (!redisGlobal.__holdemKv) {
+    redisGlobal.__holdemKv = createClient({ url, token });
+  }
+  return redisGlobal.__holdemKv;
+}
+
+function getRedis(): Redis {
+  const url = redisUrl();
+  if (!url) {
+    throw new Error("Redis URL not configured");
+  }
+  if (!redisGlobal.__holdemRedis) {
+    redisGlobal.__holdemRedis = new Redis(url, {
+      maxRetriesPerRequest: 2,
+      connectTimeout: 10_000,
+      lazyConnect: false,
+    });
+  }
+  return redisGlobal.__holdemRedis;
+}
+
+/** 프로덕션(Vercel)에서 영구 저장소: Redis URL 또는 Vercel KV */
 export function isRoomPersistenceConfigured(): boolean {
-  if (process.env.VERCEL === "1") return useKv();
+  if (process.env.VERCEL === "1") {
+    return useRedis() || useKv();
+  }
   return true;
 }
 
 export async function roomGet(roomId: string): Promise<RoomBlob | null> {
   let raw: string | null = null;
-  if (useKv()) {
-    raw = (await kv.get(key(roomId))) as string | null;
+  if (useRedis()) {
+    raw = await getRedis().get(key(roomId));
+  } else if (useKv()) {
+    raw = (await getKvClient().get(key(roomId))) as string | null;
   } else {
     raw = devMem.get(key(roomId)) ?? null;
   }
@@ -40,8 +103,10 @@ export async function roomGet(roomId: string): Promise<RoomBlob | null> {
 
 export async function roomSet(roomId: string, blob: RoomBlob): Promise<void> {
   const raw = JSON.stringify(blob);
-  if (useKv()) {
-    await kv.set(key(roomId), raw, { ex: 60 * 60 * 72 });
+  if (useRedis()) {
+    await getRedis().set(key(roomId), raw, "EX", ROOM_TTL_SEC);
+  } else if (useKv()) {
+    await getKvClient().set(key(roomId), raw, { ex: ROOM_TTL_SEC });
   } else {
     devMem.set(key(roomId), raw);
   }
