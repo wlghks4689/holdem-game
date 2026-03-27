@@ -1,0 +1,135 @@
+@import "tailwindcss";
+
+:root {
+  --background: #ffffff;
+  --foreground: #171717;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #27272a;
+    --foreground: #fafafa;
+  }
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+@keyframes holdem-deal-card {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes holdem-turn-ring {
+  0% {
+    box-shadow: 0 0 #34d39973;
+  }
+  100% {
+    box-shadow: 0 0 0 8px #34d39900;
+  }
+}
+
+@keyframes holdem-pot-bump {
+  0% {
+    transform: scale(1);
+  }
+  45% {
+    transform: scale(1.07);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+@keyframes holdem-chip-rise {
+  0% {
+    opacity: 1;
+    transform: translate(-50%) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -32px) scale(0.85);
+  }
+}
+
+/** 팟 정산 ±bb — 아래에서 들어와 정체 후 위로 사라짐 */
+@keyframes holdem-pot-gain {
+  0% {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  24% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  58% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-20px);
+  }
+}
+
+@keyframes holdem-ia-scan-line {
+  0% {
+    opacity: 0;
+    transform: translateX(-120%);
+  }
+  15% {
+    opacity: 0.85;
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(120%);
+  }
+}
+
+@keyframes holdem-ia-banner-in {
+  0% {
+    opacity: 0;
+    transform: scale(0.98);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes holdem-result-pop {
+  0% {
+    opacity: 0.88;
+    transform: scale(0.94);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes holdem-showdown-win-pulse {
+  0%,
+  100% {
+    filter: brightness(1);
+  }
+  50% {
+    filter: brightness(1.1);
+  }
+}
