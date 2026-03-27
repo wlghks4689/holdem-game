@@ -28,8 +28,10 @@ import type { GameAction, GameState, PlayerIndex } from "@/holdem/types";
 
 export type ActionPanelProps = {
   state: GameState;
-  dispatch: (a: GameAction) => void;
+  dispatch: (a: GameAction) => void | Promise<void>;
   playerNames: [string, string];
+  /** 온라인 방: 내 차례일 때만 액션 버튼 표시 */
+  mySeat?: PlayerIndex;
 };
 
 const btnPrimary =
@@ -41,7 +43,7 @@ const btnDanger =
 const btnIa =
   "rounded-lg border border-indigo-400/60 bg-indigo-900/45 px-3 py-2 text-xs font-semibold text-indigo-50 hover:bg-indigo-800/40 disabled:cursor-not-allowed disabled:opacity-45";
 
-export function ActionPanel({ state, dispatch, playerNames }: ActionPanelProps) {
+export function ActionPanel({ state, dispatch, playerNames, mySeat }: ActionPanelProps) {
   const pl = (p: PlayerIndex) => playerNames[p] ?? `P${p}`;
   const p = state.toAct;
   const [betAmt, setBetAmt] = React.useState(BET_RAISE_UNIT);
@@ -134,6 +136,19 @@ export function ActionPanel({ state, dispatch, playerNames }: ActionPanelProps) 
   }
 
   if (p == null) return null;
+
+  if (mySeat != null && p !== mySeat) {
+    return (
+      <div className="rounded-xl border border-zinc-600/90 bg-zinc-800/50 p-4 text-center">
+        <p className="text-sm font-medium text-zinc-200">
+          지금은 <span className="text-amber-100">{pl(p)}</span> 차례입니다.
+        </p>
+        <p className="mt-1 text-[11px] text-zinc-500">
+          상대가 액션할 때까지 기다려 주세요.
+        </p>
+      </div>
+    );
+  }
 
   const chips = state.chips[p]!;
   const facing = facingFor(p, betting);

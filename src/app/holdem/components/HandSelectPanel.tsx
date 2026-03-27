@@ -46,10 +46,12 @@ const TEMPLATES_BY_CATEGORY = groupTemplatesByCategory();
 
 export type HandSelectPanelProps = {
   state: GameState;
+  /** 온라인 방: 내 좌석만 선택 UI 표시 */
+  mySeat?: PlayerIndex;
   onSelect: (player: PlayerIndex, templateId: string) => void;
 };
 
-export function HandSelectPanel({ state, onSelect }: HandSelectPanelProps) {
+export function HandSelectPanel({ state, mySeat, onSelect }: HandSelectPanelProps) {
   const phase = state.handSelectPhase;
   const [pick, setPick] = React.useState<string | null>(null);
 
@@ -89,6 +91,14 @@ export function HandSelectPanel({ state, onSelect }: HandSelectPanelProps) {
     if (left <= 0) return;
     setPick(id);
   };
+
+  if (phase !== "done" && mySeat !== undefined && selectingPlayer !== mySeat) {
+    return (
+      <div className="rounded-xl border border-violet-600/35 bg-violet-950/20 p-4 text-center text-sm text-violet-100/90">
+        상대가 핸드 풀에서 핸드를 고르는 중입니다.
+      </div>
+    );
+  }
 
   return phase === "done" ? null : (
     <div className="rounded-xl border border-violet-600/45 bg-violet-900/22 p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]">
