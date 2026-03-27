@@ -71,7 +71,7 @@ export default function HoldemPageClient() {
         <header className="mb-4 flex flex-col gap-3 lg:mb-6 lg:flex-row lg:items-start lg:justify-between">
           <div>
             <h1 className="text-lg font-bold text-zinc-50 lg:text-xl">
-              핸드 풀 홀덤 (로컬 2인)
+              핸드 풀 홀덤
             </h1>
             <p className="text-xs text-zinc-400">
               {TOTAL_ROUNDS}라운드 · 시작 {STARTING_CHIPS}칩 (1bb=1칩) · 표시 이름은
