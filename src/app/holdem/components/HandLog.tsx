@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { cardLabel, type Card } from "@/holdem/cards";
+import { getBlindLevel } from "@/holdem/blindLevels";
 import { chipsAsBbLabel } from "@/holdem/formatBb";
 import {
   findTemplate,
@@ -16,8 +17,9 @@ type Pl = (p: PlayerIndex) => string;
 function fmtPreflop(
   m: Extract<GameMessage, { t: "preflop_action" }>,
   pl: Pl,
+  bbUnit: number,
 ): string {
-  const amt = m.amount != null ? chipsAsBbLabel(m.amount) : "";
+  const amt = m.amount != null ? chipsAsBbLabel(m.amount, bbUnit) : "";
   const who = pl(m.player);
   if (m.action === "콜" && m.amount != null) {
     return `${who}: 콜 (총 ${amt})`;
@@ -31,8 +33,9 @@ function fmtPreflop(
 function fmtPost(
   m: Extract<GameMessage, { t: "postflop_action" }>,
   pl: Pl,
+  bbUnit: number,
 ): string {
-  const amt = m.amount != null ? chipsAsBbLabel(m.amount) : "";
+  const amt = m.amount != null ? chipsAsBbLabel(m.amount, bbUnit) : "";
   const who = pl(m.player);
   if (m.action === "콜" && m.amount != null) {
     return `${who}: 콜 (+${amt})`;
@@ -118,6 +121,8 @@ function buildSections(
   let preflop: string[] | null = null;
   let streetPost: { title: string; lines: string[] } | null = null;
   let endLines: string[] | null = null;
+  /** 로그 상 해당 시점 라운드의 BB 칩 크기(금액→bb 표기용) */
+  let logBlindBbUnit = getBlindLevel(1).bigBlind;
 
   const pushStreet = () => {
     if (streetPost != null && streetPost.lines.length > 0) {
@@ -184,6 +189,7 @@ function buildSections(
         pushEnd();
         pushStreet();
         pushPreflop();
+        logBlindBbUnit = getBlindLevel(m.round).bigBlind;
         setup = [`라운드 ${m.round} 시작`];
         break;
       case "hand_pick_conflict":
@@ -202,19 +208,19 @@ function buildSections(
       case "preflop_action":
         if (setup.length > 0) pushSetup();
         if (preflop == null) preflop = [];
-        preflop.push(fmtPreflop(m, pl));
+        preflop.push(fmtPreflop(m, pl, logBlindBbUnit));
         break;
       case "street_cards": {
         if (setup.length > 0) pushSetup();
         if (m.street === "flop") {
           if (preflop == null) preflop = [];
-          preflop.push(`프리플랍 종료 · 팟 ${chipsAsBbLabel(m.pot)}`);
+          preflop.push(`프리플랍 종료 · 팟 ${chipsAsBbLabel(m.pot, logBlindBbUnit)}`);
         }
         if (m.street === "turn" && streetPost?.title === "플랍") {
-          streetPost.lines.push(`플랍 종료 · 팟 ${chipsAsBbLabel(m.pot)}`);
+          streetPost.lines.push(`플랍 종료 · 팟 ${chipsAsBbLabel(m.pot, logBlindBbUnit)}`);
         }
         if (m.street === "river" && streetPost?.title === "턴") {
-          streetPost.lines.push(`턴 종료 · 팟 ${chipsAsBbLabel(m.pot)}`);
+          streetPost.lines.push(`턴 종료 · 팟 ${chipsAsBbLabel(m.pot, logBlindBbUnit)}`);
         }
         pushPreflop();
         pushStreet();
@@ -229,26 +235,26 @@ function buildSections(
       }
       case "postflop_action":
         ensurePost("플랍");
-        streetPost!.lines.push(fmtPost(m, pl));
+        streetPost!.lines.push(fmtPost(m, pl, logBlindBbUnit));
         break;
       case "ia":
         pushStreet();
         pushPreflop();
         if (endLines == null) endLines = [];
         endLines.push(
-          `${pl(m.player)}: IA (−${chipsAsBbLabel(m.cost)}) → 상대 카테고리: ${m.revealedCategory} (${iaCategoryHandListText(m.revealedCategory)})`,
+          `${pl(m.player)}: IA (−${chipsAsBbLabel(m.cost, logBlindBbUnit)}) → 상대 카테고리: ${m.revealedCategory} (${iaCategoryHandListText(m.revealedCategory)})`,
         );
         break;
       case "showdown": {
         if (preflop != null) {
-          preflop.push(`프리플랍 종료 · 팟 ${chipsAsBbLabel(m.pot)}`);
+          preflop.push(`프리플랍 종료 · 팟 ${chipsAsBbLabel(m.pot, logBlindBbUnit)}`);
         }
         if (streetPost?.title === "플랍") {
-          streetPost.lines.push(`플랍 종료 · 팟 ${chipsAsBbLabel(m.pot)}`);
+          streetPost.lines.push(`플랍 종료 · 팟 ${chipsAsBbLabel(m.pot, logBlindBbUnit)}`);
         } else if (streetPost?.title === "턴") {
-          streetPost.lines.push(`턴 종료 · 팟 ${chipsAsBbLabel(m.pot)}`);
+          streetPost.lines.push(`턴 종료 · 팟 ${chipsAsBbLabel(m.pot, logBlindBbUnit)}`);
         } else if (streetPost?.title === "리버") {
-          streetPost.lines.push(`리버 종료 · 팟 ${chipsAsBbLabel(m.pot)}`);
+          streetPost.lines.push(`리버 종료 · 팟 ${chipsAsBbLabel(m.pot, logBlindBbUnit)}`);
         }
         pushStreet();
         pushPreflop();
@@ -257,7 +263,7 @@ function buildSections(
           lastSec?.title === "리버" &&
           !lastSec.lines.some((l) => l.startsWith("리버 종료 · 팟"))
         ) {
-          lastSec.lines.push(`리버 종료 · 팟 ${chipsAsBbLabel(m.pot)}`);
+          lastSec.lines.push(`리버 종료 · 팟 ${chipsAsBbLabel(m.pot, logBlindBbUnit)}`);
         }
         if (endLines == null) endLines = [];
         const showdownLine =
@@ -267,7 +273,7 @@ function buildSections(
               ? `${pl(0)} ${m.hands[0]} vs ${pl(1)} ${m.hands[1]}`
               : humanizeLegacyShowdownDesc(m.desc, pl);
         endLines.push(
-          `${showdownLine} · 팟 ${chipsAsBbLabel(m.pot)} (승: ${m.winners.map((w) => pl(w)).join(", ")})`,
+          `${showdownLine} · 팟 ${chipsAsBbLabel(m.pot, logBlindBbUnit)} (승: ${m.winners.map((w) => pl(w)).join(", ")})`,
         );
         appendShowdownHoleLines(m);
         break;

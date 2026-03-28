@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { sanitizeGameStateForSeat } from "@/holdem/sanitizeGameStateForSeat";
+import { normalizeRoomPause } from "@/holdem/roomPause";
 import {
   assertValidRoomId,
   parseSeat,
@@ -31,5 +32,6 @@ export async function GET(req: Request, ctx: Ctx) {
 
   return NextResponse.json({
     state: sanitizeGameStateForSeat(blob.state, seat),
+    pause: normalizeRoomPause(blob.pause),
   });
 }

@@ -1,11 +1,14 @@
 import { createClient } from "@vercel/kv";
 import Redis from "ioredis";
+import type { RoomPauseState } from "@/holdem/roomPause";
 import type { GameState, PlayerIndex } from "@/holdem/types";
 
 export type RoomBlob = {
   state: GameState;
   /** P0 방장 토큰, P1 참가 후 발급 */
   tokens: [string, string | null];
+  /** 멀티플레이 퍼즈(구버전 방은 없을 수 있음) */
+  pause?: RoomPauseState;
 };
 
 const key = (roomId: string) => `holdem:room:${roomId}`;

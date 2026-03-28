@@ -16,8 +16,14 @@ export function HoldemOnlinePage(props: {
   token: string;
 }) {
   const { roomId, mySeat, token } = props;
-  const { state, dispatch, actionTimerSecondsLeft, loadError } =
-    useHoldemOnlineGame({ roomId, mySeat, token });
+  const {
+    state,
+    dispatch,
+    actionTimerSecondsLeft,
+    loadError,
+    pause,
+    sendPauseCmd,
+  } = useHoldemOnlineGame({ roomId, mySeat, token });
 
   const [playerNames, setPlayerNames] = React.useState<[string, string]>([
     DEFAULT_HOLDEM_DISPLAY_NAMES[0]!,
@@ -84,6 +90,15 @@ export function HoldemOnlinePage(props: {
         mySeat={mySeat}
         playMode="online"
         onlineMeta={{ roomId }}
+        onlinePause={{
+          pause,
+          mySeat,
+          onRequest: () => void sendPauseCmd("request"),
+          onCancelRequest: () => void sendPauseCmd("cancel_request"),
+          onAccept: () => void sendPauseCmd("accept"),
+          onReject: () => void sendPauseCmd("reject"),
+          onResume: () => void sendPauseCmd("resume"),
+        }}
       />
     </>
   );

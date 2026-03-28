@@ -8,28 +8,18 @@ import type { GameAction, GameState, PlayerIndex } from "./types";
 
 export { ACTION_TIMER_SECONDS, HAND_SELECT_TIMER_SECONDS };
 
-function handSelectActor(state: GameState): PlayerIndex {
-  return state.handSelectPhase === "button"
-    ? state.button
-    : state.button === 0
-      ? 1
-      : 0;
-}
-
-/** 현재 차례 플레이어의 핸드 풀 잔량으로 고를 수 있는 첫 템플릿으로 자동 제출 */
+/** 아직 미확정인 좌석부터 자동 제출 (0 → 1 순) */
 function buildAutoSelectHand(state: GameState): GameAction | null {
-  if (state.handSelectPhase !== "button" && state.handSelectPhase !== "bb") {
-    return null;
-  }
-  const player = handSelectActor(state);
+  if (state.handSelectPhase === "done") return null;
   const pools = normalizeHandPoolRemaining(state.handPoolRemaining as unknown);
-  const poolForActor = pools[player] ?? {};
-
-  const canPick = (tid: string): boolean => (poolForActor[tid] ?? 0) > 0;
-
-  for (const tpl of ALL_HAND_TEMPLATES) {
-    if (!canPick(tpl.id)) continue;
-    return { type: "SELECT_HAND", player, templateId: tpl.id };
+  for (const player of [0, 1] as const) {
+    if (state.handPickPending[player] != null) continue;
+    const poolForActor = pools[player] ?? {};
+    const canPick = (tid: string): boolean => (poolForActor[tid] ?? 0) > 0;
+    for (const tpl of ALL_HAND_TEMPLATES) {
+      if (!canPick(tpl.id)) continue;
+      return { type: "SELECT_HAND", player, templateId: tpl.id };
+    }
   }
   return null;
 }
@@ -45,7 +35,6 @@ export function actionTimerSignature(state: GameState): string | null {
   if (state.phase === "hand_select" && state.handSelectPhase !== "done") {
     return JSON.stringify({
       kind: "hand_select",
-      step: state.handSelectPhase,
       round: state.roundNumber,
       button: state.button,
       p0: state.handPickPending[0]?.templateId ?? null,

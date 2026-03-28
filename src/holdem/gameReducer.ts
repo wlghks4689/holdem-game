@@ -8,17 +8,15 @@ import {
   levelFromContributions,
   postflopMaxBet,
   postflopEffectiveMaxRaiseToLevel,
-  preflopAnteTotalChips,
   preflopMaxPotChips,
   preflopMaxRaiseTargetForActor,
   preflopMinTotalRaiseForActor,
   isVoluntaryBetMultiple,
   postflopMinRaiseToLevelChips,
   roundHalfChip,
-  sbAmount,
-  bbAmount,
   splitPotTwoWayChopChips,
 } from "./bettingHelpers";
+import { handBlindsFromRound, resolveHandBlinds } from "./blindLevels";
 import { dealAfterHoles } from "./deck";
 import {
   findTemplate,
@@ -29,7 +27,7 @@ import {
   templateLabel,
 } from "./handPool";
 import { compareHandValue, best5Of7, handValueSummaryKorean } from "./pokerEval";
-import { BET_RAISE_UNIT, STARTING_CHIPS, TOTAL_ROUNDS } from "./constants";
+import { STARTING_CHIPS, TOTAL_ROUNDS } from "./constants";
 import type {
   GameAction,
   GameMessage,
@@ -39,6 +37,19 @@ import type {
 } from "./types";
 
 const other = (p: PlayerIndex): PlayerIndex => (p === 0 ? 1 : 0);
+
+function ensureHandBlinds(s: GameState): void {
+  if (
+    !s.handBlinds ||
+    typeof s.handBlinds.sb !== "number" ||
+    typeof s.handBlinds.bb !== "number" ||
+    typeof s.handBlinds.ante !== "number" ||
+    Number.isNaN(s.handBlinds.bb) ||
+    s.handBlinds.bb < 1e-9
+  ) {
+    s.handBlinds = handBlindsFromRound(s.roundNumber);
+  }
+}
 
 function rng(): () => number {
   return () => Math.random();
@@ -281,9 +292,8 @@ function startPreflopAfterHands(s: GameState, deckRng: () => number): void {
   const h1 = s.holes[1]!.hole;
   s.board = dealAfterHoles(h0, h1, deckRng);
   s.boardRevealed = 0;
-  const sb = sbAmount();
-  const bb = bbAmount();
-  const ante = preflopAnteTotalChips();
+  ensureHandBlinds(s);
+  const { sb, bb, ante } = s.handBlinds;
   const btn = s.button;
   const bbSeat = other(btn);
   /** 버튼: SB만. BB: 1BB + 앤티(1bb by default) */
@@ -427,6 +437,7 @@ export function createInitialGameState(): GameState {
   return {
     phase: "hand_select",
     roundNumber: 1,
+    handBlinds: handBlindsFromRound(1),
     button: 0,
     chips: [STARTING_CHIPS, STARTING_CHIPS],
     pot: 0,
@@ -437,8 +448,8 @@ export function createInitialGameState(): GameState {
     board: [],
     boardRevealed: 0,
     betting: freshBetting(),
-    toAct: 0,
-    handSelectPhase: "button",
+    toAct: null,
+    handSelectPhase: "open",
     preflopStage: null,
     preflopRaiseCount: 0,
     iaUsed: [false, false],
@@ -448,7 +459,7 @@ export function createInitialGameState(): GameState {
     handEndMode: null,
     matchWinner: null,
     logs: [{ t: "round_start", round: 1 }],
-    lastActionNote: "딜러·SB 핸드 선택",
+    lastActionNote: "양쪽 핸드 선택 (동시)",
     isAllIn: false,
   };
 }
@@ -459,19 +470,26 @@ export function holdemReducer(
   random: () => number = rng(),
 ): GameState {
   const s: GameState = structuredClone(state);
+  ensureHandBlinds(s);
   s.isAllIn = s.isAllIn ?? false;
   s.handPoolRemaining = normalizeHandPoolRemaining(s.handPoolRemaining as unknown);
   if (typeof s.iaPotRemovalTotal !== "number" || Number.isNaN(s.iaPotRemovalTotal)) {
     s.iaPotRemovalTotal = totalIaChipsRemovedFromLogs(s.logs);
+  }
+  if (s.phase === "hand_select") {
+    const rawHs = s.handSelectPhase as unknown;
+    if (rawHs === "button" || rawHs === "bb") {
+      s.handSelectPhase = "open";
+      s.toAct = null;
+    }
   }
   if (s.matchWinner != null) return state;
 
   switch (action.type) {
     case "SELECT_HAND": {
       if (s.phase !== "hand_select") return state;
+      if (s.handSelectPhase === "done") return state;
       const p = action.player;
-      if (s.handSelectPhase === "button" && p !== s.button) return state;
-      if (s.handSelectPhase === "bb" && p !== other(s.button)) return state;
       const tpl = findTemplate(action.templateId);
       if (!tpl) return state;
 
@@ -479,38 +497,44 @@ export function holdemReducer(
 
       s.handPickPending[p] = { templateId: action.templateId };
 
-      if (s.handSelectPhase === "button") {
-        s.handSelectPhase = "bb";
-        s.toAct = other(s.button);
-        s.lastActionNote = "BB 핸드 선택 (비공개)";
-      } else {
-        const p0 = s.handPickPending[0]!;
-        const p1 = s.handPickPending[1]!;
-        const resolved = resolvePendingHandPicks(p0, p1, random);
-        if (!resolved.ok) {
-          s.handPickPending = [null, null];
-          s.holes = [null, null];
-          s.handSelectPhase = "button";
-          s.toAct = s.button;
-          pushLog(s, { t: "hand_pick_conflict" });
-          s.lastActionNote = "선택 충돌 — 둘 다 다시 선택하세요.";
-          return done(s);
+      const pending0 = s.handPickPending[0];
+      const pending1 = s.handPickPending[1];
+      if (pending0 == null || pending1 == null) {
+        s.toAct = null;
+        const a0 = pending0 != null;
+        const a1 = pending1 != null;
+        if (a0 !== a1) {
+          s.lastActionNote = "한쪽 확정 — 상대 핸드 확정 대기";
+        } else {
+          s.lastActionNote = "양쪽 핸드 선택 (동시)";
         }
-
-        const { hole0, hole1, t0, t1 } = resolved;
-        s.holes[0] = selectedHandFrom(t0, hole0);
-        s.holes[1] = selectedHandFrom(t1, hole1);
-        const pool0 = s.handPoolRemaining[0];
-        const pool1 = s.handPoolRemaining[1];
-        if (pool0 && pool1) {
-          pool0[t0.id] = (pool0[t0.id] ?? 0) - 1;
-          pool1[t1.id] = (pool1[t1.id] ?? 0) - 1;
-        }
-        s.handPickPending = [null, null];
-        pushLog(s, { t: "hand_chosen", player: 0, label: templateLabel(t0) });
-        pushLog(s, { t: "hand_chosen", player: 1, label: templateLabel(t1) });
-        startPreflopAfterHands(s, random);
+        return done(s);
       }
+
+      const resolved = resolvePendingHandPicks(pending0, pending1, random);
+      if (!resolved.ok) {
+        s.handPickPending = [null, null];
+        s.holes = [null, null];
+        s.handSelectPhase = "open";
+        s.toAct = null;
+        pushLog(s, { t: "hand_pick_conflict" });
+        s.lastActionNote = "선택 충돌 — 둘 다 다시 선택하세요.";
+        return done(s);
+      }
+
+      const { hole0, hole1, t0, t1 } = resolved;
+      s.holes[0] = selectedHandFrom(t0, hole0);
+      s.holes[1] = selectedHandFrom(t1, hole1);
+      const pool0 = s.handPoolRemaining[0];
+      const pool1 = s.handPoolRemaining[1];
+      if (pool0 && pool1) {
+        pool0[t0.id] = (pool0[t0.id] ?? 0) - 1;
+        pool1[t1.id] = (pool1[t1.id] ?? 0) - 1;
+      }
+      s.handPickPending = [null, null];
+      pushLog(s, { t: "hand_chosen", player: 0, label: templateLabel(t0) });
+      pushLog(s, { t: "hand_chosen", player: 1, label: templateLabel(t1) });
+      startPreflopAfterHands(s, random);
       return done(s);
     }
 
@@ -580,11 +604,12 @@ export function holdemReducer(
 
       const minT = preflopMinTotalRaiseForActor(s);
       const maxT = preflopMaxRaiseTargetForActor(s);
-      if (!isVoluntaryBetMultiple(target)) return state;
+      const bbUnit = resolveHandBlinds(s).bb;
+      if (!isVoluntaryBetMultiple(target, bbUnit)) return state;
       if (target < minT || target > maxT) return state;
 
       const potAfter = roundHalfChip(s.pot + add);
-      if (potAfter > preflopMaxPotChips() + 1e-9) return state;
+      if (potAfter > preflopMaxPotChips(s) + 1e-9) return state;
 
       s.chips[p]! -= add;
       s.pot = potAfter;
@@ -628,10 +653,11 @@ export function holdemReducer(
       if (!bettingMatched(s.betting) || s.betting.raiseDone) return state;
       const amt = roundHalfChip(action.amount);
       const maxB = postflopMaxBet(s.pot, s.chips[p]!);
+      const bbUnit = resolveHandBlinds(s).bb;
       if (
-        amt < BET_RAISE_UNIT ||
+        amt < bbUnit ||
         amt > maxB ||
-        !isVoluntaryBetMultiple(amt)
+        !isVoluntaryBetMultiple(amt, bbUnit)
       ) {
         return state;
       }
@@ -680,8 +706,9 @@ export function holdemReducer(
         s.chips[p]!,
       );
       const minTarget = postflopMinRaiseToLevelChips(lv, f);
+      const bbUnitPost = resolveHandBlinds(s).bb;
       if (
-        !isVoluntaryBetMultiple(target) ||
+        !isVoluntaryBetMultiple(target, bbUnitPost) ||
         target > cap ||
         target < minTarget
       ) {
@@ -704,7 +731,7 @@ export function holdemReducer(
       if (s.phase !== "river" || s.toAct == null) return state;
       const p = s.toAct;
       if (s.iaUsed[p]) return state;
-      const cost = iaCostFromPot(s.pot);
+      const cost = iaCostFromPot(s.pot, resolveHandBlinds(s).bb);
       if (cost > s.chips[p]!) return state;
       s.chips[p]! -= cost;
       s.pot -= cost;
@@ -745,9 +772,10 @@ export function holdemReducer(
         return done(s);
       }
       s.roundNumber += 1;
+      s.handBlinds = handBlindsFromRound(s.roundNumber);
       s.button = other(s.button);
       s.phase = "hand_select";
-      s.handSelectPhase = "button";
+      s.handSelectPhase = "open";
       s.preflopStage = null;
       s.preflopRaiseCount = 0;
       s.holes = [null, null];
@@ -757,13 +785,13 @@ export function holdemReducer(
       s.pot = 0;
       s.potAwardFlash = null;
       s.betting = freshBetting();
-      s.toAct = s.button;
+      s.toAct = null;
       s.winner = null;
       s.handEndMode = null;
       s.iaUsed = [false, false];
       s.iaReveal = [null, null];
       pushLog(s, { t: "round_start", round: s.roundNumber });
-      s.lastActionNote = "딜러·SB 핸드 선택";
+      s.lastActionNote = "양쪽 핸드 선택 (동시)";
       s.isAllIn = false;
       return done(s);
     }

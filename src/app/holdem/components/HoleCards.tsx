@@ -64,11 +64,28 @@ export function HoleCards({
         const pending = state.handPickPending[p];
         const showPendingOnly = selecting && pending != null && sel == null;
         const isMe = p === viewer;
+        const bettingLive =
+          state.phase === "preflop" ||
+          state.phase === "flop" ||
+          state.phase === "turn" ||
+          state.phase === "river";
+
         const isToAct =
           state.toAct === p &&
           state.matchWinner == null &&
           state.phase !== "showdown" &&
           state.phase !== "hand_over";
+
+        const isHandPickChoosing =
+          selecting && pending == null && sel == null;
+        const isHandPickSubmitted =
+          selecting && pending != null && sel == null;
+
+        const dimForNonTurn =
+          bettingLive &&
+          state.toAct != null &&
+          state.toAct !== p &&
+          state.matchWinner == null;
 
         const showFaces =
           sel != null &&
@@ -97,22 +114,39 @@ export function HoleCards({
                 ? "border-emerald-600/40 bg-emerald-950/20 ring-1 ring-emerald-500/35"
                 : "";
 
+        let toneFrame = "";
+        if (!loserShowdown) {
+          if (isToAct) {
+            toneFrame =
+              "border-emerald-400/70 bg-emerald-900/35 shadow-[0_0_30px_rgba(52,211,153,0.38)] ring-2 ring-emerald-400/50 z-[2]";
+          } else if (isHandPickChoosing) {
+            toneFrame =
+              "border-amber-400/60 bg-amber-950/28 shadow-[0_0_26px_rgba(251,191,36,0.28)] ring-2 ring-amber-400/40 z-[1]";
+          } else if (isHandPickSubmitted) {
+            toneFrame =
+              "border-emerald-500/40 bg-emerald-950/18 ring-1 ring-emerald-500/35";
+          } else if (showdownFrame) {
+            toneFrame = showdownFrame;
+          } else {
+            toneFrame = "border-zinc-600/90 bg-zinc-700/45";
+          }
+        }
+
         const frameClass = [
-          "rounded-xl border transition-[box-shadow,background-color,border-color] duration-200",
+          "rounded-xl border transition-[box-shadow,background-color,border-color,opacity,filter] duration-200",
           showdownReveal ? "px-2 py-2" : "px-3 py-3",
           loserShowdown
             ? "border-zinc-700/85 bg-zinc-800/35 text-zinc-500"
-            : "",
-          isToAct
-            ? "border-emerald-400/60 bg-emerald-900/30 shadow-[0_0_24px_rgba(52,211,153,0.22)] ring-2 ring-emerald-400/35"
-            : showdownFrame ||
-              (loserShowdown ? "" : "border-zinc-600/90 bg-zinc-700/45"),
+            : toneFrame,
+          dimForNonTurn ? "opacity-[0.52] brightness-[0.88] saturate-75" : "",
         ].join(" ");
 
         const frameStyle: CSSProperties | undefined =
           isToAct && turnPulse
             ? { animation: "holdem-turn-ring 0.32s ease-out 1" }
-            : undefined;
+            : isHandPickChoosing
+              ? { animation: "holdem-hand-pick-glow 1.8s ease-in-out infinite" }
+              : undefined;
 
         const seatName = playerNames[p]!;
 
@@ -138,7 +172,15 @@ export function HoleCards({
               )}
               {isToAct ? (
                 <span className="ml-auto rounded-full bg-emerald-600/30 px-2 py-0.5 text-[9px] font-bold text-emerald-200">
-                  턴
+                  액션 턴
+                </span>
+              ) : isHandPickChoosing ? (
+                <span className="ml-auto rounded-full bg-amber-600/35 px-2 py-0.5 text-[9px] font-bold text-amber-100">
+                  핸드 선택
+                </span>
+              ) : isHandPickSubmitted ? (
+                <span className="ml-auto rounded-full bg-emerald-700/35 px-2 py-0.5 text-[9px] font-bold text-emerald-100">
+                  확정됨
                 </span>
               ) : null}
             </div>

@@ -11,7 +11,13 @@ import { useHoldemGame } from "@/holdem/useHoldemGame";
 import { HoldemPlayUI } from "./HoldemPlayUI";
 
 export default function HoldemPageClient() {
-  const { state, dispatch, actionTimerSecondsLeft } = useHoldemGame();
+  const {
+    state,
+    dispatch,
+    actionTimerSecondsLeft,
+    localPaused,
+    toggleLocalPause,
+  } = useHoldemGame();
   const [viewer, setViewer] = React.useState<PlayerIndex>(1);
   const [playerNames, setPlayerNames] = React.useState<[string, string]>([
     DEFAULT_HOLDEM_DISPLAY_NAMES[0]!,
@@ -47,6 +53,7 @@ export default function HoldemPageClient() {
       playerNames={playerNames}
       updateName={updateName}
       playMode="local"
+      localPause={{ paused: localPaused, onToggle: toggleLocalPause }}
     />
   );
 }

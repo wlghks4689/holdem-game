@@ -6,7 +6,18 @@ import {
   actionTimerSignature,
   computeTimeoutAction,
 } from "./actionTimer";
+import {
+  normalizeRoomPause,
+  type RoomPauseState,
+} from "./roomPause";
 import type { GameAction, GameState, PlayerIndex } from "./types";
+
+export type OnlinePauseCmd =
+  | "request"
+  | "cancel_request"
+  | "accept"
+  | "reject"
+  | "resume";
 
 export function useHoldemOnlineGame(opts: {
   roomId: string;
@@ -15,6 +26,9 @@ export function useHoldemOnlineGame(opts: {
 }) {
   const { roomId, mySeat, token } = opts;
   const [state, setState] = React.useState<GameState | null>(null);
+  const [pause, setPause] = React.useState<RoomPauseState>({
+    kind: "running",
+  });
   const [loadError, setLoadError] = React.useState<string | null>(null);
 
   const stateRef = React.useRef<GameState | null>(null);
@@ -27,7 +41,11 @@ export function useHoldemOnlineGame(opts: {
       `/api/room/${roomId}?seat=${mySeat}&token=${encodeURIComponent(token)}`,
       { cache: "no-store" },
     );
-    const j = (await r.json().catch(() => ({}))) as { error?: string; state?: GameState };
+    const j = (await r.json().catch(() => ({}))) as {
+      error?: string;
+      state?: GameState;
+      pause?: unknown;
+    };
     if (!r.ok) {
       setLoadError(j.error ?? r.statusText);
       return;
@@ -35,6 +53,7 @@ export function useHoldemOnlineGame(opts: {
     if (j.state) {
       setLoadError(null);
       setState(j.state);
+      setPause(normalizeRoomPause(j.pause));
     }
   }, [roomId, mySeat, token]);
 
@@ -51,10 +70,18 @@ export function useHoldemOnlineGame(opts: {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ seat: mySeat, token, action }),
       });
-      const j = (await r.json().catch(() => ({}))) as { error?: string; state?: GameState };
+      const j = (await r.json().catch(() => ({}))) as {
+        error?: string;
+        state?: GameState;
+        pause?: unknown;
+      };
       if (!r.ok) {
-        // 양측 자동 NEW_HAND 등으로 한쪽이 먼저 진행된 뒤면 400 — 에러 없이 동기화
         if (action.type === "NEW_HAND" && r.status === 400) {
+          setLoadError(null);
+          void fetchSnapshot();
+          return;
+        }
+        if (r.status === 403 && j.error === "game paused") {
           setLoadError(null);
           void fetchSnapshot();
           return;
@@ -67,16 +94,48 @@ export function useHoldemOnlineGame(opts: {
         setState(j.state);
         setLoadError(null);
       }
+      if ("pause" in j) {
+        setPause(normalizeRoomPause(j.pause));
+      }
     },
     [roomId, mySeat, token, fetchSnapshot],
   );
 
-  const [actionTimerLeft, setActionTimerLeft] = React.useState<number | null>(null);
+  const sendPauseCmd = React.useCallback(
+    async (cmd: OnlinePauseCmd) => {
+      const r = await fetch(`/api/room/${roomId}/pause`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ seat: mySeat, token, cmd }),
+      });
+      const j = (await r.json().catch(() => ({}))) as {
+        error?: string;
+        state?: GameState;
+        pause?: unknown;
+      };
+      if (!r.ok) {
+        setLoadError(j.error ?? "pause request failed");
+        void fetchSnapshot();
+        return;
+      }
+      setLoadError(null);
+      if (j.state) {
+        setState(j.state);
+      }
+      setPause(normalizeRoomPause(j.pause));
+    },
+    [roomId, mySeat, token, fetchSnapshot],
+  );
+
+  const [actionTimerLeft, setActionTimerLeft] = React.useState<number | null>(
+    null,
+  );
   const timerSig = state != null ? actionTimerSignature(state) : null;
   const limitMs = state != null ? actionTimerLimitMs(state) ?? 0 : 0;
+  const paused = pause.kind === "paused";
 
   React.useEffect(() => {
-    if (state == null || timerSig == null) {
+    if (state == null || timerSig == null || paused) {
       setActionTimerLeft(null);
       return;
     }
@@ -106,8 +165,7 @@ export function useHoldemOnlineGame(opts: {
       window.clearInterval(iv);
       window.clearTimeout(to);
     };
-    // `state`는 폴링마다 새 참조라 deps에 넣으면 타이머가 계속 리셋됨. 시그니처·한도만 본다.
-  }, [timerSig, limitMs, dispatch]);
+  }, [timerSig, limitMs, dispatch, paused]);
 
   return {
     state,
@@ -115,5 +173,7 @@ export function useHoldemOnlineGame(opts: {
     actionTimerSecondsLeft: actionTimerLeft,
     loadError,
     refetch: fetchSnapshot,
+    pause,
+    sendPauseCmd,
   };
 }

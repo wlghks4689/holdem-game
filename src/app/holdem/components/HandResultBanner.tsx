@@ -6,6 +6,7 @@ import {
   handValueShowdownConciseKorean,
 } from "@/holdem/pokerEval";
 import { totalIaDeductedFromPotThisHand } from "@/holdem/bettingHelpers";
+import { resolveHandBlinds } from "@/holdem/blindLevels";
 import { chipsAsBbLabel } from "@/holdem/formatBb";
 import type { GameState, PlayerIndex } from "@/holdem/types";
 
@@ -18,6 +19,7 @@ export function HandResultBanner({ state, playerNames }: HandResultBannerProps) 
   const pl = (p: PlayerIndex) => playerNames[p] ?? `플레이어 ${p + 1}`;
   const h0 = state.holes[0];
   const h1 = state.holes[1];
+  const bbUnit = resolveHandBlinds(state).bb;
 
   if (state.phase === "showdown" && h0 && h1) {
     const all0 = [...h0.hole, ...state.board];
@@ -30,7 +32,9 @@ export function HandResultBanner({ state, playerNames }: HandResultBannerProps) 
     const highlight1 = split || cmp < 0;
     const lastPotLog = [...state.logs].reverse().find((m) => m.t === "showdown");
     const potBb =
-      lastPotLog?.t === "showdown" ? chipsAsBbLabel(lastPotLog.pot) : null;
+      lastPotLog?.t === "showdown"
+        ? chipsAsBbLabel(lastPotLog.pot, bbUnit)
+        : null;
     const iaDeducted = totalIaDeductedFromPotThisHand(state.logs);
 
     const leadHand = split
@@ -90,7 +94,7 @@ export function HandResultBanner({ state, playerNames }: HandResultBannerProps) 
           </p>
           {iaDeducted > 0 ? (
             <p className="mt-2 font-mono text-[10px] text-indigo-300/75">
-              IA 제외 {chipsAsBbLabel(iaDeducted)}
+              IA 제외 {chipsAsBbLabel(iaDeducted, bbUnit)}
             </p>
           ) : null}
         </div>

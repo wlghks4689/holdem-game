@@ -4,16 +4,10 @@ export const CHIPS_PER_BB = 1;
 /** 최소 칩 단위 — 0.5bb = 0.5칩 */
 export const SMALLEST_CHIP = 0.5;
 
-/** 자발 베트/레이즈 최소액 (= 1BB) */
+/** 자발 베트 기준 BB 배수 환산용(티어 1에서의 1BB 칩 수). 실제 최소 베트는 `handBlinds.bb` */
 export const BET_RAISE_UNIT = CHIPS_PER_BB;
 
-/**
- * 프리플랍 앤티 (bb) — BB만 1BB 블라인드 + 이 앤티를 함께 포스트(총 2bb).
- * 버튼은 SB 0.5bb만 포스트 → 시작 팟 2.5bb.
- */
-export const PREFLOP_ANTE_BB = 1;
-
-/** 시작 스택 (칩). CHIPS_PER_BB=1 이면 200 → 200bb */
+/** 시작 스택 (칩). 티어 1 기준 200bb */
 export const STARTING_CHIPS = 200;
 export const TOTAL_ROUNDS = 30;
 
@@ -34,6 +28,9 @@ export const PREFLOP_UI_BB_VS_OPEN_BB = [3] as const;
 export const POSTFLOP_MAX_BET_POT_FRACTION = 0.5;
 
 export const IA_COST_POT_FRACTION = 0.3;
+
+/** IA 비용 하한(팟의 30%와 `Math.max`로 적용) — 최소 3BB */
+export const IA_COST_MIN_BB = 3;
 
 export const PLAYER_COUNT = 2;
 

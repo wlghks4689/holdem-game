@@ -5,7 +5,7 @@ import {
   effectiveCallPay,
   facingFor,
 } from "@/holdem/bettingHelpers";
-import { CHIPS_PER_BB } from "@/holdem/constants";
+import { resolveHandBlinds } from "@/holdem/blindLevels";
 import { chipsAsBbLabel } from "@/holdem/formatBb";
 import type { GameState, PlayerIndex } from "@/holdem/types";
 
@@ -13,6 +13,14 @@ function fmtChips(v: number): string {
   const r = Math.round(v * 100) / 100;
   if (Number.isInteger(r)) return String(r);
   return r.toFixed(1);
+}
+
+/** 팟을 BB로 — 정수면 소수 없음, 아니면 최대 소수 1자리(끝 .0 제거) */
+function potInBbCompact(pot: number, bbUnit: number): string {
+  if (bbUnit < 1e-9) return "—";
+  const bb = pot / bbUnit;
+  if (Math.abs(bb - Math.round(bb)) < 1e-6) return `${Math.round(bb)}BB`;
+  return `${bb.toFixed(1).replace(/\.0$/, "")}BB`;
 }
 
 const other = (p: PlayerIndex): PlayerIndex => (p === 0 ? 1 : 0);
@@ -36,6 +44,7 @@ function opponentActionNarrative(
   state: GameState,
   viewer: PlayerIndex,
 ): { primary: React.ReactNode; secondary: React.ReactNode } {
+  const bbUnit = resolveHandBlinds(state).bb;
   const dead =
     state.matchWinner != null ||
     state.phase === "showdown" ||
@@ -81,13 +90,13 @@ function opponentActionNarrative(
   /** 콜 액 표시 (항상 실제 지불 가능액) */
   const callLineNormal = (
     <>
-      콜해야 하는 금액 <EmBb n={chipsAsBbLabel(pay)} />
+      콜해야 하는 금액 <EmBb n={chipsAsBbLabel(pay, bbUnit)} />
     </>
   );
 
   const callLineAllIn = (
     <>
-      콜하면 올인 (내 칩 <EmBb n={chipsAsBbLabel(pay)} />)
+      콜하면 올인 (내 칩 <EmBb n={chipsAsBbLabel(pay, bbUnit)} />)
     </>
   );
 
@@ -105,7 +114,7 @@ function opponentActionNarrative(
         primary: (
           <>
             콜 — 플랫{" "}
-            <EmBb n={chipsAsBbLabel(facing)} />
+            <EmBb n={chipsAsBbLabel(facing, bbUnit)} />
           </>
         ),
         secondary: callLineNormal,
@@ -120,15 +129,15 @@ function opponentActionNarrative(
     if (state.preflopStage === "facing_raise" && facing > 1e-9) {
       const line1 = oppAllIn ? (
         <>
-          상대 올인 <EmBb n={chipsAsBbLabel(oppContrib)} />
+          상대 올인 <EmBb n={chipsAsBbLabel(oppContrib, bbUnit)} />
         </>
       ) : state.preflopRaiseCount >= 2 ? (
         <>
-          상대 레이즈 <EmBb n={chipsAsBbLabel(oppContrib)} />
+          상대 레이즈 <EmBb n={chipsAsBbLabel(oppContrib, bbUnit)} />
         </>
       ) : (
         <>
-          상대 베팅 <EmBb n={chipsAsBbLabel(oppContrib)} />
+          상대 베팅 <EmBb n={chipsAsBbLabel(oppContrib, bbUnit)} />
         </>
       );
       return {
@@ -162,15 +171,15 @@ function opponentActionNarrative(
     const isFirstAggression = !state.betting.raiseDone;
     const line1 = oppAllIn ? (
       <>
-        상대 올인 <EmBb n={chipsAsBbLabel(oppContrib)} />
+        상대 올인 <EmBb n={chipsAsBbLabel(oppContrib, bbUnit)} />
       </>
     ) : isFirstAggression ? (
       <>
-        상대 베팅 <EmBb n={chipsAsBbLabel(oppContrib)} />
+        상대 베팅 <EmBb n={chipsAsBbLabel(oppContrib, bbUnit)} />
       </>
     ) : (
       <>
-        상대 레이즈 <EmBb n={chipsAsBbLabel(oppContrib)} />
+        상대 레이즈 <EmBb n={chipsAsBbLabel(oppContrib, bbUnit)} />
       </>
     );
     return {
@@ -222,27 +231,36 @@ export function PlayAreaPotBetting({ state, viewer }: PlayAreaPotBettingProps) {
   }, [state.pot, state.chips[0], state.chips[1]]);
 
   const { primary, secondary } = opponentActionNarrative(state, viewer);
+  const potBbUnit = resolveHandBlinds(state).bb;
 
   return (
     <div className="rounded-xl border border-amber-900/45 bg-gradient-to-b from-zinc-900/80 to-zinc-800/90 px-4 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] lg:border-amber-800/50 lg:py-4">
       <div className="flex flex-col items-center gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-4 lg:items-center lg:justify-center lg:gap-10">
         <div className="text-center sm:text-left lg:text-center">
-          <div className="text-[10px] font-bold uppercase tracking-wider text-amber-500/85">
-            팟
-          </div>
-          <div
-            key={potBumpKey}
-            className="font-mono text-2xl font-bold tabular-nums text-amber-100 lg:text-3xl"
-            style={
-              potBumpKey > 0
-                ? { animation: "holdem-pot-bump 0.36s ease-out 1" }
-                : undefined
-            }
-          >
-            {fmtChips(state.pot)}
-          </div>
-          <div className="text-[11px] text-amber-200/65">
-            ≈ {(state.pot / CHIPS_PER_BB).toFixed(2)} BB
+          <div className="flex flex-wrap items-baseline justify-center gap-x-1.5 gap-y-0.5 sm:justify-start lg:justify-center">
+            <span className="text-2xl font-bold uppercase leading-none tracking-wide text-amber-500/95 lg:text-3xl">
+              팟
+            </span>
+            <span
+              key={potBumpKey}
+              className="font-mono text-2xl font-bold tabular-nums leading-none text-amber-100 lg:text-3xl"
+              style={
+                potBumpKey > 0
+                  ? { animation: "holdem-pot-bump 0.36s ease-out 1" }
+                  : undefined
+              }
+            >
+              {fmtChips(state.pot)}
+            </span>
+            <span
+              className="select-none text-2xl font-bold leading-none text-amber-200/55 lg:text-3xl"
+              aria-hidden
+            >
+              =
+            </span>
+            <span className="font-mono text-2xl font-bold tabular-nums leading-none text-amber-200 lg:text-3xl">
+              {potInBbCompact(state.pot, potBbUnit)}
+            </span>
           </div>
         </div>
         <div className="min-w-0 flex-1 text-center sm:text-left lg:max-w-md lg:text-center">

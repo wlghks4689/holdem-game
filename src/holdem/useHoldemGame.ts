@@ -1,6 +1,7 @@
 'use client';
 
-import * as React from "react";import {
+import * as React from "react";
+import {
   actionTimerLimitMs,
   actionTimerSignature,
   computeTimeoutAction,
@@ -15,6 +16,8 @@ export function useHoldemGame() {
     createInitialGameState,
   );
 
+  const [localPaused, setLocalPaused] = React.useState(false);
+
   const stateRef = React.useRef(state);
   React.useLayoutEffect(() => {
     stateRef.current = state;
@@ -28,7 +31,7 @@ export function useHoldemGame() {
   const limitMs = actionTimerLimitMs(state) ?? 0;
 
   React.useEffect(() => {
-    if (timerSig == null) {
+    if (timerSig == null || localPaused) {
       setActionTimerLeft(null);
       return;
     }
@@ -48,6 +51,7 @@ export function useHoldemGame() {
 
     const to = window.setTimeout(() => {
       const cur = stateRef.current;
+      if (cur == null) return;
       if (actionTimerSignature(cur) !== sigAtStart) return;
       const a = computeTimeoutAction(cur);
       if (a != null) dispatch(a);
@@ -57,12 +61,18 @@ export function useHoldemGame() {
       window.clearTimeout(to);
       window.clearInterval(iv);
     };
-  }, [timerSig, limitMs, dispatch]);
+  }, [timerSig, limitMs, dispatch, localPaused]);
+
+  const toggleLocalPause = React.useCallback(() => {
+    setLocalPaused((v) => !v);
+  }, []);
 
   return {
     state,
     dispatch,
     act: (a: GameAction) => dispatch(a),
     actionTimerSecondsLeft: actionTimerLeft,
+    localPaused,
+    toggleLocalPause,
   };
 }

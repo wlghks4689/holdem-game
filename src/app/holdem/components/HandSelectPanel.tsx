@@ -8,7 +8,12 @@ import {
   templateLabel,
 } from "@/holdem/handPool";
 import { HU_BB_LABEL, HU_DEALER_SB_LABEL } from "@/holdem/headsUpLabels";
-import type { GameState, HandPoolTemplate, OpponentHandCategory, PlayerIndex } from "@/holdem/types";
+import type {
+  GameState,
+  HandPoolTemplate,
+  OpponentHandCategory,
+  PlayerIndex,
+} from "@/holdem/types";
 
 const CATEGORY_ORDER: OpponentHandCategory[] = [
   "하이파켓",
@@ -53,40 +58,42 @@ export type HandSelectPanelProps = {
   onSelect: (player: PlayerIndex, templateId: string) => void;
 };
 
-export function HandSelectPanel({
+type ColumnProps = {
+  state: GameState;
+  player: PlayerIndex;
+  titleName: string;
+  /** 좁은 뷰·2열 레이아웃용 밀도 높은 그리드 */
+  compact: boolean;
+  onSelect: (player: PlayerIndex, templateId: string) => void;
+};
+
+function HandPickerColumn({
   state,
-  playerNames,
-  mySeat,
+  player,
+  titleName,
+  compact,
   onSelect,
-}: HandSelectPanelProps) {
+}: ColumnProps) {
   const phase = state.handSelectPhase;
   const [pick, setPick] = React.useState<string | null>(null);
 
-  const tpl = pick ? findTemplate(pick) : null;
-  const categoryForPick = tpl?.iaCategory ?? null;
+  const pending = state.handPickPending[player];
 
   React.useEffect(() => {
     setPick(null);
-  }, [phase, state.roundNumber]);
+  }, [phase, state.roundNumber, player]);
 
+  const tpl = pick ? findTemplate(pick) : null;
+  const categoryForPick = tpl?.iaCategory ?? null;
   const canConfirm = tpl != null;
-
-  /** hand_select 종료 후에도 hooks 개수 유지 — "done"일 때는 풀 조회용 인덱스만 안전한 기본값 */
-  const selectingPlayer: PlayerIndex =
-    phase === "button"
-      ? state.button
-      : phase === "bb"
-        ? state.button === 0
-          ? 1
-          : 0
-        : 0;
 
   const poolForActor = React.useMemo(() => {
     const pools = normalizeHandPoolRemaining(state.handPoolRemaining as unknown);
-    return pools[selectingPlayer] ?? {};
-  }, [state.handPoolRemaining, selectingPlayer]);
+    return pools[player] ?? {};
+  }, [state.handPoolRemaining, player]);
 
-  const player: PlayerIndex = selectingPlayer;
+  const posLabel =
+    state.button === player ? HU_DEALER_SB_LABEL : HU_BB_LABEL;
 
   const submit = () => {
     if (!tpl || !canConfirm) return;
@@ -99,40 +106,66 @@ export function HandSelectPanel({
     setPick(id);
   };
 
-  if (phase !== "done" && mySeat !== undefined && selectingPlayer !== mySeat) {
-    return (
-      <div className="rounded-xl border border-violet-600/35 bg-violet-950/20 p-4 text-center text-sm text-violet-100/90">
-        상대가 핸드 풀에서 핸드를 고르는 중입니다.
-      </div>
-    );
-  }
+  const catGridClass = compact
+    ? "grid grid-cols-2 gap-1.5"
+    : "grid grid-cols-2 gap-2 lg:grid-cols-3";
+  const handGridClass = compact
+    ? "grid grid-cols-4 gap-1"
+    : "grid grid-cols-3 gap-1.5 sm:grid-cols-4";
+  const btnMinH = compact ? "min-h-[2.35rem]" : "min-h-[3.25rem]";
+  const monoSize = compact ? "text-xs" : "text-sm";
 
-  return phase === "done" ? null : (
-    <div className="rounded-xl border border-violet-600/45 bg-violet-900/22 p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]">
-      <h3 className="mb-3 text-sm font-semibold text-violet-50">
-        {playerNames[player]} 핸드 선택{" "}
-        <span className="font-normal text-violet-200/95">
-          ({phase === "button" ? HU_DEALER_SB_LABEL : HU_BB_LABEL})
-        </span>
+  return (
+    <div
+      className={[
+        "rounded-xl border p-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] transition-[box-shadow,border-color,background-color] duration-300",
+        pending != null
+          ? "border-emerald-500/45 bg-emerald-950/25 shadow-[0_0_24px_rgba(52,211,153,0.12)]"
+          : "border-amber-500/40 bg-amber-950/15 shadow-[0_0_22px_rgba(251,191,36,0.12)] ring-1 ring-amber-400/25",
+      ].join(" ")}
+    >
+      <h3 className="mb-2 flex flex-wrap items-baseline gap-x-2 gap-y-0.5 text-xs font-semibold text-zinc-50 sm:text-sm">
+        <span>{titleName}</span>
+        <span className="font-normal text-violet-200/90">({posLabel})</span>
+        {pending != null ? (
+          <span className="ml-auto rounded-full bg-emerald-600/35 px-2 py-px text-[10px] font-bold text-emerald-100">
+            확정됨
+          </span>
+        ) : (
+          <span className="ml-auto rounded-full bg-amber-600/30 px-2 py-px text-[10px] font-bold text-amber-100">
+            선택 중
+          </span>
+        )}
       </h3>
 
-      <div className="lg:grid lg:grid-cols-2 lg:gap-3">
+      <div className={catGridClass}>
         {CATEGORY_ORDER.map((cat) => {
           const hands = TEMPLATES_BY_CATEGORY.get(cat) ?? [];
           return (
             <section
               key={cat}
-              className="mb-3 rounded-lg border border-zinc-600/75 bg-zinc-800/50 p-2.5 last:mb-0 lg:mb-0"
+              title={CATEGORY_BLURB[cat]}
+              className={[
+                "rounded-md border border-zinc-600/70 bg-zinc-800/55",
+                compact ? "p-1.5" : "p-2",
+              ].join(" ")}
             >
-              <div className="mb-2 border-b border-zinc-600/70 pb-2">
-                <h4 className="text-xs font-bold uppercase tracking-wide text-zinc-100">
+              <div
+                className={[
+                  "border-b border-zinc-600/55",
+                  compact ? "mb-1 pb-1" : "mb-2 pb-2",
+                ].join(" ")}
+              >
+                <h4 className="text-[10px] font-bold uppercase tracking-wide text-zinc-100">
                   {cat}
                 </h4>
-                <p className="mt-0.5 text-[11px] leading-snug text-zinc-400">
-                  {CATEGORY_BLURB[cat]}
-                </p>
+                {!compact ? (
+                  <p className="mt-0.5 text-[11px] leading-snug text-zinc-400">
+                    {CATEGORY_BLURB[cat]}
+                  </p>
+                ) : null}
               </div>
-              <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
+              <div className={handGridClass}>
                 {hands.map((t) => {
                   const left = poolForActor[t.id] ?? 0;
                   const sel = pick === t.id;
@@ -143,18 +176,21 @@ export function HandSelectPanel({
                       type="button"
                       disabled={dead}
                       onClick={() => onHandClick(t.id)}
+                      title={`${templateLabel(t)} · 잔여 ×${left}`}
                       className={[
-                        "group relative flex min-h-[3.25rem] flex-col items-center justify-center rounded-lg border px-1.5 py-2 text-center transition-all",
+                        "group relative flex flex-col items-center justify-center rounded-md border px-0.5 py-1 text-center transition-all",
+                        btnMinH,
                         dead
                           ? "cursor-not-allowed border-zinc-700/80 bg-zinc-800/35 opacity-50 grayscale"
                           : sel
-                            ? "border-violet-400 bg-gradient-to-b from-violet-800/55 to-violet-900/65 shadow-[0_0_16px_rgba(167,139,250,0.35)] ring-1 ring-violet-400/60"
+                            ? "border-violet-400 bg-gradient-to-b from-violet-800/55 to-violet-900/65 shadow-[0_0_14px_rgba(167,139,250,0.4)] ring-1 ring-violet-400/55"
                             : "border-zinc-500/90 bg-zinc-700/55 hover:border-violet-500/55 hover:bg-zinc-600/65",
                       ].join(" ")}
                     >
                       <span
                         className={[
-                          "font-mono text-sm font-bold tracking-tight",
+                          "font-mono font-bold leading-none tracking-tight",
+                          monoSize,
                           dead ? "text-zinc-500" : sel ? "text-violet-50" : "text-zinc-50",
                         ].join(" ")}
                       >
@@ -162,7 +198,8 @@ export function HandSelectPanel({
                       </span>
                       <span
                         className={[
-                          "mt-0.5 text-[10px] font-medium",
+                          "mt-0.5 font-medium leading-none",
+                          compact ? "text-[9px]" : "text-[10px]",
                           dead ? "text-zinc-500" : "text-zinc-400",
                         ].join(" ")}
                       >
@@ -177,13 +214,18 @@ export function HandSelectPanel({
         })}
       </div>
 
-      <div className="mt-4 space-y-3 rounded-lg border border-zinc-600/85 bg-zinc-800/60 p-3">
+      <div
+        className={[
+          "mt-2 space-y-2 rounded-lg border border-zinc-600/80 bg-zinc-800/55",
+          compact ? "p-2" : "p-2.5",
+        ].join(" ")}
+      >
         <div>
           <div className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400">
             현재 선택
           </div>
           {tpl ? (
-            <div className="mt-1.5 space-y-0.5 text-sm">
+            <div className="mt-1 space-y-0.5 text-xs">
               <p className="text-zinc-50">
                 <span className="text-zinc-400">핸드 · </span>
                 <span className="font-mono font-semibold text-amber-100">
@@ -191,27 +233,22 @@ export function HandSelectPanel({
                 </span>
                 <span className="text-zinc-400"> ({kindLabelKo(tpl)})</span>
               </p>
-              <p className="text-xs text-zinc-300">
+              <p className="text-[11px] text-zinc-300">
                 <span className="text-zinc-500">카테고리 · </span>
                 {categoryForPick}
               </p>
             </div>
           ) : (
-            <p className="mt-1.5 text-xs text-zinc-400">위에서 핸드를 고르세요.</p>
+            <p className="mt-1 text-[11px] text-zinc-400">위에서 핸드를 고르세요.</p>
           )}
         </div>
-
-        <p className="rounded-md border border-zinc-600/80 bg-zinc-700/45 px-2.5 py-2 text-[11px] leading-snug text-zinc-300">
-          페어·수딧·오프 모두 문양 없이 선택합니다. 상대와 같은 핸드여도 52장에 겹치지 않게 문양이
-          균등 무작위로 배정됩니다.
-        </p>
 
         <button
           type="button"
           onClick={submit}
           disabled={!canConfirm}
           className={[
-            "w-full rounded-lg py-2.5 text-sm font-semibold transition-colors",
+            "w-full rounded-lg py-2 text-xs font-semibold transition-colors sm:text-sm",
             canConfirm
               ? "bg-violet-600 text-white hover:bg-violet-500 active:bg-violet-700"
               : "cursor-not-allowed bg-zinc-700 text-zinc-400",
@@ -219,7 +256,78 @@ export function HandSelectPanel({
         >
           이 핸드로 확정
         </button>
+        {pending != null ? (
+          <p className="text-[10px] leading-snug text-zinc-500">
+            확정 후에도 상대가 끝나기 전까지는 다른 핸드로 골라 다시 확정할 수
+            있어요.
+          </p>
+        ) : null}
       </div>
+    </div>
+  );
+}
+
+export function HandSelectPanel({
+  state,
+  playerNames,
+  mySeat,
+  onSelect,
+}: HandSelectPanelProps) {
+  const phase = state.handSelectPhase;
+  if (phase === "done") return null;
+
+  const compact = true;
+
+  if (mySeat !== undefined) {
+    return (
+      <div className="rounded-xl border border-violet-600/45 bg-violet-900/18 p-2 sm:p-3">
+        <p className="mb-2 text-[11px] leading-snug text-violet-100/85">
+          링크로 같이 하는 상대와 <strong className="text-violet-50">동시에</strong>{" "}
+          고르고, 각자 이 화면에서 확정하세요.
+        </p>
+        <HandPickerColumn
+          state={state}
+          player={mySeat}
+          titleName={playerNames[mySeat]!}
+          compact={compact}
+          onSelect={onSelect}
+        />
+      </div>
+    );
+  }
+
+  return (
+    <div className="rounded-xl border border-violet-600/45 bg-violet-900/22 p-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] sm:p-3">
+      <h3 className="mb-2 text-sm font-semibold text-violet-50">
+        핸드 선택{" "}
+        <span className="font-normal text-violet-200/90">
+          — 둘 다 동시에 고른 뒤 각자 확정
+        </span>
+      </h3>
+      <p className="mb-3 text-[11px] leading-snug text-zinc-400">
+        차례를 기다리지 않아도 됩니다. 한쪽만 먼저 확정하면 다른 쪽 확정 시
+        바로 이어집니다.
+      </p>
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+        <HandPickerColumn
+          state={state}
+          player={0}
+          titleName={playerNames[0]!}
+          compact={compact}
+          onSelect={onSelect}
+        />
+        <HandPickerColumn
+          state={state}
+          player={1}
+          titleName={playerNames[1]!}
+          compact={compact}
+          onSelect={onSelect}
+        />
+      </div>
+      <p className="mt-3 rounded-md border border-zinc-600/70 bg-zinc-800/45 px-2.5 py-2 text-[10px] leading-snug text-zinc-400">
+        페어·수딧·오프는 문양 없이 고릅니다. 같은 핸드여도 52장에 겹치지 않게
+        문양이 무작위로 배정됩니다.
+      </p>
     </div>
   );
 }

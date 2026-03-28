@@ -53,6 +53,13 @@ export type BettingRoundMeta = {
 /** 프리플랍 서브단계 — 헤즈업 블라인드 포스팅 후 */
 export type PreflopStage = "button_acts" | "bb_option" | "facing_raise";
 
+/** 이번 핸드에 고정된 스몰/빅/앤티(칩). 핸드 시작(라운드 확정) 시 설정, 진행 중 불변 */
+export type HandBlinds = {
+  sb: number;
+  bb: number;
+  ante: number;
+};
+
 export type GameMessage =
   | { t: "round_start"; round: number }
   | { t: "hand_pick_conflict" }
@@ -76,6 +83,7 @@ export type GameMessage =
 export type GameState = {
   phase: Street;
   roundNumber: number;
+  handBlinds: HandBlinds;
   /**
    * 이번 핸드의 딜러 버튼(헤즈업에서 스몰 블라인드) 좌석.
    * `NEW_HAND`마다 교대 — 특정 좌석에 고정되지 않습니다.
@@ -101,7 +109,8 @@ export type GameState = {
   /** 턴을 끝낼 플레이어 (액션해야 하는 사람) */
   toAct: PlayerIndex | null;
   /** 프리플랍: 버튼이 아직 선택 안 함 */
-  handSelectPhase: "button" | "bb" | "done";
+  /** 핸드 선택: `open`이면 양쪽이 동시에 고르고 각각 확정 가능 */
+  handSelectPhase: "open" | "done";
   preflopStage: PreflopStage | null;
   /** 프리플랍 레이즈 횟수 (3-bet 금지: 2 도달 후 추가 레이즈 불가) */
   preflopRaiseCount: number;

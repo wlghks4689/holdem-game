@@ -17,13 +17,14 @@ import {
   roundHalfChip,
 } from "@/holdem/bettingHelpers";
 import {
-  BET_RAISE_UNIT,
-  CHIPS_PER_BB,
+  ACTION_TIMER_SECONDS,
+  HAND_SELECT_TIMER_SECONDS,
   NEW_HAND_AUTO_SECONDS,
   PREFLOP_UI_BB_VS_OPEN_BB,
   PREFLOP_UI_BUTTON_OPEN_BB,
   SMALLEST_CHIP,
 } from "@/holdem/constants";
+import { resolveHandBlinds } from "@/holdem/blindLevels";
 import { chipsAsBbLabel } from "@/holdem/formatBb";
 import { headsUpPositionLabel } from "@/holdem/headsUpLabels";
 import type { GameAction, GameState, PlayerIndex } from "@/holdem/types";
@@ -34,7 +35,36 @@ export type ActionPanelProps = {
   playerNames: [string, string];
   /** 온라인 방: 내 차례일 때만 액션 버튼 표시 */
   mySeat?: PlayerIndex;
+  /** 액션/핸드선택 제한시간 남은 초 — 헤더 우측 표시 */
+  actionTimerSecondsLeft?: number | null;
 };
+
+function ActionTimerChip({
+  secondsLeft,
+  isHandSelect,
+}: {
+  secondsLeft: number;
+  isHandSelect: boolean;
+}) {
+  return (
+    <div
+      className={[
+        "shrink-0 rounded-md px-2 py-0.5 font-mono font-bold tabular-nums leading-tight",
+        secondsLeft <= 10
+          ? "bg-rose-900/55 text-rose-100 ring-1 ring-rose-500/45"
+          : "bg-zinc-800/95 text-amber-50",
+      ].join(" ")}
+      style={{ fontSize: "calc(0.75rem * 1.3)" }}
+      title={
+        isHandSelect
+          ? `${HAND_SELECT_TIMER_SECONDS}초 안에 미확정 좌석은 풀에서 가능한 첫 핸드로 자동 제출됩니다.`
+          : `${ACTION_TIMER_SECONDS}초 안에 액션이 없으면 자동 체크(맞출 베팅이 없을 때) 또는 폴드됩니다.`
+      }
+    >
+      남은 시간 {secondsLeft}s
+    </div>
+  );
+}
 
 const btnPrimary =
   "rounded-lg border border-emerald-500/80 bg-emerald-800/45 px-3 py-2 text-xs font-semibold text-emerald-50 hover:bg-emerald-700/45 disabled:cursor-not-allowed disabled:opacity-45";
@@ -45,59 +75,123 @@ const btnDanger =
 const btnIa =
   "rounded-lg border border-indigo-400/60 bg-indigo-900/45 px-3 py-2 text-xs font-semibold text-indigo-50 hover:bg-indigo-800/40 disabled:cursor-not-allowed disabled:opacity-45";
 
-export function ActionPanel({ state, dispatch, playerNames, mySeat }: ActionPanelProps) {
+/** 입력 문자열을 [minV, maxV]로 클램프 후 0.5칩 단위 스냅 */
+function clampChipField(draft: string, minV: number, maxV: number): number {
+  const t = draft.trim().replace(",", ".");
+  if (t === "" || t === "-" || t === ".") return roundHalfChip(minV);
+  const n = Number(t);
+  if (!Number.isFinite(n)) return roundHalfChip(minV);
+  return roundHalfChip(Math.min(maxV, Math.max(minV, n)));
+}
+
+export function ActionPanel({
+  state,
+  dispatch,
+  playerNames,
+  mySeat,
+  actionTimerSecondsLeft = null,
+}: ActionPanelProps) {
   const pl = (p: PlayerIndex) => playerNames[p] ?? `플레이어 ${p + 1}`;
   const p = state.toAct;
-  const [betAmt, setBetAmt] = React.useState(BET_RAISE_UNIT);
-  const [postRaiseTo, setPostRaiseTo] = React.useState(BET_RAISE_UNIT * 2);
+  /** 포스트플랍 베트·레이즈 숫자 입력(폴링 등으로 매 틱 덮어쓰지 않도록 문자열 유지) */
+  const [betDraft, setBetDraft] = React.useState("1");
+  const [raiseDraft, setRaiseDraft] = React.useState("2");
 
   const phase = state.phase;
   const betting = state.betting;
 
-  React.useEffect(() => {
-    if (p == null) return;
-    const f = facingFor(p, betting);
-    const lv = levelFromContributions(betting);
-    if (phase === "flop" || phase === "turn" || phase === "river") {
-      const maxB = postflopMaxBet(state.pot, state.chips[p]!);
-      if (maxB >= BET_RAISE_UNIT) {
-        setBetAmt(
-          Math.min(
-            maxB,
-            Math.max(BET_RAISE_UNIT, roundHalfChip(maxB / 2)),
-          ),
-        );
-      } else {
-        setBetAmt(BET_RAISE_UNIT);
-      }
-      if (f > 0) {
-        const maxT = postflopEffectiveMaxRaiseToLevel(
-          state.pot,
-          f,
-          betting.contributed[p]!,
-          state.chips[p]!,
-        );
-        const minR = postflopMinRaiseToLevelChips(lv, f);
-        setPostRaiseTo(Math.min(minR, maxT));
-      }
-    }
-    // 온라인 폴링은 매번 새 객체를 주므로 `betting`/`chips` 참조가 아닌 값만 deps에 둔다.
+  const postFlopSyncKey = React.useMemo(() => {
+    if (state.matchWinner != null) return "";
+    if (state.phase !== "flop" && state.phase !== "turn" && state.phase !== "river")
+      return "";
+    if (state.toAct == null) return "";
+    const actor = state.toAct;
+    const b = state.betting;
+    const f = facingFor(actor, b);
+    const lv = levelFromContributions(b);
+    const maxBetHere = postflopMaxBet(state.pot, state.chips[actor]!);
+    const minR = f > 0 ? postflopMinRaiseToLevelChips(lv, f) : 0;
+    const maxT =
+      f > 0
+        ? postflopEffectiveMaxRaiseToLevel(
+            state.pot,
+            f,
+            b.contributed[actor]!,
+            state.chips[actor]!,
+          )
+        : 0;
+    return [
+      state.roundNumber,
+      state.phase,
+      actor,
+      lv,
+      f,
+      b.raiseDone,
+      b.checksThisStreet,
+      b.contributed[0],
+      b.contributed[1],
+      state.pot,
+      state.chips[0],
+      state.chips[1],
+      maxBetHere,
+      minR,
+      maxT,
+      state.handBlinds.bb,
+    ].join("|");
   }, [
-    p,
-    phase,
-    betting.contributed[0],
-    betting.contributed[1],
-    betting.currentLevel,
-    betting.raiseDone,
-    betting.checksThisStreet,
-    state.preflopStage,
-    state.button,
+    state.matchWinner,
+    state.roundNumber,
+    state.phase,
+    state.toAct,
+    state.handBlinds,
+    state.betting.raiseDone,
+    state.betting.checksThisStreet,
+    state.betting.contributed[0],
+    state.betting.contributed[1],
+    state.betting.currentLevel,
     state.pot,
     state.chips[0],
     state.chips[1],
-    state.preflopRaiseCount,
-    state.toAct,
   ]);
+
+  const postFlopDraftsKey = React.useRef<string | null>(null);
+
+  React.useEffect(() => {
+    if (postFlopSyncKey === "") {
+      postFlopDraftsKey.current = null;
+      return;
+    }
+    if (postFlopDraftsKey.current === postFlopSyncKey) return;
+    postFlopDraftsKey.current = postFlopSyncKey;
+
+    const actor = state.toAct!;
+    const b = state.betting;
+    const f = facingFor(actor, b);
+    const lv = levelFromContributions(b);
+    const maxB = postflopMaxBet(state.pot, state.chips[actor]!);
+    const streetBb = resolveHandBlinds(state).bb;
+    if (maxB >= streetBb) {
+      setBetDraft(
+        String(
+          roundHalfChip(
+            Math.min(maxB, Math.max(streetBb, roundHalfChip(maxB / 2))),
+          ),
+        ),
+      );
+    } else {
+      setBetDraft(String(streetBb));
+    }
+    if (f > 0) {
+      const maxT = postflopEffectiveMaxRaiseToLevel(
+        state.pot,
+        f,
+        b.contributed[actor]!,
+        state.chips[actor]!,
+      );
+      const minR = postflopMinRaiseToLevelChips(lv, f);
+      setRaiseDraft(String(roundHalfChip(minR)));
+    }
+  }, [postFlopSyncKey]);
 
   const inNextHandPause =
     state.matchWinner == null &&
@@ -152,8 +246,19 @@ export function ActionPanel({ state, dispatch, playerNames, mySeat }: ActionPane
 
   if (phase === "hand_select") {
     return (
-      <div className="rounded-xl border border-zinc-600/90 bg-zinc-700/55 p-3 text-sm text-zinc-300">
-        위 패널에서 차례인 플레이어가 핸드를 고르세요.
+      <div className="rounded-xl border border-amber-500/40 bg-amber-950/20 p-2.5 text-sm text-amber-50/95">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <p className="min-w-0 flex-1 text-[13px] leading-snug">
+            핸드 풀에서 <strong className="text-amber-100">동시에</strong> 고를 수
+            있습니다. 상단에서 확정하면 프리플랍으로 넘어갑니다.
+          </p>
+          {actionTimerSecondsLeft != null ? (
+            <ActionTimerChip
+              secondsLeft={actionTimerSecondsLeft}
+              isHandSelect
+            />
+          ) : null}
+        </div>
       </div>
     );
   }
@@ -209,18 +314,27 @@ export function ActionPanel({ state, dispatch, playerNames, mySeat }: ActionPane
 
   if (mySeat != null && p !== mySeat) {
     return (
-      <div className="rounded-xl border border-zinc-600/90 bg-zinc-800/50 p-4 text-center">
-        <p className="text-sm font-medium text-zinc-200">
-          지금은 <span className="text-amber-100">{pl(p)}</span> 차례입니다.
-        </p>
-        <p className="mt-1 text-[11px] text-zinc-500">
-          상대가 액션할 때까지 기다려 주세요.
+      <div className="rounded-xl border border-zinc-600/60 bg-zinc-900/45 p-2.5 opacity-[0.72] shadow-inner">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-zinc-700/50 pb-2">
+          <p className="text-sm font-medium text-zinc-300">
+            지금은 <span className="text-amber-100/90">{pl(p)}</span> 차례
+          </p>
+          {actionTimerSecondsLeft != null ? (
+            <ActionTimerChip
+              secondsLeft={actionTimerSecondsLeft}
+              isHandSelect={false}
+            />
+          ) : null}
+        </div>
+        <p className="mt-2 text-center text-[11px] text-zinc-500">
+          상대 액션 대기 중
         </p>
       </div>
     );
   }
 
   const chips = state.chips[p]!;
+  const bbUnit = resolveHandBlinds(state).bb;
   const facing = facingFor(p, betting);
   const level = levelFromContributions(betting);
   const isAllIn = state.isAllIn;
@@ -239,7 +353,7 @@ export function ActionPanel({ state, dispatch, playerNames, mySeat }: ActionPane
   const idleAllInWaiting =
     isAllIn && chips <= 1e-9 && facing <= 1e-9 && (preflop || post);
 
-  const iaCost = iaCostFromPot(state.pot);
+  const iaCost = iaCostFromPot(state.pot, bbUnit);
   const canIa =
     phase === "river" &&
     !state.iaUsed[p] &&
@@ -277,27 +391,26 @@ export function ActionPanel({ state, dispatch, playerNames, mySeat }: ActionPane
     postRaiseMin <= postRaiseCap + 1e-9 &&
     postRaiseMin <= maxAffordableRaiseTotal + 1e-9;
 
-  const callMatchLabel = `콜 (총 ${chipsAsBbLabel(level)})`;
-  const callDetailTitle = `이번 스트리트에서 ${chipsAsBbLabel(facing)} 추가로 상대가 쌓인 액수(${chipsAsBbLabel(level)})에 맞춥니다.`;
+  const callMatchLabel = `Call (total ${chipsAsBbLabel(level, bbUnit)})`;
+  const callDetailTitle = `이번 스트리트에서 ${chipsAsBbLabel(facing, bbUnit)} 추가로 상대가 쌓인 액수(${chipsAsBbLabel(level, bbUnit)})에 맞춥니다.`;
 
   const callPay = effectiveCallPay(p, state);
   const isAllInCallUi =
     facing > 0 && callPay > 0 && Math.abs(callPay - chips) < 1e-6;
-  const callPayBb = chipsAsBbLabel(callPay);
+  const callPayBb = chipsAsBbLabel(callPay, bbUnit);
   const callButtonTitle = isAllInCallUi
     ? `스택 전부 ${callPayBb}를 맞춥니다. 남은 보드가 자동으로 깔린 뒤 쇼다운합니다.`
     : callDetailTitle;
-  const preflopCallFacingTitle = `맞춰야 할 추가 칩: ${chipsAsBbLabel(facing)}.`;
+  const preflopCallFacingTitle = `맞춰야 할 추가 칩: ${chipsAsBbLabel(facing, bbUnit)}.`;
 
-  const preMaxBbLabel = chipsAsBbLabel(preRaiseCap);
+  const preMaxBbLabel = chipsAsBbLabel(preRaiseCap, bbUnit);
 
-  const betClamped = roundHalfChip(Math.min(betAmt, maxBet));
-  const postRaiseClamped = roundHalfChip(
-    Math.min(
-      Math.max(postRaiseTo, postRaiseMin),
-      postRaiseCap,
-    ),
-  );
+  const betClamped =
+    post && maxBet > 0 ? clampChipField(betDraft, bbUnit, maxBet) : bbUnit;
+  const postRaiseClamped =
+    post && facing > 0
+      ? clampChipField(raiseDraft, postRaiseMin, postRaiseCap)
+      : postRaiseMin;
 
   if (idleAllInWaiting) {
     return (
@@ -311,40 +424,37 @@ export function ActionPanel({ state, dispatch, playerNames, mySeat }: ActionPane
     );
   }
 
-  const streetLabelKo =
-    phase === "preflop"
-      ? "프리플랍"
-      : phase === "flop"
-        ? "플랍"
-        : phase === "turn"
-          ? "턴"
-          : phase === "river"
-            ? "리버"
-            : String(phase);
   const posShort = headsUpPositionLabel(state, p);
-  const levelLabel = level > 1e-9 ? chipsAsBbLabel(level) : "—";
 
   return (
-    <div className="space-y-3 rounded-xl border border-zinc-600/90 bg-zinc-700/55 p-3">
-      <div className="space-y-0.5 border-b border-zinc-600/55 pb-2">
-        <p className="text-sm font-semibold text-zinc-50">
+    <div
+      className={[
+        "space-y-2 rounded-xl border-2 bg-zinc-700/55 p-2.5 transition-[box-shadow] duration-300",
+        mySeat != null
+          ? "border-emerald-500/55 shadow-[0_0_28px_rgba(52,211,153,0.22)] ring-1 ring-emerald-400/35"
+          : "border-emerald-400/50 shadow-[0_0_32px_rgba(52,211,153,0.28)] ring-1 ring-emerald-400/40",
+      ].join(" ")}
+      style={{ animation: "holdem-active-turn-glow 2.4s ease-in-out infinite" }}
+    >
+      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border-b border-zinc-600/55 pb-1.5">
+        <p className="min-w-0 flex-1 text-sm font-semibold text-zinc-50">
           <span className="mr-0.5" aria-hidden>
             👉
           </span>
           {pl(p)} 액션 ({posShort})
         </p>
-        <p className="text-[11px] text-zinc-400">
-          {streetLabelKo} · 스트리트 최고 {levelLabel}
-        </p>
+        {actionTimerSecondsLeft != null ? (
+          <ActionTimerChip
+            secondsLeft={actionTimerSecondsLeft}
+            isHandSelect={false}
+          />
+        ) : null}
       </div>
-      {state.lastActionNote ? (
-        <p className="text-[11px] text-zinc-400">{state.lastActionNote}</p>
-      ) : null}
 
       {respondToShoveOnly ? (
         <p className="rounded-md border border-amber-500/35 bg-amber-950/20 px-2 py-1.5 text-[11px] text-amber-100/90">
-          상대 올인 — <span className="font-semibold">폴드</span> 또는{" "}
-          <span className="font-semibold">콜(스택 전부)</span>만 가능합니다.
+          Villain all-in — <span className="font-semibold">Fold</span> or{" "}
+          <span className="font-semibold">Call (full stack)</span> only.
         </p>
       ) : null}
 
@@ -359,7 +469,7 @@ export function ActionPanel({ state, dispatch, playerNames, mySeat }: ActionPane
             <span className="font-semibold text-indigo-50">IA</span>
             <span className="text-[10px] font-normal text-indigo-200/90">비용</span>
             <span className="text-sm font-extrabold tabular-nums tracking-tight text-amber-200">
-              −{chipsAsBbLabel(iaCost)}
+              −{chipsAsBbLabel(iaCost, bbUnit)}
             </span>
           </button>
           <span className="text-[10px] text-indigo-200/80">
@@ -373,7 +483,7 @@ export function ActionPanel({ state, dispatch, playerNames, mySeat }: ActionPane
           {state.preflopStage === "button_acts" && p === state.button ? (
             <div>
               <p className="mb-1.5 text-[10px] text-zinc-400">
-                딜러·SB — BB 총액까지 맞추기 (+{chipsAsBbLabel(facing)}).
+                딜러·SB — BB 총액까지 맞추기 (+{chipsAsBbLabel(facing, bbUnit)}).
               </p>
               <div className="flex w-full flex-wrap items-end justify-between gap-x-2 gap-y-2">
                 <div className="flex min-w-0 flex-wrap items-end gap-2">
@@ -385,13 +495,13 @@ export function ActionPanel({ state, dispatch, playerNames, mySeat }: ActionPane
                       onClick={() => dispatch({ type: "PREFLOP_CALL" })}
                     >
                       {isAllInCallUi
-                        ? `올인 콜 (${callPayBb})`
-                        : `콜 (BB · +${chipsAsBbLabel(facing)})`}
+                        ? `All-in Call (${callPayBb})`
+                        : `Call (BB · +${chipsAsBbLabel(facing, bbUnit)})`}
                     </button>
                   ) : null}
                   {showPreflopRaise && !hideReraiseStreet
                     ? PREFLOP_UI_BUTTON_OPEN_BB.map((mult) => {
-                        const target = roundHalfChip(mult * CHIPS_PER_BB);
+                        const target = roundHalfChip(mult * bbUnit);
                         if (!isLegalPreflopRaiseTarget(state, target)) return null;
                         if (Math.abs(target - preRaiseCap) < 1e-6) return null;
                         return (
@@ -399,7 +509,7 @@ export function ActionPanel({ state, dispatch, playerNames, mySeat }: ActionPane
                             key={mult}
                             type="button"
                             className={btnPrimary}
-                            title={`총 기여 ${chipsAsBbLabel(target)} (상한 ${preMaxBbLabel})`}
+                            title={`총 기여 ${chipsAsBbLabel(target, bbUnit)} (상한 ${preMaxBbLabel})`}
                             onClick={() =>
                               dispatch({
                                 type: "PREFLOP_RAISE",
@@ -407,7 +517,7 @@ export function ActionPanel({ state, dispatch, playerNames, mySeat }: ActionPane
                               })
                             }
                           >
-                            레이즈 {mult}bb
+                            Raise {mult}bb
                           </button>
                         );
                       })
@@ -421,7 +531,7 @@ export function ActionPanel({ state, dispatch, playerNames, mySeat }: ActionPane
                         btnPrimary +
                         " border-amber-500/70 ring-1 ring-amber-500/35"
                       }
-                      title={`최대 총 기여 ${chipsAsBbLabel(preRaiseCap)} (${preMaxBbLabel} 상한)`}
+                      title={`최대 총 기여 ${chipsAsBbLabel(preRaiseCap, bbUnit)} (${preMaxBbLabel} 상한)`}
                       onClick={() =>
                         dispatch({
                           type: "PREFLOP_RAISE",
@@ -429,7 +539,7 @@ export function ActionPanel({ state, dispatch, playerNames, mySeat }: ActionPane
                         })
                       }
                     >
-                      레이즈 MAX ({chipsAsBbLabel(preRaiseCap)})
+                      Raise MAX ({chipsAsBbLabel(preRaiseCap, bbUnit)})
                     </button>
                   ) : null}
                 </div>
@@ -440,7 +550,7 @@ export function ActionPanel({ state, dispatch, playerNames, mySeat }: ActionPane
                     title="이번 판을 포기합니다."
                     onClick={() => dispatch({ type: "FOLD" })}
                   >
-                    폴드
+                    Fold
                   </button>
                 ) : null}
               </div>
@@ -458,12 +568,12 @@ export function ActionPanel({ state, dispatch, playerNames, mySeat }: ActionPane
                     title="추가 칩 없이 프리플랍을 통과합니다."
                     onClick={() => dispatch({ type: "PREFLOP_CHECK" })}
                   >
-                    체크
+                    Check
                   </button>
                 ) : null}
                 {showPreflopRaise && !hideReraiseStreet
                   ? PREFLOP_UI_BUTTON_OPEN_BB.map((mult) => {
-                      const target = roundHalfChip(mult * CHIPS_PER_BB);
+                      const target = roundHalfChip(mult * bbUnit);
                       if (!isLegalPreflopRaiseTarget(state, target)) return null;
                       if (Math.abs(target - preRaiseCap) < 1e-6) return null;
                       return (
@@ -471,7 +581,7 @@ export function ActionPanel({ state, dispatch, playerNames, mySeat }: ActionPane
                           key={`bb-${mult}`}
                           type="button"
                           className={btnPrimary}
-                          title={`총 기여 ${chipsAsBbLabel(target)}`}
+                          title={`총 기여 ${chipsAsBbLabel(target, bbUnit)}`}
                           onClick={() =>
                             dispatch({
                               type: "PREFLOP_RAISE",
@@ -479,7 +589,7 @@ export function ActionPanel({ state, dispatch, playerNames, mySeat }: ActionPane
                             })
                           }
                         >
-                          레이즈 {mult}bb
+                          Raise {mult}bb
                         </button>
                       );
                     })
@@ -493,7 +603,7 @@ export function ActionPanel({ state, dispatch, playerNames, mySeat }: ActionPane
                       btnPrimary +
                       " border-amber-500/70 ring-1 ring-amber-500/35"
                     }
-                    title={`최대 총 기여 ${chipsAsBbLabel(preRaiseCap)}`}
+                    title={`최대 총 기여 ${chipsAsBbLabel(preRaiseCap, bbUnit)}`}
                     onClick={() =>
                       dispatch({
                         type: "PREFLOP_RAISE",
@@ -501,7 +611,7 @@ export function ActionPanel({ state, dispatch, playerNames, mySeat }: ActionPane
                       })
                     }
                   >
-                    레이즈 MAX ({chipsAsBbLabel(preRaiseCap)})
+                    Raise MAX ({chipsAsBbLabel(preRaiseCap, bbUnit)})
                   </button>
                 ) : null}
               </div>
@@ -522,13 +632,13 @@ export function ActionPanel({ state, dispatch, playerNames, mySeat }: ActionPane
                       onClick={() => dispatch({ type: "PREFLOP_CALL" })}
                     >
                       {isAllInCallUi
-                        ? `올인 콜 (${callPayBb})`
-                        : `콜 (+${chipsAsBbLabel(facing)})`}
+                        ? `All-in Call (${callPayBb})`
+                        : `Call (+${chipsAsBbLabel(facing, bbUnit)})`}
                     </button>
                   ) : null}
                   {showPreflopRaise && !hideReraiseStreet
                     ? PREFLOP_UI_BB_VS_OPEN_BB.map((mult) => {
-                        const target = roundHalfChip(mult * CHIPS_PER_BB);
+                        const target = roundHalfChip(mult * bbUnit);
                         if (!isLegalPreflopRaiseTarget(state, target)) return null;
                         if (Math.abs(target - preRaiseCap) < 1e-6) return null;
                         return (
@@ -536,7 +646,7 @@ export function ActionPanel({ state, dispatch, playerNames, mySeat }: ActionPane
                             key={`bb3-${mult}`}
                             type="button"
                             className={btnPrimary}
-                            title={`총 기여 ${chipsAsBbLabel(target)}`}
+                            title={`총 기여 ${chipsAsBbLabel(target, bbUnit)}`}
                             onClick={() =>
                               dispatch({
                                 type: "PREFLOP_RAISE",
@@ -544,7 +654,7 @@ export function ActionPanel({ state, dispatch, playerNames, mySeat }: ActionPane
                               })
                             }
                           >
-                            레이즈 {mult}bb
+                            Raise {mult}bb
                           </button>
                         );
                       })
@@ -558,7 +668,7 @@ export function ActionPanel({ state, dispatch, playerNames, mySeat }: ActionPane
                         btnPrimary +
                         " border-amber-500/70 ring-1 ring-amber-500/35"
                       }
-                      title={`최대 총 기여 ${chipsAsBbLabel(preRaiseCap)}`}
+                      title={`최대 총 기여 ${chipsAsBbLabel(preRaiseCap, bbUnit)}`}
                       onClick={() =>
                         dispatch({
                           type: "PREFLOP_RAISE",
@@ -566,7 +676,7 @@ export function ActionPanel({ state, dispatch, playerNames, mySeat }: ActionPane
                         })
                       }
                     >
-                      레이즈 MAX ({chipsAsBbLabel(preRaiseCap)})
+                      Raise MAX ({chipsAsBbLabel(preRaiseCap, bbUnit)})
                     </button>
                   ) : null}
                 </div>
@@ -577,7 +687,7 @@ export function ActionPanel({ state, dispatch, playerNames, mySeat }: ActionPane
                     title="이번 판을 포기합니다."
                     onClick={() => dispatch({ type: "FOLD" })}
                   >
-                    폴드
+                    Fold
                   </button>
                 ) : null}
               </div>
@@ -597,8 +707,8 @@ export function ActionPanel({ state, dispatch, playerNames, mySeat }: ActionPane
                       onClick={() => dispatch({ type: "PREFLOP_CALL" })}
                     >
                       {isAllInCallUi
-                        ? `올인 콜 (${callPayBb})`
-                        : `콜 (+${chipsAsBbLabel(facing)})`}
+                        ? `All-in Call (${callPayBb})`
+                        : `Call (+${chipsAsBbLabel(facing, bbUnit)})`}
                     </button>
                   ) : null}
                 </div>
@@ -609,7 +719,7 @@ export function ActionPanel({ state, dispatch, playerNames, mySeat }: ActionPane
                     title="이번 판을 포기합니다."
                     onClick={() => dispatch({ type: "FOLD" })}
                   >
-                    폴드
+                    Fold
                   </button>
                 ) : null}
               </div>
@@ -629,7 +739,7 @@ export function ActionPanel({ state, dispatch, playerNames, mySeat }: ActionPane
                   title="베팅이 없을 때 팟을 늘리지 않고 넘깁니다."
                   onClick={() => dispatch({ type: "POSTFLOP_CHECK" })}
                 >
-                  체크
+                  Check
                 </button>
               ) : null}
               {facing > 0 && callPay > 0 ? (
@@ -639,7 +749,7 @@ export function ActionPanel({ state, dispatch, playerNames, mySeat }: ActionPane
                   title={isAllInCallUi ? callButtonTitle : callDetailTitle}
                   onClick={() => dispatch({ type: "POSTFLOP_CALL" })}
                 >
-                  {isAllInCallUi ? `올인 콜 (${callPayBb})` : callMatchLabel}
+                  {isAllInCallUi ? `All-in Call (${callPayBb})` : callMatchLabel}
                 </button>
               ) : null}
               {bettingMatched(betting) &&
@@ -648,21 +758,29 @@ export function ActionPanel({ state, dispatch, playerNames, mySeat }: ActionPane
               !isAllIn ? (
                 <>
                   <label className="flex flex-col gap-0.5 text-[10px] text-zinc-400">
-                    베트 (≤{maxBet})
+                    Bet (≤{chipsAsBbLabel(maxBet, bbUnit)})
                     <input
                       type="number"
-                      min={BET_RAISE_UNIT}
+                      min={bbUnit}
                       max={maxBet}
                       step={SMALLEST_CHIP}
-                      value={Math.min(betAmt, maxBet)}
-                      onChange={(e) => setBetAmt(Number(e.target.value))}
+                      inputMode="decimal"
+                      value={betDraft}
+                      onChange={(e) => setBetDraft(e.target.value)}
+                      onBlur={() =>
+                        setBetDraft(
+                          String(
+                            clampChipField(betDraft, bbUnit, maxBet),
+                          ),
+                        )
+                      }
                       className="w-20 rounded border border-zinc-500 bg-zinc-800 px-2 py-1 font-mono text-xs text-zinc-50"
                     />
                   </label>
                   <button
                     type="button"
                     className={btnPrimary}
-                    title={`이번 스트리트에 팟으로 ${chipsAsBbLabel(betClamped)}를 넣습니다.`}
+                    title={`Bet ${chipsAsBbLabel(betClamped, bbUnit)} into the pot this street.`}
                     onClick={() =>
                       dispatch({
                         type: "POSTFLOP_BET",
@@ -670,7 +788,7 @@ export function ActionPanel({ state, dispatch, playerNames, mySeat }: ActionPane
                       })
                     }
                   >
-                    베트 ({chipsAsBbLabel(betClamped)})
+                    Bet ({chipsAsBbLabel(betClamped, bbUnit)})
                   </button>
                   <button
                     type="button"
@@ -678,7 +796,7 @@ export function ActionPanel({ state, dispatch, playerNames, mySeat }: ActionPane
                       btnPrimary +
                       " border-amber-500/70 ring-1 ring-amber-500/35"
                     }
-                    title={`이번 스트리트 허용 최대 베트 ${chipsAsBbLabel(maxBet)}`}
+                    title={`Maximum bet this street: ${chipsAsBbLabel(maxBet, bbUnit)}`}
                     onClick={() =>
                       dispatch({
                         type: "POSTFLOP_BET",
@@ -686,7 +804,7 @@ export function ActionPanel({ state, dispatch, playerNames, mySeat }: ActionPane
                       })
                     }
                   >
-                    베트 MAX ({chipsAsBbLabel(maxBet)})
+                    Bet MAX ({chipsAsBbLabel(maxBet, bbUnit)})
                   </button>
                 </>
               ) : null}
@@ -696,9 +814,9 @@ export function ActionPanel({ state, dispatch, playerNames, mySeat }: ActionPane
               canPostflopRaiseToMin ? (
                 <>
                   <label className="flex flex-col gap-0.5 text-[10px] text-zinc-400">
-                    {`최소 레이즈: ${chipsAsBbLabel(postRaiseMin)} · 최대 레이즈: ${chipsAsBbLabel(postRaiseRuleCap)} (팟+콜 한도)${
+                    {`Min raise: ${chipsAsBbLabel(postRaiseMin, bbUnit)} · Max raise: ${chipsAsBbLabel(postRaiseRuleCap, bbUnit)} (pot+call cap)${
                       postRaiseOnlyByStack
-                        ? ` — 적용 ${chipsAsBbLabel(postRaiseCap)} (칩 부족)`
+                        ? ` — effective ${chipsAsBbLabel(postRaiseCap, bbUnit)} (stack)`
                         : ""
                     }`}
                     <input
@@ -706,18 +824,27 @@ export function ActionPanel({ state, dispatch, playerNames, mySeat }: ActionPane
                       min={postRaiseMin}
                       max={postRaiseCap}
                       step={SMALLEST_CHIP}
-                      value={Math.min(
-                        Math.max(postRaiseTo, postRaiseMin),
-                        postRaiseCap,
-                      )}
-                      onChange={(e) => setPostRaiseTo(Number(e.target.value))}
+                      inputMode="decimal"
+                      value={raiseDraft}
+                      onChange={(e) => setRaiseDraft(e.target.value)}
+                      onBlur={() =>
+                        setRaiseDraft(
+                          String(
+                            clampChipField(
+                              raiseDraft,
+                              postRaiseMin,
+                              postRaiseCap,
+                            ),
+                          ),
+                        )
+                      }
                       className="w-24 rounded border border-zinc-500 bg-zinc-800 px-2 py-1 font-mono text-xs text-zinc-50"
                     />
                   </label>
                   <button
                     type="button"
                     className={btnPrimary}
-                    title={`콜 후 이번 스트리트 총 기여를 ${chipsAsBbLabel(postRaiseClamped)}까지 올립니다.`}
+                    title={`Raise total contribution to ${chipsAsBbLabel(postRaiseClamped, bbUnit)} this street.`}
                     onClick={() =>
                       dispatch({
                         type: "POSTFLOP_RAISE",
@@ -725,7 +852,7 @@ export function ActionPanel({ state, dispatch, playerNames, mySeat }: ActionPane
                       })
                     }
                   >
-                    레이즈 (총 {chipsAsBbLabel(postRaiseClamped)})
+                    Raise (total {chipsAsBbLabel(postRaiseClamped, bbUnit)})
                   </button>
                   <button
                     type="button"
@@ -735,8 +862,8 @@ export function ActionPanel({ state, dispatch, playerNames, mySeat }: ActionPane
                     }
                     title={
                       postRaiseOnlyByStack
-                        ? `한도 ${chipsAsBbLabel(postRaiseRuleCap)} — 칩으로 ${chipsAsBbLabel(postRaiseCap)}까지`
-                        : `최대 레이즈 총액 ${chipsAsBbLabel(postRaiseRuleCap)} (팟+콜)`
+                        ? `Cap ${chipsAsBbLabel(postRaiseRuleCap, bbUnit)} — stack allows ${chipsAsBbLabel(postRaiseCap, bbUnit)}`
+                        : `Maximum raise total ${chipsAsBbLabel(postRaiseRuleCap, bbUnit)} (pot+call)`
                     }
                     onClick={() =>
                       dispatch({
@@ -745,7 +872,7 @@ export function ActionPanel({ state, dispatch, playerNames, mySeat }: ActionPane
                       })
                     }
                   >
-                    레이즈 MAX (총 {chipsAsBbLabel(postRaiseCap)})
+                    Raise MAX (total {chipsAsBbLabel(postRaiseCap, bbUnit)})
                   </button>
                 </>
               ) : null}
@@ -757,7 +884,7 @@ export function ActionPanel({ state, dispatch, playerNames, mySeat }: ActionPane
                 title="상대의 베팅을 따라가지 않고 이번 판을 포기합니다. 상대 홀 카드는 공개되지 않습니다."
                 onClick={() => dispatch({ type: "FOLD" })}
               >
-                폴드
+                Fold
               </button>
             ) : null}
           </div>

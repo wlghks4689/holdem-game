@@ -1,15 +1,15 @@
 import {
-  BET_RAISE_UNIT,
   CHIPS_PER_BB,
+  IA_COST_MIN_BB,
   IA_COST_POT_FRACTION,
   POSTFLOP_MAX_BET_POT_FRACTION,
   PREFLOP_BB_BB_OPTION_MAX_RAISE_TO_BB,
   PREFLOP_BB_MAX_RAISE_TO_BB,
   PREFLOP_BUTTON_MAX_RAISE_TO_BB,
-  PREFLOP_ANTE_BB,
   PREFLOP_MAX_POT_BB,
   SMALLEST_CHIP,
 } from "./constants";
+import { resolveHandBlinds } from "./blindLevels";
 import type { BettingRoundMeta, GameMessage, GameState, PlayerIndex } from "./types";
 
 /**
@@ -28,12 +28,14 @@ export function roundHalfChip(n: number): number {
   return Math.round(n * 2) / 2;
 }
 
-export function roundDownToBb(n: number): number {
-  return Math.floor(n / BET_RAISE_UNIT + 1e-9) * BET_RAISE_UNIT;
+export function roundDownToBb(n: number, bbUnit: number = CHIPS_PER_BB): number {
+  const u = bbUnit > 1e-9 ? bbUnit : CHIPS_PER_BB;
+  return Math.floor(n / u + 1e-9) * u;
 }
 
-export function roundUpToBb(n: number): number {
-  return Math.ceil(n / BET_RAISE_UNIT - 1e-9) * BET_RAISE_UNIT;
+export function roundUpToBb(n: number, bbUnit: number = CHIPS_PER_BB): number {
+  const u = bbUnit > 1e-9 ? bbUnit : CHIPS_PER_BB;
+  return Math.ceil(n / u - 1e-9) * u;
 }
 
 /** 포스트플랍 상한 등: 팟·스택을 0.5칩 단위로 내림 */
@@ -45,18 +47,11 @@ export function roundUpToHalfChip(n: number): number {
   return Math.ceil(n / SMALLEST_CHIP - 1e-9) * SMALLEST_CHIP;
 }
 
-/** 자발 베트/레이즈: 최소 1BB, 칩은 0.5 단위 */
-export function isVoluntaryBetMultiple(n: number): boolean {
-  if (n < BET_RAISE_UNIT) return false;
+/** 자발 베트/레이즈: 최소 1BB(해당 핸드의 bb), 칩은 0.5 단위 */
+export function isVoluntaryBetMultiple(n: number, bbUnit: number): boolean {
+  if (bbUnit < 1e-9) return false;
+  if (n < bbUnit - 1e-9) return false;
   return Math.abs(roundHalfChip(n) - n) < 1e-6;
-}
-
-export function sbAmount(): number {
-  return CHIPS_PER_BB / 2;
-}
-
-export function bbAmount(): number {
-  return CHIPS_PER_BB;
 }
 
 /**
@@ -79,28 +74,26 @@ export function splitPotTwoWayChopChips(
   return { share0, share1 };
 }
 
-/** 프리플랍: 버튼이 올릴 수 있는 최대 총 기여액 (SB 포함 누적) */
-export function preflopButtonMaxTotal(): number {
-  return PREFLOP_BUTTON_MAX_RAISE_TO_BB * CHIPS_PER_BB;
+export function preflopButtonMaxTotal(s: GameState): number {
+  return PREFLOP_BUTTON_MAX_RAISE_TO_BB * resolveHandBlinds(s).bb;
 }
 
-/** 프리플랍: BB 측이 올릴 수 있는 이론상 최대 총 기여 (팟 캡과 별도 — 최종은 cap과 교차) */
-export function preflopBbMaxTotal(): number {
-  return PREFLOP_BB_MAX_RAISE_TO_BB * CHIPS_PER_BB;
+export function preflopBbMaxTotal(s: GameState): number {
+  return PREFLOP_BB_MAX_RAISE_TO_BB * resolveHandBlinds(s).bb;
 }
 
-/** BB 옵션(버튼 림프 후)·체크 구간에서 BB 최대 총 기여 */
-export function preflopBbOptionMaxTotal(): number {
-  return PREFLOP_BB_BB_OPTION_MAX_RAISE_TO_BB * CHIPS_PER_BB;
+export function preflopBbOptionMaxTotal(s: GameState): number {
+  return PREFLOP_BB_BB_OPTION_MAX_RAISE_TO_BB * resolveHandBlinds(s).bb;
 }
 
-export function preflopMaxPotChips(): number {
-  return PREFLOP_MAX_POT_BB * CHIPS_PER_BB;
+export function preflopMaxPotChips(s: GameState): number {
+  return PREFLOP_MAX_POT_BB * resolveHandBlinds(s).bb;
 }
 
-/** 프리플랍 앤티 총액 (칩). BB 포스트에 포함 — 버튼 측 별도 앤티 없음 */
-export function preflopAnteTotalChips(): number {
-  return PREFLOP_ANTE_BB * CHIPS_PER_BB;
+/** 프리플랍: 블라인드+앤티만 반영된 시작 팟 (프리플랍 액션 전) = SB + BB + 앤티 */
+export function preflopDeadPotChips(s: GameState): number {
+  const { sb, bb, ante } = resolveHandBlinds(s);
+  return roundHalfChip(sb + bb + ante);
 }
 
 /**
@@ -118,44 +111,36 @@ export function blindContributionFromPreflopPost(
   return roundHalfChip(Math.min(rest, blindNeed));
 }
 
-/** 블라인드+앤티만 반영된 시작 팟 (프리플랍 액션 전) = SB + BB + 앤티 */
-export function preflopDeadPotChips(): number {
-  return roundHalfChip(sbAmount() + bbAmount() + preflopAnteTotalChips());
-}
-
 /**
  * 양측이 같은 T(블라인드+자발 베팅 누적, 앤티 제외)까지 매칭 시
  * 팟 = sb + bb + 앤티총액 + (T - sb) + (T - bb) = 2*T + 앤티총액
  */
-export function maxMatchedContributionPreflop(): number {
-  const cap = preflopMaxPotChips();
-  return roundHalfChip((cap - preflopDeadPotChips() + sbAmount() + bbAmount()) / 2);
+export function maxMatchedContributionPreflop(s: GameState): number {
+  const cap = preflopMaxPotChips(s);
+  const { sb, bb } = resolveHandBlinds(s);
+  return roundHalfChip((cap - preflopDeadPotChips(s) + sb + bb) / 2);
 }
 
 /**
  * 프리플랍: 현재 스트리트 레벨을 **엄격히 넘는** 가장 작은 유효한 총 기여액.
- * (0.5칩 단위로 올리며 `isVoluntaryBetMultiple`을 만족하는 첫 값)
  */
-export function preflopSmallestRaiseTotalAboveLevel(level: number): number {
+export function preflopSmallestRaiseTotalAboveLevel(level: number, bbUnit: number): number {
   let t = roundHalfChip(level + SMALLEST_CHIP);
   for (let i = 0; i < 400; i++) {
-    if (t > level + 1e-9 && isVoluntaryBetMultiple(t)) {
+    if (t > level + 1e-9 && isVoluntaryBetMultiple(t, bbUnit)) {
       return t;
     }
     t = roundHalfChip(t + SMALLEST_CHIP);
   }
-  return roundHalfChip(level + BET_RAISE_UNIT);
+  return roundHalfChip(level + bbUnit);
 }
 
-export function preflopMinRaiseTarget(level: number): number {
-  return preflopSmallestRaiseTotalAboveLevel(level);
+export function preflopMinRaiseTarget(level: number, bbUnit: number): number {
+  return preflopSmallestRaiseTotalAboveLevel(level, bbUnit);
 }
 
-/**
- * 이번 액터의 최소 **총 기여** (toLevelChips).
- * 페이싱이 있으면 {@link pokerMinRaiseTotalToLevel}, 아니면 스트리트 첫 레이즈 규칙(칩 단위).
- */
 export function preflopMinTotalRaiseForActor(s: GameState): number {
+  const bbUnit = resolveHandBlinds(s).bb;
   const level = levelFromContributions(s.betting);
   const p = s.toAct!;
   const cur = s.betting.contributed[p]!;
@@ -163,36 +148,34 @@ export function preflopMinTotalRaiseForActor(s: GameState): number {
   let minT =
     facing > 1e-9
       ? pokerMinRaiseTotalToLevel(level, cur)
-      : preflopSmallestRaiseTotalAboveLevel(level);
+      : preflopSmallestRaiseTotalAboveLevel(level, bbUnit);
   if (minT <= level + 1e-9) {
-    minT = preflopSmallestRaiseTotalAboveLevel(level);
+    minT = preflopSmallestRaiseTotalAboveLevel(level, bbUnit);
   }
   while (minT <= cur + 1e-9) {
-    minT = preflopSmallestRaiseTotalAboveLevel(minT);
+    minT = preflopSmallestRaiseTotalAboveLevel(minT, bbUnit);
   }
-  if (!isVoluntaryBetMultiple(minT)) {
-    minT = preflopSmallestRaiseTotalAboveLevel(minT - SMALLEST_CHIP);
+  if (!isVoluntaryBetMultiple(minT, bbUnit)) {
+    minT = preflopSmallestRaiseTotalAboveLevel(minT - SMALLEST_CHIP, bbUnit);
   }
   return minT;
 }
 
-/** 현재 턴 플레이어 기준 프리플랍 레이즈 시 목표 총 기여 상한 */
 export function preflopMaxRaiseTargetForActor(s: GameState): number {
   const p = s.toAct!;
-  const capT = maxMatchedContributionPreflop();
+  const capT = maxMatchedContributionPreflop(s);
   if (p === s.button && s.preflopStage === "button_acts") {
-    return Math.min(preflopButtonMaxTotal(), capT);
+    return Math.min(preflopButtonMaxTotal(s), capT);
   }
   if (p !== s.button) {
     if (s.preflopStage === "bb_option") {
-      return Math.min(preflopBbOptionMaxTotal(), capT);
+      return Math.min(preflopBbOptionMaxTotal(s), capT);
     }
-    return Math.min(preflopBbMaxTotal(), capT);
+    return Math.min(preflopBbMaxTotal(s), capT);
   }
   return capT;
 }
 
-/** 버튼은 첫 액션에서만 레이즈 가능, BB는 bb_option 또는 facing_raise(리레이즈 1회 한도) */
 export function canActorPreflopRaise(s: GameState): boolean {
   const p = s.toAct;
   if (p == null || s.phase !== "preflop" || s.preflopStage == null) return false;
@@ -211,10 +194,10 @@ export function preflopHasLegalRaise(s: GameState): boolean {
   return minT <= maxT + 1e-9;
 }
 
-/** UI·검증 공용: 해당 총 기여로 PREFLOP_RAISE가 가능한지 */
 export function isLegalPreflopRaiseTarget(s: GameState, targetRaw: number): boolean {
   if (!canActorPreflopRaise(s)) return false;
   if (s.preflopRaiseCount >= 2) return false;
+  const bbUnit = resolveHandBlinds(s).bb;
   const p = s.toAct!;
   const target = roundHalfChip(targetRaw);
   const cur = s.betting.contributed[p]!;
@@ -224,17 +207,17 @@ export function isLegalPreflopRaiseTarget(s: GameState, targetRaw: number): bool
   const maxT = preflopMaxRaiseTargetForActor(s);
   if (add <= 0 || add > s.chips[p]!) return false;
   if (target <= level) return false;
-  if (!isVoluntaryBetMultiple(target)) return false;
+  if (!isVoluntaryBetMultiple(target, bbUnit)) return false;
   return target >= minT && target <= maxT;
 }
 
-/** 팟×비율 후 소수 칩은 내림(절사). 최소 1BB. */
-export function iaCostFromPot(pot: number): number {
+/** 팟×30% 후 소수 칩은 내림. 그 값과 IA_COST_MIN_BB·현재 BB 치수 중 큰 값 */
+export function iaCostFromPot(pot: number, bbUnit: number): number {
   const truncated = Math.floor(pot * IA_COST_POT_FRACTION + 1e-9);
-  return Math.max(BET_RAISE_UNIT, truncated);
+  const minChips = IA_COST_MIN_BB * bbUnit;
+  return Math.max(minChips, truncated);
 }
 
-/** 이번 핸드의 `showdown` 직전까지 로그에서, 팟에서 빠져 나간 IA 비용 합 */
 export function totalIaDeductedFromPotThisHand(logs: readonly GameMessage[]): number {
   let showdownIdx = -1;
   for (let i = logs.length - 1; i >= 0; i--) {
@@ -260,10 +243,6 @@ export function postflopMaxBet(pot: number, stack: number): number {
   return Math.max(0, Math.min(cap, stk));
 }
 
-/**
- * 표준 미니멈 레이즈 총 기여.
- * `opponentTotal + (opponentTotal - myContribution)` (= 상대가 올린 증가분만큼 한 번 더 올림).
- */
 export function pokerMinRaiseTotalToLevel(
   opponentTotal: number,
   myContribution: number,
@@ -272,18 +251,10 @@ export function pokerMinRaiseTotalToLevel(
   return roundHalfChip(opponentTotal + inc);
 }
 
-/**
- * 포스트플랍: 스트리트 최고 기여 L(상대 총액), 이번에 맞춰야 할 추가 콜 F일 때
- * 최소 레이즈 총액 = L + F (= L + (L − 내 기여)).
- */
 export function postflopMinRaiseToLevelChips(level: number, facing: number): number {
   return roundHalfChip(level + facing);
 }
 
-/**
- * 커스텀 룰: 페이싱 레이즈 시 최대 **총** 기여(to-level) 상한.
- * `currentPot + callAmount` — 이번에 맞출 추가 콜(`facing`)만큼을 현재 팟에 더한 수준까지.
- */
 export function postflopCustomMaxRaiseToLevel(
   currentPot: number,
   callAmount: number,
@@ -291,10 +262,6 @@ export function postflopCustomMaxRaiseToLevel(
   return roundHalfChip(currentPot + callAmount);
 }
 
-/**
- * 처리 상한: 룰 상한과 실제로 낼 수 있는 총액(기여+스택) 중 작은 값.
- * (칩이 부족하면 올인만큼만 레이즈)
- */
 export function postflopEffectiveMaxRaiseToLevel(
   pot: number,
   facing: number,
@@ -310,22 +277,16 @@ export function levelFromContributions(b: BettingRoundMeta): number {
   return Math.max(b.contributed[0]!, b.contributed[1]!);
 }
 
-/**
- * 이번 스트리트에서 콜에 필요한 **추가** 칩.
- * 공식: max(상대 총 기여) − 내 총 기여 (= 레이즈 한도와 무관한 순수 맞춤액)
- */
 export function requiredCallChips(player: PlayerIndex, b: BettingRoundMeta): number {
   const opponentTotal = levelFromContributions(b);
   const mine = b.contributed[player]!;
   return roundHalfChip(opponentTotal - mine);
 }
 
-/** {@link requiredCallChips} 와 동일 */
 export function facingFor(player: PlayerIndex, b: BettingRoundMeta): number {
   return requiredCallChips(player, b);
 }
 
-/** 콜에 실제로 지불하는 칩 (올인 시 스택 전부, facing이 더 크면 facing만큼이 아닌 스택만) */
 export function effectiveCallPay(player: PlayerIndex, s: GameState): number {
   const f = requiredCallChips(player, s.betting);
   const stack = s.chips[player]!;

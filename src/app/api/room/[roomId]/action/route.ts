@@ -1,6 +1,7 @@
 import { randomBytes } from "crypto";
 import { NextResponse } from "next/server";
 import { holdemReducer } from "@/holdem/gameReducer";
+import { normalizeRoomPause } from "@/holdem/roomPause";
 import { sanitizeGameStateForSeat } from "@/holdem/sanitizeGameStateForSeat";
 import { canSeatSendAction } from "@/server/roomActionAuth";
 import type { GameAction, PlayerIndex } from "@/holdem/types";
@@ -67,6 +68,10 @@ export async function POST(req: Request, ctx: Ctx) {
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
   }
 
+  if (normalizeRoomPause(blob.pause).kind === "paused") {
+    return NextResponse.json({ error: "game paused" }, { status: 403 });
+  }
+
   if (!canSeatSendAction(blob.state, typedAction, typedSeat)) {
     return NextResponse.json({ error: "not your action" }, { status: 403 });
   }
@@ -82,5 +87,6 @@ export async function POST(req: Request, ctx: Ctx) {
 
   return NextResponse.json({
     state: sanitizeGameStateForSeat(after, typedSeat),
+    pause: normalizeRoomPause(blob.pause),
   });
 }
