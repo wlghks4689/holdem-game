@@ -15,7 +15,7 @@ export type HandResultBannerProps = {
 };
 
 export function HandResultBanner({ state, playerNames }: HandResultBannerProps) {
-  const pl = (p: PlayerIndex) => playerNames[p] ?? `P${p}`;
+  const pl = (p: PlayerIndex) => playerNames[p] ?? `플레이어 ${p + 1}`;
   const h0 = state.holes[0];
   const h1 = state.holes[1];
 
@@ -97,9 +97,7 @@ export function HandResultBanner({ state, playerNames }: HandResultBannerProps) 
 
         <div className="mt-3 grid gap-2 sm:grid-cols-2 sm:gap-2.5">
           <div className={panel0}>
-            <div className="text-[10px] font-medium text-zinc-500">
-              {pl(0)} · P0
-            </div>
+            <div className="text-[10px] font-medium text-zinc-500">{pl(0)}</div>
             <p
               className={`mt-0.5 font-mono text-xs ${
                 split
@@ -113,9 +111,7 @@ export function HandResultBanner({ state, playerNames }: HandResultBannerProps) 
             </p>
           </div>
           <div className={panel1}>
-            <div className="text-[10px] font-medium text-zinc-500">
-              {pl(1)} · P1
-            </div>
+            <div className="text-[10px] font-medium text-zinc-500">{pl(1)}</div>
             <p
               className={`mt-0.5 font-mono text-xs ${
                 split

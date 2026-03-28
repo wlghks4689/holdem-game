@@ -4,10 +4,11 @@ import {
   ACTION_TIMER_SECONDS,
   HAND_SELECT_TIMER_SECONDS,
 } from "@/holdem/constants";
+import { headsUpPositionLabel } from "@/holdem/headsUpLabels";
 import type { GameState, PlayerIndex } from "@/holdem/types";
 
-function blindHint(state: GameState, p: number): string {
-  return state.button === p ? "버튼 / SB" : "BB";
+function blindHint(state: GameState, p: PlayerIndex): string {
+  return headsUpPositionLabel(state, p);
 }
 
 export type TurnBannerProps = {
@@ -26,7 +27,7 @@ export function TurnBanner({
   if (state.matchWinner != null || state.toAct == null) return null;
 
   const p = state.toAct as PlayerIndex;
-  const name = playerNames[p] ?? `P${p}`;
+  const name = playerNames[p] ?? `플레이어 ${p + 1}`;
   const phase = state.phase;
   const live =
     phase === "hand_select" ||
@@ -41,7 +42,7 @@ export function TurnBanner({
     phase === "hand_select"
       ? "핸드 선택"
       : phase === "preflop" && state.preflopStage === "button_acts"
-        ? "프리플랍 · 버튼 액션"
+        ? "프리플랍 · 딜러·SB 액션"
         : phase === "preflop" && state.preflopStage === "bb_option"
           ? "프리플랍 · BB 옵션"
           : phase === "preflop"
@@ -58,7 +59,6 @@ export function TurnBanner({
           <span className="text-lg font-bold tracking-tight text-emerald-100 sm:text-xl">
             {name} 행동 중
           </span>
-          <span className="text-[11px] font-normal text-zinc-500">P{p}</span>
           <span className="rounded-md bg-zinc-700/90 px-2 py-0.5 text-[11px] font-medium text-zinc-200">
             {blindHint(state, p)}
           </span>

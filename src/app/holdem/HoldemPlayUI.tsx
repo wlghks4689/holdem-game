@@ -1,8 +1,10 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 import { STARTING_CHIPS, TOTAL_ROUNDS } from "@/holdem/constants";
 import type { GameAction, GameState, PlayerIndex, SelectedHand } from "@/holdem/types";
+import { HEADS_UP_RULES_BLURB } from "@/holdem/headsUpLabels";
 import {
   DEFAULT_HOLDEM_DISPLAY_NAMES,
 } from "@/holdem/playerDisplayNames";
@@ -49,6 +51,40 @@ export function HoldemPlayUI({
   playMode,
   onlineMeta,
 }: HoldemPlayUIProps) {
+  const [inviteToast, setInviteToast] = React.useState<string | null>(null);
+  const inviteToastTimer = React.useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
+
+  const copyInviteLink = React.useCallback(() => {
+    if (!onlineMeta || typeof window === "undefined") return;
+    const url = `${window.location.origin}/holdem/room/${onlineMeta.roomId}`;
+    void navigator.clipboard.writeText(url).then(
+      () => {
+        if (inviteToastTimer.current) clearTimeout(inviteToastTimer.current);
+        setInviteToast("초대 링크를 복사했습니다.");
+        inviteToastTimer.current = setTimeout(() => {
+          setInviteToast(null);
+          inviteToastTimer.current = null;
+        }, 2200);
+      },
+      () => {
+        setInviteToast("복사에 실패했습니다. 링크를 직접 보내 주세요.");
+        if (inviteToastTimer.current) clearTimeout(inviteToastTimer.current);
+        inviteToastTimer.current = setTimeout(() => {
+          setInviteToast(null);
+          inviteToastTimer.current = null;
+        }, 2800);
+      },
+    );
+  }, [onlineMeta]);
+
+  React.useEffect(() => {
+    return () => {
+      if (inviteToastTimer.current) clearTimeout(inviteToastTimer.current);
+    };
+  }, []);
+
   const showResultBanner =
     state.phase === "showdown" ||
     (state.phase === "hand_over" && state.handEndMode === "fold");
@@ -74,19 +110,33 @@ export function HoldemPlayUI({
             <p className="text-xs text-zinc-400">
               {playMode === "local" ? (
                 <>
-                  {TOTAL_ROUNDS}라운드 · 시작 {STARTING_CHIPS}칩 (1bb=1칩) · 표시 이름은
-                  이 기기에 저장됩니다
+                  {TOTAL_ROUNDS}라운드 · 시작 {STARTING_CHIPS}칩 (1bb=1칩) ·{" "}
+                  {HEADS_UP_RULES_BLURB} · 표시 이름은 이 기기에 저장됩니다
                 </>
               ) : (
                 <>
-                  {TOTAL_ROUNDS}라운드 · 온라인 방{" "}
-                  {onlineMeta ? (
-                    <span className="font-mono text-zinc-300">{onlineMeta.roomId}</span>
-                  ) : null}
-                  · 상대 홀 카드는 쇼다운 전까지 서버에서 비공개입니다
+                  {TOTAL_ROUNDS}라운드 · 온라인 대전 · {HEADS_UP_RULES_BLURB} · 상대
+                  홀 카드는 쇼다운 전까지 이 기기로 전달되지 않습니다
                 </>
               )}
             </p>
+            {playMode === "online" && onlineMeta ? (
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={copyInviteLink}
+                  className="rounded-lg bg-sky-600 px-3 py-2 text-xs font-semibold text-white hover:bg-sky-500"
+                >
+                  초대 링크 복사
+                </button>
+                <Link
+                  href="/holdem"
+                  className="rounded-lg border border-zinc-500/80 px-3 py-2 text-xs font-semibold text-zinc-200 hover:bg-zinc-700/50"
+                >
+                  홈으로
+                </Link>
+              </div>
+            ) : null}
           </div>
           <div className="flex flex-col gap-2 rounded-lg border border-zinc-600/90 bg-zinc-700/50 p-2 lg:min-w-[18rem]">
             {playMode === "local" && setViewer ? (
@@ -100,7 +150,7 @@ export function HoldemPlayUI({
                       key={p}
                       type="button"
                       onClick={() => setViewer(p)}
-                      title={`${playerNames[p]} (P${p}) 관점으로 카드를 표시합니다.`}
+                      title={`${playerNames[p]} 관점으로 카드를 표시합니다.`}
                       className={[
                         "rounded-md px-2.5 py-1 text-xs font-semibold transition-colors",
                         viewer === p
@@ -114,7 +164,7 @@ export function HoldemPlayUI({
                 </div>
                 <div className="flex flex-wrap items-end gap-2 border-t border-zinc-600/60 pt-2">
                   <label className="flex min-w-[7rem] flex-1 flex-col gap-0.5 text-[10px] text-zinc-400">
-                    P0 표시 이름
+                    첫 플레이어 표시 이름
                     <input
                       type="text"
                       value={playerNames[0]!}
@@ -125,7 +175,7 @@ export function HoldemPlayUI({
                     />
                   </label>
                   <label className="flex min-w-[7rem] flex-1 flex-col gap-0.5 text-[10px] text-zinc-400">
-                    P1 표시 이름
+                    두 번째 플레이어 표시 이름
                     <input
                       type="text"
                       value={playerNames[1]!}
@@ -144,9 +194,7 @@ export function HoldemPlayUI({
                 </span>
                 {mySeat != null ? (
                   <>
-                    <span className="font-semibold">
-                      {playerNames[mySeat]} (P{mySeat})
-                    </span>
+                    <span className="font-semibold">{playerNames[mySeat]}</span>
                     <span className="mt-1 block text-[10px] text-zinc-500">
                       상대 카드는 이 기기로 전송되지 않습니다. 표시 이름은 기기마다
                       독립입니다.
@@ -176,7 +224,7 @@ export function HoldemPlayUI({
         >
           <div className="hidden space-y-3 lg:block">
             <p className="text-center text-[10px] font-bold uppercase tracking-[0.2em] text-zinc-500">
-              상대 · {playerNames[other(viewer)]} (P{other(viewer)})
+              상대 · {playerNames[other(viewer)]}
             </p>
             <HoleCards
               state={state}
@@ -217,6 +265,7 @@ export function HoldemPlayUI({
           <div className="mx-auto max-w-lg lg:max-w-xl">
             <HandSelectPanel
               state={state}
+              playerNames={playerNames}
               mySeat={mySeat}
               onSelect={(player, templateId) =>
                 void dispatch({ type: "SELECT_HAND", player, templateId })
@@ -248,7 +297,7 @@ export function HoldemPlayUI({
           <div className="mt-2 hidden gap-8 lg:mt-8 lg:grid lg:grid-cols-2 lg:items-start lg:gap-10">
             <div className="min-w-0">
               <p className="mb-2 text-center text-[10px] font-bold uppercase tracking-[0.18em] text-emerald-400/90 lg:text-left">
-                나 · {playerNames[viewer]} (P{viewer})
+                나 · {playerNames[viewer]}
               </p>
               <div className="rounded-xl border border-emerald-900/35 bg-zinc-900/30 p-3 lg:p-4">
                 <HoleCards
@@ -273,11 +322,21 @@ export function HoldemPlayUI({
           </div>
         </section>
 
+        {inviteToast ? (
+          <div
+            className="fixed bottom-6 left-1/2 z-50 max-w-[min(90vw,20rem)] -translate-x-1/2 rounded-lg border border-emerald-700/60 bg-emerald-950/95 px-4 py-2.5 text-center text-sm text-emerald-50 shadow-lg"
+            role="status"
+          >
+            {inviteToast}
+          </div>
+        ) : null}
+
         <div className="mx-auto max-w-4xl lg:max-w-5xl">
           <HandLog
             logs={state.logs}
             playerNames={playerNames}
-            showdownHoleCtx={showdownHoleCtx}
+            showdownHoleCtx={playMode === "online" ? null : showdownHoleCtx}
+            playMode={playMode}
           />
         </div>
       </div>

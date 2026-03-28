@@ -12,7 +12,10 @@ import {
 } from "./constants";
 import type { BettingRoundMeta, GameMessage, GameState, PlayerIndex } from "./types";
 
-/** `logs`에 기록된 IA 사용분 합(매치 시작부터 누적) — 팟에서 제거된 칩 */
+/**
+ * `logs`의 IA 메시지 합(팟에서 제거된 칩).
+ * 로그는 tail이 잘릴 수 있어 누적 표시에는 `GameState.iaPotRemovalTotal`을 쓰는 것이 맞다.
+ */
 export function totalIaChipsRemovedFromLogs(logs: readonly GameMessage[]): number {
   let sum = 0;
   for (const m of logs) {

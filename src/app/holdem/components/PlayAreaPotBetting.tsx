@@ -104,7 +104,7 @@ function opponentActionNarrative(
       return {
         primary: (
           <>
-            블라인드·앤티 맞추기 — 플랫{" "}
+            콜 — 플랫{" "}
             <EmBb n={chipsAsBbLabel(facing)} />
           </>
         ),
@@ -219,7 +219,7 @@ export function PlayAreaPotBetting({ state, viewer }: PlayAreaPotBettingProps) {
       c0: state.chips[0]!,
       c1: state.chips[1]!,
     };
-  }, [state.pot, state.chips]);
+  }, [state.pot, state.chips[0], state.chips[1]]);
 
   const { primary, secondary } = opponentActionNarrative(state, viewer);
 

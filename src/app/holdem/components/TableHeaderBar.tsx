@@ -4,6 +4,12 @@ import * as React from "react";
 import { totalIaChipsRemovedFromLogs } from "@/holdem/bettingHelpers";
 import { TOTAL_ROUNDS } from "@/holdem/constants";
 import { chipsAsBbLabel } from "@/holdem/formatBb";
+import {
+  HEADS_UP_RULES_BLURB,
+  HU_BB_LABEL,
+  HU_DEALER_SB_LABEL,
+  headsUpPositionLabel,
+} from "@/holdem/headsUpLabels";
 import type { GameState, PlayerIndex } from "@/holdem/types";
 import { useTurnPulse } from "../hooks/useTurnPulse";
 
@@ -15,7 +21,6 @@ function fmtChips(v: number): string {
 
 export type TableHeaderBarProps = {
   state: GameState;
-  /** [P0 이름, P1 이름] */
   playerNames: [string, string];
 };
 
@@ -29,7 +34,11 @@ function flashMagnitude(f: [number, number] | null): boolean {
 
 export function TableHeaderBar({ state, playerNames }: TableHeaderBarProps) {
   const turnPulse = useTurnPulse(state.toAct);
-  const iaRemovedTotal = totalIaChipsRemovedFromLogs(state.logs);
+  const iaRemovedTotal =
+    typeof state.iaPotRemovalTotal === "number" &&
+    !Number.isNaN(state.iaPotRemovalTotal)
+      ? state.iaPotRemovalTotal
+      : totalIaChipsRemovedFromLogs(state.logs);
   const [gainVisible, setGainVisible] = React.useState(false);
 
   React.useEffect(() => {
@@ -72,10 +81,15 @@ export function TableHeaderBar({ state, playerNames }: TableHeaderBarProps) {
             IA 누적 −{chipsAsBbLabel(iaRemovedTotal)}
           </span>
         </div>
-        <div className="text-[11px] text-zinc-400">
-          버튼(SB): <span className="font-medium text-zinc-200">{btnName}</span>
+        <div
+          className="text-[11px] text-zinc-400"
+          title={HEADS_UP_RULES_BLURB}
+        >
+          {HU_DEALER_SB_LABEL}:{" "}
+          <span className="font-medium text-zinc-200">{btnName}</span>
           <span className="mx-1 text-zinc-600">·</span>
-          BB: <span className="font-medium text-zinc-200">{bbName}</span>
+          {HU_BB_LABEL}:{" "}
+          <span className="font-medium text-zinc-200">{bbName}</span>
         </div>
       </div>
 
@@ -87,7 +101,7 @@ export function TableHeaderBar({ state, playerNames }: TableHeaderBarProps) {
             state.phase !== "showdown" &&
             state.phase !== "hand_over";
           const label = playerNames[p]!;
-          const blindTag = state.button === p ? "버튼 / SB" : "BB";
+          const blindTag = headsUpPositionLabel(state, p);
           const flashDelta = state.potAwardFlash?.[p] ?? 0;
           const showPotFlash =
             gainVisible &&
@@ -110,43 +124,55 @@ export function TableHeaderBar({ state, playerNames }: TableHeaderBarProps) {
                 <span className="text-sm font-semibold text-zinc-50">
                   {label}
                 </span>
-                <span className="rounded bg-zinc-600/80 px-1.5 py-px text-[9px] font-medium uppercase text-zinc-300">
+                <span
+                  className="rounded bg-zinc-600/80 px-1.5 py-px font-medium uppercase text-zinc-300"
+                  style={{ fontSize: "calc(9px * 1.3)" }}
+                >
                   {blindTag}
                 </span>
-                <span className="text-[10px] text-zinc-500">P{p}</span>
               </div>
-              <div className="mt-1 flex min-h-[1.5rem] items-baseline justify-between gap-2">
-                <div className="min-w-0 shrink font-mono text-base text-zinc-100">
+              <div className="mt-1 flex min-h-[1.75rem] items-center justify-between gap-3">
+                <div
+                  className="min-w-0 shrink font-mono text-zinc-100"
+                  style={{ fontSize: "calc(1rem * 1.4)" }}
+                >
                   {fmtChips(state.chips[p]!)}{" "}
-                  <span className="text-[11px] font-sans text-zinc-400">칩</span>
-                </div>
-                {showPotFlash ? (
                   <span
-                    key={`pot-gain-${p}-${flashDelta}-${state.roundNumber}`}
-                    className={[
-                      "pointer-events-none shrink-0 font-mono text-sm font-bold tabular-nums drop-shadow-[0_1px_2px_rgba(0,0,0,0.5)]",
-                      flashDelta > 0 ? "text-green-400" : "text-red-400",
-                    ].join(" ")}
-                    style={{
-                      animation: "holdem-pot-gain 1.8s ease-out forwards",
-                    }}
-                    aria-label={
-                      flashDelta > 0
-                        ? `이번 판 팟 획득 ${chipsAsBbLabel(Math.abs(flashDelta))}`
-                        : `이번 판 팟 ${chipsAsBbLabel(Math.abs(flashDelta))} 유실`
-                    }
+                    className="font-sans text-zinc-400"
+                    style={{ fontSize: "calc(11px * 1.4)" }}
                   >
-                    {flashDelta > 0
-                      ? `+${chipsAsBbLabel(Math.abs(flashDelta))}`
-                      : `-${chipsAsBbLabel(Math.abs(flashDelta))}`}
+                    칩
                   </span>
-                ) : null}
+                </div>
+                <div className="flex shrink-0 flex-col items-end gap-1">
+                  {acting ? (
+                    <span className="rounded-md bg-emerald-700/40 px-2 py-0.5 text-[10px] font-bold text-emerald-100">
+                      행동 중
+                    </span>
+                  ) : null}
+                  {showPotFlash ? (
+                    <span
+                      key={`pot-gain-${p}-${flashDelta}-${state.roundNumber}`}
+                      className={[
+                        "pointer-events-none font-mono text-sm font-bold tabular-nums drop-shadow-[0_1px_2px_rgba(0,0,0,0.5)]",
+                        flashDelta > 0 ? "text-green-400" : "text-red-400",
+                      ].join(" ")}
+                      style={{
+                        animation: "holdem-pot-gain 1.8s ease-out forwards",
+                      }}
+                      aria-label={
+                        flashDelta > 0
+                          ? `이번 판 팟 획득 ${chipsAsBbLabel(Math.abs(flashDelta))}`
+                          : `이번 판 팟 ${chipsAsBbLabel(Math.abs(flashDelta))} 유실`
+                      }
+                    >
+                      {flashDelta > 0
+                        ? `+${chipsAsBbLabel(Math.abs(flashDelta))}`
+                        : `-${chipsAsBbLabel(Math.abs(flashDelta))}`}
+                    </span>
+                  ) : null}
+                </div>
               </div>
-              {acting ? (
-                <span className="mt-1 inline-block rounded-md bg-emerald-700/40 px-2 py-0.5 text-[10px] font-bold text-emerald-100">
-                  행동 중
-                </span>
-              ) : null}
             </div>
           );
         })}

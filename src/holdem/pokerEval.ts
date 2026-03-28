@@ -235,7 +235,7 @@ export function handValueShowdownConciseKorean(v: HandValue): string {
     case RANK_FLUSH:
       return `플러시 · 탑 ${rc(k[0]!)}`;
     case RANK_FULL_HOUSE:
-      return `풀 (${rc(k[0]!)}/${rc(k[1]!)})`;
+      return `풀 하우스 (${rc(k[0]!)}/${rc(k[1]!)})`;
     case RANK_QUADS:
       return k.length >= 2
         ? `포카드 (${rc(k[0]!)}) · Kicker ${rc(k[1]!)}`

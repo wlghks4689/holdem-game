@@ -1,6 +1,6 @@
 export const HOLDEM_DISPLAY_NAMES_STORAGE_KEY = "holdem-display-names-v1";
 
-/** P0 = 빌런, P1 = 히어로 (기본값) */
+/** 좌석 0·1 기본 표시 이름(포지션과 무관, 딜러는 매 핸드 교대) */
 export const DEFAULT_HOLDEM_DISPLAY_NAMES: [string, string] = ["빌런", "히어로"];
 
 function normalize(raw: string, fallback: string): string {

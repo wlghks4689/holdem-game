@@ -19,11 +19,13 @@ import {
 import {
   BET_RAISE_UNIT,
   CHIPS_PER_BB,
+  NEW_HAND_AUTO_SECONDS,
   PREFLOP_UI_BB_VS_OPEN_BB,
   PREFLOP_UI_BUTTON_OPEN_BB,
   SMALLEST_CHIP,
 } from "@/holdem/constants";
 import { chipsAsBbLabel } from "@/holdem/formatBb";
+import { headsUpPositionLabel } from "@/holdem/headsUpLabels";
 import type { GameAction, GameState, PlayerIndex } from "@/holdem/types";
 
 export type ActionPanelProps = {
@@ -44,7 +46,7 @@ const btnIa =
   "rounded-lg border border-indigo-400/60 bg-indigo-900/45 px-3 py-2 text-xs font-semibold text-indigo-50 hover:bg-indigo-800/40 disabled:cursor-not-allowed disabled:opacity-45";
 
 export function ActionPanel({ state, dispatch, playerNames, mySeat }: ActionPanelProps) {
-  const pl = (p: PlayerIndex) => playerNames[p] ?? `P${p}`;
+  const pl = (p: PlayerIndex) => playerNames[p] ?? `플레이어 ${p + 1}`;
   const p = state.toAct;
   const [betAmt, setBetAmt] = React.useState(BET_RAISE_UNIT);
   const [postRaiseTo, setPostRaiseTo] = React.useState(BET_RAISE_UNIT * 2);
@@ -79,7 +81,59 @@ export function ActionPanel({ state, dispatch, playerNames, mySeat }: ActionPane
         setPostRaiseTo(Math.min(minR, maxT));
       }
     }
-  }, [p, phase, betting, state.preflopStage, state.button, state.pot, state.chips, state.preflopRaiseCount, state.toAct]);
+    // 온라인 폴링은 매번 새 객체를 주므로 `betting`/`chips` 참조가 아닌 값만 deps에 둔다.
+  }, [
+    p,
+    phase,
+    betting.contributed[0],
+    betting.contributed[1],
+    betting.currentLevel,
+    betting.raiseDone,
+    betting.checksThisStreet,
+    state.preflopStage,
+    state.button,
+    state.pot,
+    state.chips[0],
+    state.chips[1],
+    state.preflopRaiseCount,
+    state.toAct,
+  ]);
+
+  const inNextHandPause =
+    state.matchWinner == null &&
+    (phase === "showdown" || phase === "hand_over");
+  const nextHandAutoKey = inNextHandPause
+    ? `${state.roundNumber}-${phase}`
+    : null;
+  const [nextHandAutoLeft, setNextHandAutoLeft] = React.useState<number | null>(
+    null,
+  );
+  const skipAutoNewHandRef = React.useRef(false);
+
+  React.useEffect(() => {
+    if (nextHandAutoKey == null) {
+      setNextHandAutoLeft(null);
+      return;
+    }
+    skipAutoNewHandRef.current = false;
+    const ms = NEW_HAND_AUTO_SECONDS * 1000;
+    const tEnd = Date.now() + ms;
+    const tick = () => {
+      setNextHandAutoLeft(
+        Math.max(0, Math.ceil((tEnd - Date.now()) / 1000)),
+      );
+    };
+    tick();
+    const iv = window.setInterval(tick, 250);
+    const to = window.setTimeout(() => {
+      if (skipAutoNewHandRef.current) return;
+      void dispatch({ type: "NEW_HAND" });
+    }, ms);
+    return () => {
+      window.clearInterval(iv);
+      window.clearTimeout(to);
+    };
+  }, [nextHandAutoKey, dispatch]);
 
   if (state.matchWinner != null) {
     return (
@@ -123,14 +177,30 @@ export function ActionPanel({ state, dispatch, playerNames, mySeat }: ActionPane
             폴드 종료 — 상대 홀 카드는 공개되지 않았습니다.
           </p>
         ) : null}
-        <button
-          type="button"
-          title="새 핸드를 시작합니다. 버튼이 넘어가고 핸드를 다시 고릅니다."
-          className={btnPrimary + " w-full"}
-          onClick={() => dispatch({ type: "NEW_HAND" })}
-        >
-          다음 핸드
-        </button>
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-stretch sm:gap-3">
+          <button
+            type="button"
+            title="다음 핸드: 헤즈업 규칙에 따라 딜러 버튼(SB)이 교대되고, 다시 핸드를 고릅니다."
+            className={btnPrimary + " w-full flex-1"}
+            onClick={() => {
+              skipAutoNewHandRef.current = true;
+              void dispatch({ type: "NEW_HAND" });
+            }}
+          >
+            다음 핸드
+          </button>
+          <div
+            className="flex flex-col items-center justify-center gap-0.5 rounded-lg border border-zinc-600/80 bg-zinc-800/50 px-3 py-2 text-center sm:min-w-[6.5rem]"
+            title={`${NEW_HAND_AUTO_SECONDS}초 후 자동으로 다음 라운드(핸드 선택)가 시작됩니다.`}
+          >
+            <span className="text-[9px] font-medium uppercase tracking-wide text-zinc-500">
+              자동 시작
+            </span>
+            <span className="font-mono text-base font-semibold tabular-nums text-emerald-300">
+              {nextHandAutoLeft != null ? `${nextHandAutoLeft}s` : "…"}
+            </span>
+          </div>
+        </div>
       </div>
     );
   }
@@ -251,7 +321,7 @@ export function ActionPanel({ state, dispatch, playerNames, mySeat }: ActionPane
           : phase === "river"
             ? "리버"
             : String(phase);
-  const posShort = state.button === p ? "SB" : "BB";
+  const posShort = headsUpPositionLabel(state, p);
   const levelLabel = level > 1e-9 ? chipsAsBbLabel(level) : "—";
 
   return (
@@ -303,7 +373,7 @@ export function ActionPanel({ state, dispatch, playerNames, mySeat }: ActionPane
           {state.preflopStage === "button_acts" && p === state.button ? (
             <div>
               <p className="mb-1.5 text-[10px] text-zinc-400">
-                버튼(SB) — 콜은 BB 총액 (+{chipsAsBbLabel(facing)}).
+                딜러·SB — BB 총액까지 맞추기 (+{chipsAsBbLabel(facing)}).
               </p>
               <div className="flex w-full flex-wrap items-end justify-between gap-x-2 gap-y-2">
                 <div className="flex min-w-0 flex-wrap items-end gap-2">
@@ -439,7 +509,7 @@ export function ActionPanel({ state, dispatch, playerNames, mySeat }: ActionPane
           ) : state.preflopStage === "facing_raise" && isBbToAct ? (
             <div>
               <p className="mb-1.5 text-[10px] text-zinc-400">
-                BB — 버튼 오픈에 응답 · 상한{" "}
+                BB — 딜러·SB 오픈에 응답 · 상한{" "}
                 <span className="font-mono text-zinc-300">{preMaxBbLabel}</span>
               </p>
               <div className="flex w-full flex-wrap items-end justify-between gap-x-2 gap-y-2">
@@ -515,7 +585,7 @@ export function ActionPanel({ state, dispatch, playerNames, mySeat }: ActionPane
           ) : state.preflopStage === "facing_raise" && p === state.button ? (
             <div>
               <p className="mb-1.5 text-[10px] text-zinc-400">
-                버튼(SB) — BB 리레이즈에 맞출 칩만 추가할 수 있습니다.
+                딜러·SB — BB 리레이즈에 맞출 칩만 추가할 수 있습니다.
               </p>
               <div className="flex w-full flex-wrap items-end justify-between gap-x-2 gap-y-2">
                 <div className="flex min-w-0 flex-wrap items-end gap-2">

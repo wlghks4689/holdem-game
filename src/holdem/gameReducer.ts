@@ -4,6 +4,7 @@ import {
   canActorPreflopRaise,
   facingFor,
   iaCostFromPot,
+  totalIaChipsRemovedFromLogs,
   levelFromContributions,
   postflopMaxBet,
   postflopEffectiveMaxRaiseToLevel,
@@ -27,7 +28,7 @@ import {
   selectedHandFrom,
   templateLabel,
 } from "./handPool";
-import { compareHandValue, best5Of7, handValueLabel } from "./pokerEval";
+import { compareHandValue, best5Of7, handValueSummaryKorean } from "./pokerEval";
 import { BET_RAISE_UNIT, STARTING_CHIPS, TOTAL_ROUNDS } from "./constants";
 import type {
   GameAction,
@@ -122,7 +123,7 @@ function advanceStreet(s: GameState): void {
     cards: s.board.slice(0, s.boardRevealed),
     pot: s.pot,
   });
-  s.lastActionNote = `${s.phase} — BB 먼저`;
+  s.lastActionNote = `${s.phase} — 헤즈업: BB 선행동`;
 }
 
 function goShowdown(s: GameState): void {
@@ -137,8 +138,16 @@ function goShowdown(s: GameState): void {
   const winners: PlayerIndex[] =
     cmp > 0 ? [0] : cmp < 0 ? [1] : [0, 1];
   awardPot(s, winners);
-  const desc = `P0 ${handValueLabel(v0)} vs P1 ${handValueLabel(v1)}`;
-  pushLog(s, { t: "showdown", winners, pot: potBefore, desc });
+  const h0s = handValueSummaryKorean(v0);
+  const h1s = handValueSummaryKorean(v1);
+  const desc = `${h0s} vs ${h1s}`;
+  pushLog(s, {
+    t: "showdown",
+    winners,
+    pot: potBefore,
+    desc,
+    hands: [h0s, h1s],
+  });
   s.winner = winners.length === 1 ? winners[0]! : null;
   s.handEndMode = "showdown";
   s.phase = "showdown";
@@ -153,7 +162,13 @@ function endHandFold(s: GameState, folder: PlayerIndex): void {
   const potBefore = s.pot;
   const w = other(folder);
   awardPot(s, [w]);
-  pushLog(s, { t: "showdown", winners: [w], pot: potBefore, desc: `P${folder} 폴드` });
+  pushLog(s, {
+    t: "showdown",
+    winners: [w],
+    pot: potBefore,
+    desc: "폴드",
+    folder,
+  });
   s.winner = w;
   s.handEndMode = "fold";
   s.phase = "hand_over";
@@ -306,7 +321,7 @@ function startPreflopAfterHands(s: GameState, deckRng: () => number): void {
   s.handSelectPhase = "done";
   s.handPickPending = [null, null];
   s.isAllIn = false;
-  s.lastActionNote = "프리플랍 — 버튼 (콜/레이즈)";
+  s.lastActionNote = "프리플랍 — 딜러·SB (콜/레이즈)";
 }
 
 function syncIsAllInFlag(s: GameState): void {
@@ -427,12 +442,13 @@ export function createInitialGameState(): GameState {
     preflopStage: null,
     preflopRaiseCount: 0,
     iaUsed: [false, false],
+    iaPotRemovalTotal: 0,
     iaReveal: [null, null],
     winner: null,
     handEndMode: null,
     matchWinner: null,
     logs: [{ t: "round_start", round: 1 }],
-    lastActionNote: "버튼 핸드 선택",
+    lastActionNote: "딜러·SB 핸드 선택",
     isAllIn: false,
   };
 }
@@ -445,6 +461,9 @@ export function holdemReducer(
   const s: GameState = structuredClone(state);
   s.isAllIn = s.isAllIn ?? false;
   s.handPoolRemaining = normalizeHandPoolRemaining(s.handPoolRemaining as unknown);
+  if (typeof s.iaPotRemovalTotal !== "number" || Number.isNaN(s.iaPotRemovalTotal)) {
+    s.iaPotRemovalTotal = totalIaChipsRemovedFromLogs(s.logs);
+  }
   if (s.matchWinner != null) return state;
 
   switch (action.type) {
@@ -581,7 +600,7 @@ export function holdemReducer(
       } else {
         s.preflopStage = "facing_raise";
         s.toAct = other(p);
-        s.lastActionNote = "버튼 응답 (콜만)";
+        s.lastActionNote = "딜러·SB 응답 (콜만)";
       }
       return done(s);
     }
@@ -689,6 +708,7 @@ export function holdemReducer(
       if (cost > s.chips[p]!) return state;
       s.chips[p]! -= cost;
       s.pot -= cost;
+      s.iaPotRemovalTotal = roundHalfChip(s.iaPotRemovalTotal + cost);
       s.iaUsed[p] = true;
       const opp = other(p);
       s.iaReveal[p] = s.holes[opp]!.iaCategory;
@@ -743,7 +763,7 @@ export function holdemReducer(
       s.iaUsed = [false, false];
       s.iaReveal = [null, null];
       pushLog(s, { t: "round_start", round: s.roundNumber });
-      s.lastActionNote = "버튼 핸드 선택";
+      s.lastActionNote = "딜러·SB 핸드 선택";
       s.isAllIn = false;
       return done(s);
     }

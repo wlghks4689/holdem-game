@@ -61,13 +61,25 @@ export type GameMessage =
   | { t: "street_cards"; street: Street; cards: Card[]; pot: number }
   | { t: "postflop_action"; player: PlayerIndex; action: string; amount?: number }
   | { t: "ia"; player: PlayerIndex; revealedCategory: OpponentHandCategory; cost: number }
-  | { t: "showdown"; winners: PlayerIndex[]; pot: number; desc: string }
+  | {
+      t: "showdown";
+      winners: PlayerIndex[];
+      pot: number;
+      desc: string;
+      /** 카드 쇼다운 시 좌석별 족보 요약(0·1). 없으면 구버전 로그 */
+      hands?: [string, string];
+      /** 폴드로 끝난 경우 폴드한 좌석 */
+      folder?: PlayerIndex;
+    }
   | { t: "player_busted"; player: PlayerIndex };
 
 export type GameState = {
   phase: Street;
   roundNumber: number;
-  /** 0 = 버튼/SB, 1 = BB (토글 매 라운드) */
+  /**
+   * 이번 핸드의 딜러 버튼(헤즈업에서 스몰 블라인드) 좌석.
+   * `NEW_HAND`마다 교대 — 특정 좌석에 고정되지 않습니다.
+   */
   button: PlayerIndex;
   chips: [number, number];
   pot: number;
@@ -95,6 +107,11 @@ export type GameState = {
   preflopRaiseCount: number;
   /** 리버에서 IA 사용 여부 (플레이어별) */
   iaUsed: [boolean, boolean];
+  /**
+   * 매치 동안 IA로 팟에서 제거된 칩 누적(로그 tail 잘림과 무관).
+   * 구버전 저장본에는 없을 수 있음 → UI는 로그 합으로 보조.
+   */
+  iaPotRemovalTotal: number;
   /** 상대 카테고리 공개 (IA 성공 시) */
   iaReveal: [OpponentHandCategory | null, OpponentHandCategory | null];
   winner: PlayerIndex | null;

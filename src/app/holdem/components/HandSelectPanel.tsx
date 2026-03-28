@@ -7,6 +7,7 @@ import {
   normalizeHandPoolRemaining,
   templateLabel,
 } from "@/holdem/handPool";
+import { HU_BB_LABEL, HU_DEALER_SB_LABEL } from "@/holdem/headsUpLabels";
 import type { GameState, HandPoolTemplate, OpponentHandCategory, PlayerIndex } from "@/holdem/types";
 
 const CATEGORY_ORDER: OpponentHandCategory[] = [
@@ -46,12 +47,18 @@ const TEMPLATES_BY_CATEGORY = groupTemplatesByCategory();
 
 export type HandSelectPanelProps = {
   state: GameState;
+  playerNames: [string, string];
   /** 온라인 방: 내 좌석만 선택 UI 표시 */
   mySeat?: PlayerIndex;
   onSelect: (player: PlayerIndex, templateId: string) => void;
 };
 
-export function HandSelectPanel({ state, mySeat, onSelect }: HandSelectPanelProps) {
+export function HandSelectPanel({
+  state,
+  playerNames,
+  mySeat,
+  onSelect,
+}: HandSelectPanelProps) {
   const phase = state.handSelectPhase;
   const [pick, setPick] = React.useState<string | null>(null);
 
@@ -103,9 +110,9 @@ export function HandSelectPanel({ state, mySeat, onSelect }: HandSelectPanelProp
   return phase === "done" ? null : (
     <div className="rounded-xl border border-violet-600/45 bg-violet-900/22 p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]">
       <h3 className="mb-3 text-sm font-semibold text-violet-50">
-        P{player} 핸드 선택{" "}
+        {playerNames[player]} 핸드 선택{" "}
         <span className="font-normal text-violet-200/95">
-          ({phase === "button" ? "버튼" : "BB"})
+          ({phase === "button" ? HU_DEALER_SB_LABEL : HU_BB_LABEL})
         </span>
       </h3>
 

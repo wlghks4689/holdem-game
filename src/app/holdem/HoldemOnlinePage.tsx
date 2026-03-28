@@ -4,6 +4,7 @@ import * as React from "react";
 import {
   DEFAULT_HOLDEM_DISPLAY_NAMES,
   loadHoldemDisplayNames,
+  saveHoldemDisplayNames,
 } from "@/holdem/playerDisplayNames";
 import type { PlayerIndex } from "@/holdem/types";
 import { useHoldemOnlineGame } from "@/holdem/useHoldemOnlineGame";
@@ -35,7 +36,10 @@ export function HoldemOnlinePage(props: {
           : DEFAULT_HOLDEM_DISPLAY_NAMES[1]!;
       const t = raw.trim();
       const nextName = t.length > 0 ? t.slice(0, 24) : fb;
-      return p === 0 ? [nextName, prev[1]!] : [prev[0]!, nextName];
+      const next: [string, string] =
+        p === 0 ? [nextName, prev[1]!] : [prev[0]!, nextName];
+      saveHoldemDisplayNames(next);
+      return next;
     });
   }, []);
 
@@ -48,7 +52,7 @@ export function HoldemOnlinePage(props: {
           className="mt-2 rounded-lg bg-violet-600 px-4 py-2 text-sm font-medium text-white hover:bg-violet-500"
           href="/holdem"
         >
-          홀덤 화면으로
+          홈으로
         </a>
       </div>
     );

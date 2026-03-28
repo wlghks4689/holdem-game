@@ -3,6 +3,7 @@
 import type { CSSProperties } from "react";
 import { best5Of7, compareHandValue } from "@/holdem/pokerEval";
 import { iaCategoryHandListText } from "@/holdem/handPool";
+import { headsUpPositionLabel } from "@/holdem/headsUpLabels";
 import type { GameState, PlayerIndex } from "@/holdem/types";
 import { useTurnPulse } from "../hooks/useTurnPulse";
 import { CardBack, PlayingCard } from "./Card";
@@ -61,7 +62,6 @@ export function HoleCards({
         if (seatFilter === "opponent" && p !== opp) return null;
         const sel = state.holes[p];
         const pending = state.handPickPending[p];
-        const isBtn = state.button === p;
         const showPendingOnly = selecting && pending != null && sel == null;
         const isMe = p === viewer;
         const isToAct =
@@ -125,9 +125,11 @@ export function HoleCards({
           <div key={p} className={frameClass} style={frameStyle}>
             <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[10px] font-medium uppercase text-zinc-400">
               <span className="text-zinc-200">{seatName}</span>
-              <span className="text-zinc-500">P{p}</span>
-              <span className="rounded bg-zinc-600/80 px-1.5 py-px text-[9px] text-zinc-300">
-                {isBtn ? "버튼 / SB" : "BB"}
+              <span
+                className="rounded bg-zinc-600/80 px-1.5 py-px text-zinc-300"
+                style={{ fontSize: "calc(9px * 1.3)" }}
+              >
+                {headsUpPositionLabel(state, p)}
               </span>
               {isMe ? (
                 <span className="text-emerald-300">내 카드</span>

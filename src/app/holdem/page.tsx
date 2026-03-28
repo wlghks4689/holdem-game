@@ -1,5 +1,5 @@
 import { Suspense } from "react";
-import HoldemClientGate from "./HoldemClientGate";
+import { HoldemHomeOrLegacy } from "./components/HoldemHomeOrLegacy";
 
 export default function HoldemPage() {
   return (
@@ -10,7 +10,7 @@ export default function HoldemPage() {
         </div>
       }
     >
-      <HoldemClientGate />
+      <HoldemHomeOrLegacy />
     </Suspense>
   );
 }

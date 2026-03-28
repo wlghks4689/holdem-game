@@ -53,6 +53,12 @@ export function useHoldemOnlineGame(opts: {
       });
       const j = (await r.json().catch(() => ({}))) as { error?: string; state?: GameState };
       if (!r.ok) {
+        // 양측 자동 NEW_HAND 등으로 한쪽이 먼저 진행된 뒤면 400 — 에러 없이 동기화
+        if (action.type === "NEW_HAND" && r.status === 400) {
+          setLoadError(null);
+          void fetchSnapshot();
+          return;
+        }
         setLoadError(j.error ?? "action failed");
         void fetchSnapshot();
         return;
@@ -100,7 +106,8 @@ export function useHoldemOnlineGame(opts: {
       window.clearInterval(iv);
       window.clearTimeout(to);
     };
-  }, [timerSig, limitMs, state, dispatch]);
+    // `state`는 폴링마다 새 참조라 deps에 넣으면 타이머가 계속 리셋됨. 시그니처·한도만 본다.
+  }, [timerSig, limitMs, dispatch]);
 
   return {
     state,

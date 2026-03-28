@@ -17,7 +17,7 @@ export const PREFLOP_ANTE_BB = 1;
 export const STARTING_CHIPS = 200;
 export const TOTAL_ROUNDS = 30;
 
-/** 버튼(SB) 프리플랍 최대 총 기여 (bb) — UI: 2bb MAX */
+/** 헤즈업 딜러·SB 프리플랍 최대 총 기여 (bb) — UI: 2bb MAX */
 export const PREFLOP_BUTTON_MAX_RAISE_TO_BB = 2;
 /** BB 옵션(버튼 림프 후) 최대 총 기여 상한 (bb) — 팟 캡과 교차 */
 export const PREFLOP_BB_BB_OPTION_MAX_RAISE_TO_BB = 3;
@@ -42,3 +42,6 @@ export const HAND_SELECT_TIMER_SECONDS = 40;
 
 /** 베팅 액션 제한 시간(초) — 초과 시 자동 체크/폴드 */
 export const ACTION_TIMER_SECONDS = 30;
+
+/** 판 종료(showdown / hand_over) 후 자동으로 다음 핸드(핸드 선택)까지 대기(초) */
+export const NEW_HAND_AUTO_SECONDS = 8;

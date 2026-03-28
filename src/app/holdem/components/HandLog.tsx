@@ -65,15 +65,53 @@ function lastShowdownIn(
 }
 
 function isFoldShowdown(m: Extract<GameMessage, { t: "showdown" }>): boolean {
-  return m.winners.length === 1 && m.desc.includes("폴드");
+  return (
+    m.winners.length === 1 &&
+    (m.folder != null || m.desc.includes("폴드"))
+  );
+}
+
+/** 구버전 로그 desc의 P0/P1을 표시 이름으로 치환 */
+function humanizeLegacyShowdownDesc(
+  desc: string,
+  pl: (p: PlayerIndex) => string,
+): string {
+  return desc.replace(/\bP0\b/g, pl(0)).replace(/\bP1\b/g, pl(1));
+}
+
+function findLastRoundStartBefore(logs: GameMessage[], idx: number): number {
+  for (let j = idx; j >= 0; j--) {
+    if (logs[j]!.t === "round_start") return j;
+  }
+  return -1;
+}
+
+/** `roundStartIdx` 이후 ~ 다음 `round_start` 전에 `showdown`이 있으면 해당 핸드는 종료된 것으로 본다. */
+function segmentHasShowdown(logs: GameMessage[], roundStartIdx: number): boolean {
+  for (let j = roundStartIdx + 1; j < logs.length; j++) {
+    const m = logs[j]!;
+    if (m.t === "round_start") return false;
+    if (m.t === "showdown") return true;
+  }
+  return false;
+}
+
+function shouldRevealHandChosenLabel(
+  logs: GameMessage[],
+  messageIndex: number,
+): boolean {
+  const r = findLastRoundStartBefore(logs, messageIndex);
+  if (r < 0) return false;
+  return segmentHasShowdown(logs, r);
 }
 
 function buildSections(
   logs: GameMessage[],
   playerNames: [string, string],
   showdownHoleCtx: { holes: [SelectedHand, SelectedHand]; board: Card[] } | null,
+  playMode: "local" | "online",
 ): Section[] {
-  const pl = (p: PlayerIndex) => playerNames[p] ?? `P${p}`;
+  const pl = (p: PlayerIndex) => playerNames[p] ?? `플레이어 ${p + 1}`;
   const lastSd = lastShowdownIn(logs);
   const out: Section[] = [];
   let setup: string[] = [];
@@ -139,7 +177,8 @@ function buildSections(
     }
   };
 
-  for (const m of logs) {
+  for (let mi = 0; mi < logs.length; mi++) {
+    const m = logs[mi]!;
     switch (m.t) {
       case "round_start":
         pushEnd();
@@ -150,9 +189,16 @@ function buildSections(
       case "hand_pick_conflict":
         setup.push("홀카드 충돌 — 재선택");
         break;
-      case "hand_chosen":
-        setup.push(`P${m.player} 핸드: ${m.label}`);
+      case "hand_chosen": {
+        const revealPool =
+          playMode === "local" && shouldRevealHandChosenLabel(logs, mi);
+        setup.push(
+          revealPool
+            ? `${pl(m.player)} 핸드: ${m.label}`
+            : `${pl(m.player)}: 핸드 선택 완료 (비공개)`,
+        );
         break;
+      }
       case "preflop_action":
         if (setup.length > 0) pushSetup();
         if (preflop == null) preflop = [];
@@ -214,8 +260,14 @@ function buildSections(
           lastSec.lines.push(`리버 종료 · 팟 ${chipsAsBbLabel(m.pot)}`);
         }
         if (endLines == null) endLines = [];
+        const showdownLine =
+          m.folder != null
+            ? `${pl(m.folder)} 폴드`
+            : m.hands
+              ? `${pl(0)} ${m.hands[0]} vs ${pl(1)} ${m.hands[1]}`
+              : humanizeLegacyShowdownDesc(m.desc, pl);
         endLines.push(
-          `${m.desc} · 팟 ${chipsAsBbLabel(m.pot)} (승: ${m.winners.map((w) => pl(w)).join(", ")})`,
+          `${showdownLine} · 팟 ${chipsAsBbLabel(m.pot)} (승: ${m.winners.map((w) => pl(w)).join(", ")})`,
         );
         appendShowdownHoleLines(m);
         break;
@@ -242,14 +294,21 @@ export type HandLogProps = {
   playerNames: [string, string];
   /** 쇼다운 직후에만 전달 — 마지막 `showdown` 블록에 양쪽 홀·족보를 붙입니다. */
   showdownHoleCtx?: { holes: [SelectedHand, SelectedHand]; board: Card[] } | null;
+  /** 온라인: 풀 핸드 라벨·홀 상세 로그 비표시(동일 기기 공유 시 정보 누출 방지). */
+  playMode?: "local" | "online";
 };
 
-export function HandLog({ logs, playerNames, showdownHoleCtx = null }: HandLogProps) {
+export function HandLog({
+  logs,
+  playerNames,
+  showdownHoleCtx = null,
+  playMode = "local",
+}: HandLogProps) {
   const [open, setOpen] = React.useState(true);
   const recent = React.useMemo(() => logs.slice(-140), [logs]);
   const sections = React.useMemo(
-    () => buildSections(recent, playerNames, showdownHoleCtx ?? null),
-    [recent, playerNames, showdownHoleCtx],
+    () => buildSections(recent, playerNames, showdownHoleCtx ?? null, playMode),
+    [recent, playerNames, showdownHoleCtx, playMode],
   );
   const tail = sections.slice(-10);
 
