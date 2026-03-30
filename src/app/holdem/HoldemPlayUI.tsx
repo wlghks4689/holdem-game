@@ -313,10 +313,7 @@ export function HoldemPlayUI({
           ) : null}
           {/* 상대 카드 — 쇼다운·핸드오버: 전체 공개, 평시: compact 한 줄 배너 */}
           {state.phase === "showdown" || state.phase === "hand_over" ? (
-            <div className="hidden space-y-3 lg:block">
-              <p className="text-center text-[10px] font-bold uppercase tracking-[0.2em] text-zinc-500">
-                상대 · {playerNames[other(viewer)]}
-              </p>
+            <div className="hidden space-y-2 lg:block">
               <HoleCards
                 state={state}
                 viewer={viewer}
@@ -433,9 +430,6 @@ export function HoldemPlayUI({
 
           <div className="mt-2 hidden gap-8 lg:mt-8 lg:grid lg:grid-cols-2 lg:items-start lg:gap-10">
             <div className="min-w-0">
-              <p className="mb-2 text-center text-[10px] font-bold uppercase tracking-[0.18em] text-emerald-400/90 lg:text-left">
-                나 · {playerNames[viewer]}
-              </p>
               <div className="rounded-xl border border-emerald-900/35 bg-zinc-900/30 p-3 lg:p-4">
                 <HoleCards
                   state={state}

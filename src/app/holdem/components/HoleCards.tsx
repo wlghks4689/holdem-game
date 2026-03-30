@@ -16,6 +16,7 @@ import { useHoldemI18n } from "@/holdem/i18n/HoldemLocaleProvider";
 import { iaCategoryHandListText } from "@/holdem/handPool";
 import { headsUpPositionLabel } from "@/holdem/headsUpLabels";
 import type { GameState, PlayerIndex } from "@/holdem/types";
+import { useHoldemMotionMode } from "../HoldemMotionRuntime";
 import { useTurnPulse } from "../hooks/useTurnPulse";
 import { CardBack, PlayingCard } from "./Card";
 
@@ -24,7 +25,7 @@ const other = (p: PlayerIndex): PlayerIndex => (p === 0 ? 1 : 0);
 /** 메이드 연출용 — 카드 링(글로우가 ::after 뒤에서도 보이도록) */
 const MADE_FX_CARD_RING: Record<number, string> = {
   1: "ring-2 ring-amber-400/90 shadow-[0_0_26px_rgba(251,191,36,0.55)]",
-  2: "ring-2 ring-teal-400/85 shadow-[0_0_26px_rgba(45,212,191,0.5)]",
+  2: "ring-2 ring-sky-400/90 shadow-[0_0_28px_rgba(14,165,233,0.55)]",
   3: "ring-2 ring-violet-400/85 shadow-[0_0_28px_rgba(167,139,250,0.45)]",
   4: "ring-2 ring-amber-300/90 shadow-[0_0_30px_rgba(252,211,77,0.55)]",
   5: "ring-2 ring-yellow-300/90 shadow-[0_0_32px_rgba(253,224,71,0.5)]",
@@ -71,6 +72,8 @@ export function HoleCards({
   cinematicWinnerPulse = false,
 }: HoleCardsProps) {
   const { t, locale } = useHoldemI18n();
+  const motionMode = useHoldemMotionMode();
+  const subtleMotion = motionMode === "subtle";
   const madeHandFxOn = useMadeHandFxEnabled();
   const selecting = state.phase === "hand_select";
   const opp = other(viewer);
@@ -80,6 +83,7 @@ export function HoleCards({
     state.phase !== "showdown" && state.phase !== "hand_over"
       ? state.toAct
       : null,
+    { holdMs: subtleMotion ? 240 : 320 },
   );
   const iaCategoryForOpp =
     state.phase !== "hand_select" && state.iaReveal[viewer] != null
@@ -200,11 +204,23 @@ export function HoleCards({
 
         const frameStyle: CSSProperties | undefined =
           isToAct && turnPulse
-            ? { animation: "holdem-turn-ring 0.32s ease-out 1" }
+            ? {
+                animation: subtleMotion
+                  ? "holdem-turn-ring-subtle 0.24s ease-out 1"
+                  : "holdem-turn-ring 0.32s ease-out 1",
+              }
             : isHandPickChoosing
-              ? { animation: "holdem-hand-pick-glow 1.8s ease-in-out infinite" }
+              ? {
+                  animation: subtleMotion
+                    ? "holdem-hand-pick-glow-subtle 1.1s ease-in-out infinite"
+                    : "holdem-hand-pick-glow 1.8s ease-in-out infinite",
+                }
               : cinematicWinnerPulse && winnerShowdown
-                ? { animation: "holdem-showdown-win-pulse 1.15s ease-in-out 2" }
+                ? {
+                    animation: subtleMotion
+                      ? "holdem-showdown-win-pulse-subtle 0.75s ease-in-out 2"
+                      : "holdem-showdown-win-pulse 1.15s ease-in-out 2",
+                  }
                 : undefined;
 
         const seatName = playerNames[p]!;

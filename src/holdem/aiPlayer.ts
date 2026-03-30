@@ -7,7 +7,7 @@ import {
   canPreflopShortStackAllInShove,
   effectiveCallPay,
   facingFor,
-  iaCostFromPot,
+  iaAppliedCostFromPot,
   levelFromContributions,
   postflopRaiseTargetCappedByOpponent,
   postflopMaxOpenBetForActor,
@@ -21,6 +21,7 @@ import {
 import { resolveHandBlinds } from "./blindLevels";
 import { SMALLEST_CHIP } from "./constants";
 import { ALL_HAND_TEMPLATES } from "./handPool";
+import { pickBestRiverEvAction } from "./riverEvAi";
 import type { GameAction, GameState, PlayerIndex } from "./types";
 
 // ─── 공개 타입 ────────────────────────────────────────────────────────────────
@@ -395,6 +396,22 @@ export function computeAIBettingAction(
     return preflopAction(state, aiSeat, tier, difficulty, personality);
   }
   if (phase === "flop" || phase === "turn" || phase === "river") {
+    if (
+      difficulty === "hard" &&
+      phase === "river" &&
+      !state.isAllIn &&
+      state.holes[aiSeat] != null &&
+      state.board.length >= 5
+    ) {
+      const iaCat = state.iaReveal[aiSeat];
+      const pick = pickBestRiverEvAction(
+        state,
+        aiSeat,
+        state.pot,
+        iaCat ?? null,
+      );
+      if (pick != null) return pick.action;
+    }
     return postflopAction(state, aiSeat, tier, difficulty, personality);
   }
   return null;
@@ -414,9 +431,9 @@ export function shouldAIUseIA(
 ): boolean {
   const tier = handStrengthTier(state.holes[aiSeat]?.templateId);
   const bb = resolveHandBlinds(state).bb;
-  const iaCost = iaCostFromPot(state.pot, bb);
+  const iaCost = iaAppliedCostFromPot(state.pot, bb);
 
-  if ((state.chips[aiSeat] ?? 0) < iaCost) return false;
+  if (iaCost <= 1e-9) return false;
   if (state.pot <= 0 || state.isAllIn) return false;
 
   const base =

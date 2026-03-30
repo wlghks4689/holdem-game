@@ -95,6 +95,42 @@ body {
   }
 }
 
+/** reduced-motion 완만 모드 — 상태 전환만 얕게 인지 */
+@keyframes holdem-board-deal-3d-subtle {
+  0% {
+    opacity: 0.35;
+    transform: rotateY(-28deg) translateZ(-12px) translateY(6px);
+  }
+  100% {
+    opacity: 1;
+    transform: rotateY(0deg) translateZ(0) translateY(0);
+  }
+}
+@keyframes holdem-board-deal-3d-lead-subtle {
+  0% {
+    opacity: 0.35;
+    transform: rotateY(-32deg) translateZ(-14px) translateY(8px) scale(0.97);
+  }
+  70% {
+    opacity: 1;
+    transform: rotateY(4deg) translateZ(3px) translateY(-2px) scale(1.01);
+  }
+  100% {
+    opacity: 1;
+    transform: rotateY(0deg) translateZ(0) translateY(0) scale(1);
+  }
+}
+@keyframes holdem-card-flip-reveal-subtle {
+  0% {
+    opacity: 0.75;
+    transform: perspective(480px) rotateY(32deg) translateY(3px);
+  }
+  100% {
+    opacity: 1;
+    transform: perspective(480px) rotateY(0deg) translateY(0);
+  }
+}
+
 .holdem-board-perspective {
   perspective: 1100px;
   perspective-origin: 50% 38%;
@@ -112,6 +148,15 @@ body {
   }
   100% {
     box-shadow: 0 0 0 8px #34d39900;
+  }
+}
+
+@keyframes holdem-turn-ring-subtle {
+  0% {
+    box-shadow: 0 0 #34d39950;
+  }
+  100% {
+    box-shadow: 0 0 0 4px #34d39900;
   }
 }
 
@@ -135,6 +180,16 @@ body {
   }
 }
 
+@keyframes holdem-hand-pick-glow-subtle {
+  0%,
+  100% {
+    box-shadow: 0 0 8px rgba(251, 191, 36, 0.12);
+  }
+  50% {
+    box-shadow: 0 0 14px rgba(251, 191, 36, 0.28);
+  }
+}
+
 @keyframes holdem-active-turn-glow {
   0%,
   100% {
@@ -142,6 +197,16 @@ body {
   }
   50% {
     box-shadow: 0 0 26px rgba(52, 211, 153, 0.35);
+  }
+}
+
+@keyframes holdem-active-turn-glow-subtle {
+  0%,
+  100% {
+    box-shadow: 0 0 10px rgba(52, 211, 153, 0.1);
+  }
+  50% {
+    box-shadow: 0 0 16px rgba(52, 211, 153, 0.22);
   }
 }
 
@@ -274,6 +339,16 @@ body {
   }
 }
 
+@keyframes holdem-showdown-win-pulse-subtle {
+  0%,
+  100% {
+    filter: brightness(1);
+  }
+  50% {
+    filter: brightness(1.04);
+  }
+}
+
 /** 올인 쇼다운 타이틀 — 등장 후 페이드 */
 @keyframes holdem-all-in-title {
   0% {
@@ -311,6 +386,15 @@ body {
   }
   100% {
     box-shadow: 0 0 0 10px rgba(251, 191, 36, 0);
+  }
+}
+
+@keyframes holdem-board-street-pulse-subtle {
+  0% {
+    box-shadow: 0 0 0 0 rgba(251, 191, 36, 0.28);
+  }
+  100% {
+    box-shadow: 0 0 0 5px rgba(251, 191, 36, 0);
   }
 }
 
@@ -382,17 +466,19 @@ body {
   }
 }
 
+/* 플러시(t2) — 에메랄드 턴 링과 구분되도록 스카이 블루 계열 */
 @keyframes holdem-made-flush-pulse {
   0%,
   100% {
     box-shadow:
-      0 0 0 0 rgba(45, 212, 191, 0),
-      inset 0 0 0 1px rgba(45, 212, 191, 0.15);
+      0 0 0 0 rgba(56, 189, 248, 0),
+      inset 0 0 0 1px rgba(56, 189, 248, 0.18);
   }
   50% {
     box-shadow:
-      0 0 18px 2px rgba(45, 212, 191, 0.35),
-      inset 0 0 12px rgba(45, 212, 191, 0.12);
+      0 0 22px 4px rgba(14, 165, 233, 0.42),
+      0 0 8px 1px rgba(125, 211, 252, 0.35),
+      inset 0 0 14px rgba(56, 189, 248, 0.14);
   }
 }
 
@@ -499,6 +585,121 @@ body {
   }
 }
 
+@keyframes holdem-made-card-stagger-subtle {
+  0% {
+    transform: translateY(3px) scale(0.98);
+    opacity: 0.92;
+  }
+  100% {
+    transform: translateY(0) scale(1);
+    opacity: 1;
+  }
+}
+
+@keyframes holdem-made-straight-subtle {
+  0%,
+  100% {
+    filter: brightness(1);
+    transform: scale(1);
+  }
+  50% {
+    filter: brightness(1.06);
+    transform: scale(1.018);
+  }
+}
+
+@keyframes holdem-made-straight-scan-subtle {
+  0% {
+    opacity: 0;
+    transform: translateX(-40%);
+  }
+  40% {
+    opacity: 0.32;
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(40%);
+  }
+}
+
+@keyframes holdem-made-flush-pulse-subtle {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(56, 189, 248, 0),
+      inset 0 0 0 1px rgba(56, 189, 248, 0.12);
+  }
+  50% {
+    box-shadow: 0 0 10px 1px rgba(14, 165, 233, 0.22),
+      inset 0 0 6px rgba(56, 189, 248, 0.08);
+  }
+}
+
+@keyframes holdem-made-house-subtle {
+  0%,
+  100% {
+    transform: scale(1);
+    filter: brightness(1);
+    box-shadow: 0 0 0 0 rgba(251, 191, 36, 0);
+  }
+  50% {
+    transform: scale(1.02);
+    filter: brightness(1.06);
+    box-shadow: 0 0 12px 2px rgba(167, 139, 250, 0.25);
+  }
+}
+
+@keyframes holdem-made-house-flash-subtle {
+  0% {
+    opacity: 0;
+    transform: scale(0.98);
+  }
+  35% {
+    opacity: 0.35;
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.02);
+  }
+}
+
+@keyframes holdem-made-quads-subtle {
+  0%,
+  100% {
+    transform: scale(1);
+    filter: brightness(1);
+  }
+  50% {
+    transform: scale(1.02);
+    filter: brightness(1.06);
+  }
+}
+
+@keyframes holdem-made-sf-subtle {
+  0%,
+  100% {
+    filter: brightness(1);
+    box-shadow: 0 0 0 0 transparent;
+  }
+  50% {
+    filter: brightness(1.06);
+    box-shadow: 0 0 12px 2px rgba(253, 224, 71, 0.28);
+  }
+}
+
+@keyframes holdem-made-hand-label-glow-subtle {
+  0%,
+  100% {
+    text-shadow: none;
+    transform: scale(1);
+    filter: brightness(1);
+  }
+  50% {
+    text-shadow: 0 0 10px rgba(251, 191, 36, 0.35);
+    transform: scale(1.03);
+    filter: brightness(1.05);
+  }
+}
+
 .holdem-made-fx {
   position: relative;
   isolation: isolate;
@@ -554,12 +755,13 @@ body {
   background: linear-gradient(
     110deg,
     transparent 0%,
-    rgba(45, 212, 191, 0.25) 45%,
+    rgba(56, 189, 248, 0.28) 40%,
+    rgba(14, 165, 233, 0.2) 52%,
     transparent 90%
   );
   background-size: 220% 100%;
   animation: holdem-made-flush-sheen 1.25s linear 1;
-  opacity: 0.85;
+  opacity: 0.88;
 }
 
 .holdem-made-fx-t3 {
@@ -621,7 +823,7 @@ body {
   color: rgb(253 230 138);
 }
 .holdem-made-hand-label-t2 {
-  color: rgb(153 246 228);
+  color: rgb(125 211 252);
 }
 .holdem-made-hand-label-t3 {
   color: rgb(216 180 254);
@@ -633,35 +835,69 @@ body {
   color: rgb(253 224 71);
 }
 
+/**
+ * prefers-reduced-motion: 완전 비활성화 대신 짧고 약한 연출 유지.
+ * 개발자 디버그(data-holdem-motion=debug-full) 시에는 본편과 동일하게 재생.
+ * hydration 전: reduced 이고 아직 data 없음 → subtle 규칙 적용(노멀 사용자는 normal로 차단).
+ */
 @media (prefers-reduced-motion: reduce) {
-  .holdem-board-card-3d-root {
-    animation: none !important;
+  html:not([data-holdem-motion="debug-full"]):not([data-holdem-motion="normal"])
+    .holdem-made-fx-t1 {
+    animation: holdem-made-straight-subtle 0.42s ease-out 1 !important;
+  }
+  html:not([data-holdem-motion="debug-full"]):not([data-holdem-motion="normal"])
+    .holdem-made-fx-t1::after {
+    display: block !important;
+    animation: holdem-made-straight-scan-subtle 0.52s ease-out 1 !important;
     opacity: 1 !important;
-    transform: none !important;
   }
-  .holdem-made-fx-t1,
-  .holdem-made-fx-t2,
-  .holdem-made-fx-t3,
-  .holdem-made-fx-t4,
-  .holdem-made-fx-t5 {
-    animation: none !important;
-    background: none !important;
-    box-shadow: none !important;
-    filter: none !important;
-    transform: none !important;
+  html:not([data-holdem-motion="debug-full"]):not([data-holdem-motion="normal"])
+    .holdem-made-fx-t2 {
+    animation: holdem-made-flush-pulse-subtle 0.55s ease-in-out 1 !important;
   }
-  .holdem-made-fx-t1::after,
-  .holdem-made-fx-t2::after,
-  .holdem-made-fx-t3::after {
-    display: none !important;
+  html:not([data-holdem-motion="debug-full"]):not([data-holdem-motion="normal"])
+    .holdem-made-fx-t2::after {
+    display: block !important;
+    animation: holdem-made-flush-sheen 0.55s linear 1 !important;
+    opacity: 0.55 !important;
   }
-  .holdem-made-fx-t1 .holdem-made-fx-card {
-    animation: none !important;
+  html:not([data-holdem-motion="debug-full"]):not([data-holdem-motion="normal"])
+    .holdem-made-fx-t3 {
+    animation: holdem-made-house-subtle 0.65s ease-out 1 !important;
   }
-  .holdem-made-hand-label {
-    animation: none !important;
-    text-shadow: none !important;
-    transform: none !important;
-    filter: none !important;
+  html:not([data-holdem-motion="debug-full"]):not([data-holdem-motion="normal"])
+    .holdem-made-fx-t3::after {
+    display: block !important;
+    animation: holdem-made-house-flash-subtle 0.65s ease-out 1 !important;
+  }
+  html:not([data-holdem-motion="debug-full"]):not([data-holdem-motion="normal"])
+    .holdem-made-fx-t4 {
+    animation: holdem-made-quads-subtle 0.5s ease-out 1 !important;
+  }
+  html:not([data-holdem-motion="debug-full"]):not([data-holdem-motion="normal"])
+    .holdem-made-fx-t5 {
+    animation: holdem-made-sf-subtle 0.58s ease-in-out 1 !important;
+  }
+  html:not([data-holdem-motion="debug-full"]):not([data-holdem-motion="normal"])
+    .holdem-made-fx-t1
+    .holdem-made-fx-card,
+  html:not([data-holdem-motion="debug-full"]):not([data-holdem-motion="normal"])
+    .holdem-made-fx-t2
+    .holdem-made-fx-card,
+  html:not([data-holdem-motion="debug-full"]):not([data-holdem-motion="normal"])
+    .holdem-made-fx-t3
+    .holdem-made-fx-card,
+  html:not([data-holdem-motion="debug-full"]):not([data-holdem-motion="normal"])
+    .holdem-made-fx-t4
+    .holdem-made-fx-card,
+  html:not([data-holdem-motion="debug-full"]):not([data-holdem-motion="normal"])
+    .holdem-made-fx-t5
+    .holdem-made-fx-card {
+    animation: holdem-made-card-stagger-subtle 0.38s cubic-bezier(0.22, 1, 0.36, 1) 1
+      both !important;
+  }
+  html:not([data-holdem-motion="debug-full"]):not([data-holdem-motion="normal"])
+    .holdem-made-hand-label {
+    animation: holdem-made-hand-label-glow-subtle 0.55s ease-out 1 both !important;
   }
 }

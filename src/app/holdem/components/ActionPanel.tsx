@@ -7,7 +7,7 @@ import {
   canPreflopShortStackAllInShove,
   effectiveCallPay,
   facingFor,
-  iaCostFromPot,
+  iaAppliedCostFromPot,
   isLegalPreflopRaiseTarget,
   levelFromContributions,
   postflopCustomMaxRaiseToLevel,
@@ -544,11 +544,11 @@ export function ActionPanel({
   const idleAllInWaiting =
     isAllIn && chips <= 1e-9 && facing <= 1e-9 && (preflop || post);
 
-  const iaCost = iaCostFromPot(state.pot, bbUnit);
+  const iaCost = iaAppliedCostFromPot(state.pot, bbUnit);
   const canIa =
     phase === "river" &&
     !state.iaUsed[p] &&
-    chips >= iaCost &&
+    iaCost > 1e-9 &&
     state.pot > 0 &&
     !isAllIn;
 
@@ -713,7 +713,7 @@ export function ActionPanel({
           <button
             type="button"
             className={[btnIa, "inline-flex items-center gap-1.5"].join(" ")}
-            title={`게임에서 제외되는 스택이 차감되고 상대 홀의 카테고리만 공개됩니다. 사용 직후 이 리버 액션에 ${IA_RIVER_ACTION_EXTRA_SECONDS}초가 추가됩니다.`}
+            title={`팟에서 비용이 차감되고 상대 홀의 카테고리만 공개됩니다. 사용 직후 이 리버 액션에 ${IA_RIVER_ACTION_EXTRA_SECONDS}초가 추가됩니다.`}
             onClick={() => void dispatch({ type: "USE_IA" })}
           >
             <span className="font-semibold text-indigo-50">IA</span>
@@ -723,7 +723,7 @@ export function ActionPanel({
             </span>
           </button>
           <span className="text-[10px] text-indigo-200/80">
-            게임에서 제외되는 스택 · 카테고리만 공개 · 사용 시 {IA_RIVER_ACTION_EXTRA_SECONDS}s 추가
+            팟에서 차감 · 카테고리만 공개 · 사용 시 {IA_RIVER_ACTION_EXTRA_SECONDS}s 추가
           </span>
         </div>
       ) : null}

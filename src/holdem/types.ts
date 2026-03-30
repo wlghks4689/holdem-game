@@ -128,6 +128,7 @@ export type GameState = {
   iaUsed: [boolean, boolean];
   /**
    * 매치 동안 IA로 팟에서 제거된 칩 누적(로그 tail 잘림과 무관).
+   * 경제식: chips[0]+chips[1]+pot+iaPotRemovalTotal === 2*STARTING_CHIPS(일반 400).
    * 구버전 저장본에는 없을 수 있음 → UI는 로그 합으로 보조.
    */
   iaPotRemovalTotal: number;

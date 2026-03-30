@@ -3,7 +3,7 @@ import {
   bettingMatched,
   canActorPreflopRaise,
   facingFor,
-  iaCostFromPot,
+  iaAppliedCostFromPot,
   totalIaChipsRemovedFromLogs,
   levelFromContributions,
   postflopMaxOpenBetForActor,
@@ -808,10 +808,9 @@ export function holdemReducer(
       if (s.phase !== "river" || s.toAct == null) return state;
       const p = s.toAct;
       if (s.iaUsed[p]) return state;
-      const cost = iaCostFromPot(s.pot, resolveHandBlinds(s).bb);
-      if (cost > s.chips[p]!) return state;
-      s.chips[p]! -= cost;
-      s.pot -= cost;
+      const cost = iaAppliedCostFromPot(s.pot, resolveHandBlinds(s).bb);
+      if (cost <= 1e-9) return state;
+      s.pot = roundHalfChip(s.pot - cost);
       s.iaPotRemovalTotal = roundHalfChip(s.iaPotRemovalTotal + cost);
       s.iaUsed[p] = true;
       const opp = other(p);

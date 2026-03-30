@@ -14,7 +14,8 @@ import {
   type AIPersonality,
   type Difficulty,
 } from "./aiPlayer";
-import { iaCostFromPot } from "./bettingHelpers";
+import { shouldAIUseIAHardEv } from "./riverEvAi";
+import { iaAppliedCostFromPot } from "./bettingHelpers";
 import { resolveHandBlinds } from "./blindLevels";
 import { SINGLE_PLAYER_AI_THINK_EXTRA_MS } from "./constants";
 import { createInitialGameState, holdemReducer } from "./gameReducer";
@@ -67,6 +68,11 @@ export function useHoldemSinglePlayer({
   const [personality, setPersonality] = React.useState<AIPersonality>(() =>
     generatePersonality(difficulty, [50, 50], aiSeat),
   );
+
+  const personalityRef = React.useRef(personality);
+  React.useLayoutEffect(() => {
+    personalityRef.current = personality;
+  }, [personality]);
 
   React.useEffect(() => {
     // 새 핸드 시작 시 성향 갱신 (칩 차이 반영)
@@ -164,18 +170,23 @@ export function useHoldemSinglePlayer({
 
       // 리버에서 IA 사용 여부 먼저 결정
       const bb = resolveHandBlinds(cur).bb;
-      const iaCost = iaCostFromPot(cur.pot, bb);
+      const iaCost = iaAppliedCostFromPot(cur.pot, bb);
       const canIA =
         cur.phase === "river" &&
         !cur.iaUsed[aiSeat] &&
-        (cur.chips[aiSeat] ?? 0) >= iaCost &&
+        iaCost > 1e-9 &&
         cur.pot > 0 &&
         !cur.isAllIn;
 
-      if (canIA && shouldAIUseIA(cur, aiSeat, personalityRef.current, difficulty)) {
-        dispatchRef.current({ type: "USE_IA" });
-        // state 업데이트 후 다시 effect 실행 → 베팅 결정
-        return;
+      if (canIA) {
+        const useIa =
+          difficulty === "hard"
+            ? shouldAIUseIAHardEv(cur, aiSeat)
+            : shouldAIUseIA(cur, aiSeat, personalityRef.current, difficulty);
+        if (useIa) {
+          dispatchRef.current({ type: "USE_IA" });
+          return;
+        }
       }
 
       // 베팅 결정
@@ -198,14 +209,9 @@ export function useHoldemSinglePlayer({
     state.betting.contributed[0],
     state.betting.contributed[1],
     state.iaUsed[aiSeat],
+    state.iaReveal[aiSeat],
     localPaused,
   ]);
-
-  // personality를 ref로도 유지 (timeout 콜백에서 최신 값 참조)
-  const personalityRef = React.useRef(personality);
-  React.useLayoutEffect(() => {
-    personalityRef.current = personality;
-  }, [personality]);
 
   const toggleLocalPause = React.useCallback(() => setLocalPaused((v) => !v), []);
 

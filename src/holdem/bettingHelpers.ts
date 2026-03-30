@@ -247,6 +247,12 @@ export function iaCostFromPot(pot: number, bbUnit: number): number {
   return Math.max(minChips, truncated);
 }
 
+/** IA 적용 시 팟에서 실제로 제거되는 칩(표시·적용액 — `iaCostFromPot`을 현재 팟으로 클램프) */
+export function iaAppliedCostFromPot(pot: number, bbUnit: number): number {
+  const raw = iaCostFromPot(pot, bbUnit);
+  return roundHalfChip(Math.min(raw, pot));
+}
+
 export function totalIaDeductedFromPotThisHand(logs: readonly GameMessage[]): number {
   let showdownIdx = -1;
   for (let i = logs.length - 1; i >= 0; i--) {

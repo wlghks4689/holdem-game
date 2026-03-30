@@ -19,6 +19,7 @@ import {
   headsUpPositionLabel,
 } from "@/holdem/headsUpLabels";
 import type { GameState, PlayerIndex } from "@/holdem/types";
+import { useHoldemMotionMode } from "../HoldemMotionRuntime";
 import { useTurnPulse } from "../hooks/useTurnPulse";
 
 function fmtChips(v: number): string {
@@ -53,7 +54,11 @@ function flashMagnitude(f: [number, number] | null): boolean {
 }
 
 export function TableHeaderBar({ state, playerNames }: TableHeaderBarProps) {
-  const turnPulse = useTurnPulse(state.toAct);
+  const motionMode = useHoldemMotionMode();
+  const subtleMotion = motionMode === "subtle";
+  const turnPulse = useTurnPulse(state.toAct, {
+    holdMs: subtleMotion ? 240 : 320,
+  });
   const prevRoundRef = React.useRef<number | null>(null);
   const [blindUpKey, setBlindUpKey] = React.useState<number | null>(null);
   const iaRemovedTotal =
@@ -195,11 +200,16 @@ export function TableHeaderBar({ state, playerNames }: TableHeaderBarProps) {
               ].join(" ")}
               style={
                 acting && turnPulse
-                  ? { animation: "holdem-turn-ring 0.32s ease-out 1" }
+                  ? {
+                      animation: subtleMotion
+                        ? "holdem-turn-ring-subtle 0.24s ease-out 1"
+                        : "holdem-turn-ring 0.32s ease-out 1",
+                    }
                   : acting
                     ? {
-                        animation:
-                          "holdem-active-turn-glow 2.2s ease-in-out infinite",
+                        animation: subtleMotion
+                          ? "holdem-active-turn-glow-subtle 1.45s ease-in-out infinite"
+                          : "holdem-active-turn-glow 2.2s ease-in-out infinite",
                       }
                     : undefined
               }

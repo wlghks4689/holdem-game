@@ -19,9 +19,9 @@ const DIFFICULTY_LABEL: Record<Difficulty, string> = {
 };
 
 const AI_NAMES: Record<Difficulty, string> = {
-  easy:   "AI (Easy)",
-  normal: "AI",
-  hard:   "AI (Hard)",
+  easy: "Rookie",
+  normal: "Regular",
+  hard: "Pro",
 };
 
 interface Props {

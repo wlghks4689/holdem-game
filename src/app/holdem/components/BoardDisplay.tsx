@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import type { GameState } from "@/holdem/types";
+import { useHoldemMotionMode } from "../HoldemMotionRuntime";
 import { CardBack, PlayingCard } from "./Card";
 
 const streetKo: Record<string, string> = {
@@ -37,6 +38,8 @@ export function BoardDisplay({
   cinematicFlip = false,
   cinemaStreetPulse = null,
 }: BoardDisplayProps) {
+  const motionMode = useHoldemMotionMode();
+  const subtleMotion = motionMode === "subtle";
   const rev =
     visualRevealedOverride != null
       ? visualRevealedOverride
@@ -123,15 +126,25 @@ export function BoardDisplay({
             const dealEase = "cubic-bezier(0.22, 1, 0.36, 1) both";
             const innerDealAnim =
               newlyShown && cinematicFlip
-                ? `holdem-card-flip-reveal 0.48s ${dealEase}`
+                ? subtleMotion
+                  ? `holdem-card-flip-reveal-subtle 0.32s ${dealEase}`
+                  : `holdem-card-flip-reveal 0.48s ${dealEase}`
                 : newlyShown && !cinematicFlip
                   ? isLeadNewCard
-                    ? `holdem-board-deal-3d-lead 0.68s ${dealEase}`
-                    : `holdem-board-deal-3d 0.58s ${dealEase}`
+                    ? subtleMotion
+                      ? `holdem-board-deal-3d-lead-subtle 0.42s ${dealEase}`
+                      : `holdem-board-deal-3d-lead 0.68s ${dealEase}`
+                    : subtleMotion
+                      ? `holdem-board-deal-3d-subtle 0.36s ${dealEase}`
+                      : `holdem-board-deal-3d 0.58s ${dealEase}`
                   : null;
             const outerPulseStyle =
               pulseStreet && newlyShown
-                ? { animation: "holdem-board-street-pulse 0.55s ease-out 1" }
+                ? {
+                    animation: subtleMotion
+                      ? "holdem-board-street-pulse-subtle 0.38s ease-out 1"
+                      : "holdem-board-street-pulse 0.55s ease-out 1",
+                  }
                 : undefined;
             return (
               <div

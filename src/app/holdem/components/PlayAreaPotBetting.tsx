@@ -43,7 +43,9 @@ function tailSignature(logs: readonly GameMessage[]): string {
   return `${L}:${last.t}`;
 }
 
-/** 액션 스트립 한 줄 — 콜/베트는 `>` 로 금액 표기 통일 */
+/** 액션 스트립 한 줄 — 금액 앞 구분자는 모두 U+2192(→) 로 통일 */
+const FLASH_ARROW = " → ";
+
 function formatBettingFlashLine(
   m: Extract<GameMessage, { t: "preflop_action" } | { t: "postflop_action" }>,
   name: string,
@@ -53,24 +55,28 @@ function formatBettingFlashLine(
   if (m.action === "체크(자동)") return "";
   if (m.action === "체크") return `${name} · 체크`;
   if (m.action === "콜") {
-    const tail = amt != null ? ` > ${chipsAsBbLabel(amt, bbUnit)}` : "";
+    const tail =
+      amt != null ? `${FLASH_ARROW}${chipsAsBbLabel(amt, bbUnit)}` : "";
     return `${name} · 콜${tail}`;
   }
   if (m.action === "올인 콜") {
-    const tail = amt != null ? ` > ${chipsAsBbLabel(amt, bbUnit)}` : "";
+    const tail =
+      amt != null ? `${FLASH_ARROW}${chipsAsBbLabel(amt, bbUnit)}` : "";
     return `${name} · 올인 콜${tail}`;
   }
   if (m.action === "레이즈") {
     const tail =
-      amt != null ? ` > 총 ${chipsAsBbLabel(amt, bbUnit)}` : "";
+      amt != null ? `${FLASH_ARROW}총 ${chipsAsBbLabel(amt, bbUnit)}` : "";
     return `${name} · 레이즈${tail}`;
   }
   if (m.action === "베트") {
-    const tail = amt != null ? ` > ${chipsAsBbLabel(amt, bbUnit)}` : "";
-    return `${name} · 베트${tail}`;
+    const tail =
+      amt != null ? `${FLASH_ARROW}${chipsAsBbLabel(amt, bbUnit)}` : "";
+    return `${name} · 베팅${tail}`;
   }
   if (m.action === "올인") {
-    const tail = amt != null ? ` > 총 ${chipsAsBbLabel(amt, bbUnit)}` : "";
+    const tail =
+      amt != null ? `${FLASH_ARROW}총 ${chipsAsBbLabel(amt, bbUnit)}` : "";
     return `${name} · 올인${tail}`;
   }
   return `${name} · ${m.action}`;
