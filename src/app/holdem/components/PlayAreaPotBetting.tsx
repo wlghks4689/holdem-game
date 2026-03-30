@@ -241,12 +241,12 @@ export function PlayAreaPotBetting({ state, viewer }: PlayAreaPotBettingProps) {
             className="flex flex-wrap items-baseline justify-center gap-x-1.5 gap-y-0.5 sm:justify-start lg:justify-center"
             aria-label={`팟: ${fmtChips(state.pot)}칩스 = ${potInBbCompact(state.pot, potBbUnit)}`}
           >
-            <span className="text-2xl font-bold uppercase leading-none tracking-wide text-amber-500/95 lg:text-3xl">
+            <span className="text-xl font-bold uppercase leading-none tracking-wide text-amber-500/95 lg:text-2xl">
               팟{":  "}
             </span>
             <span
               key={potBumpKey}
-              className="text-2xl font-bold leading-none text-amber-100 lg:text-3xl"
+              className="text-xl font-bold leading-none text-amber-100 lg:text-2xl"
               style={
                 potBumpKey > 0
                   ? { animation: "holdem-pot-bump 0.36s ease-out 1" }
@@ -257,12 +257,12 @@ export function PlayAreaPotBetting({ state, viewer }: PlayAreaPotBettingProps) {
               <span className="font-sans font-bold text-amber-100/95">칩스</span>
             </span>
             <span
-              className="select-none text-2xl font-bold leading-none text-amber-200/55 lg:text-3xl"
+              className="select-none text-xl font-bold leading-none text-amber-200/55 lg:text-2xl"
               aria-hidden
             >
               =
             </span>
-            <span className="font-mono text-2xl font-bold tabular-nums leading-none text-amber-200 lg:text-3xl">
+            <span className="font-mono text-xl font-bold tabular-nums leading-none text-amber-200 lg:text-2xl">
               {potInBbCompact(state.pot, potBbUnit)}
             </span>
           </div>

@@ -1,7 +1,7 @@
 "use client";
 
 import type { CSSProperties } from "react";
-import { best5Of7, compareHandValue } from "@/holdem/pokerEval";
+import { best5Of7, compareHandValue, currentCompactHandLabel } from "@/holdem/pokerEval";
 import { iaCategoryHandListText } from "@/holdem/handPool";
 import { headsUpPositionLabel } from "@/holdem/headsUpLabels";
 import type { GameState, PlayerIndex } from "@/holdem/types";
@@ -158,6 +158,15 @@ export function HoleCards({
 
         const seatName = playerNames[p]!;
 
+        // 내 카드 헤더용 compact 족보 (핸드셀렉·쇼다운 제외)
+        const compactHand =
+          isMe &&
+          sel != null &&
+          state.phase !== "hand_select" &&
+          state.phase !== "showdown"
+            ? currentCompactHandLabel(sel.hole, state.board, state.boardRevealed)
+            : "";
+
         const cardSize =
           showdownReveal ? ("compact" as const) : isMe ? ("hero" as const) : ("board" as const);
 
@@ -178,37 +187,51 @@ export function HoleCards({
               ) : (
                 <span className="text-zinc-500">상대</span>
               )}
-              {isToAct ? (
-                <span className="ml-auto rounded-full bg-emerald-600/30 px-2 py-0.5 text-[9px] font-bold text-emerald-200">
-                  액션 턴
-                </span>
-              ) : isHandPickChoosing ? (
-                <span className="ml-auto rounded-full bg-amber-600/35 px-2 py-0.5 text-[9px] font-bold text-amber-100">
-                  핸드 선택
-                </span>
-              ) : isHandPickSubmitted ? (
-                <span className="ml-auto rounded-full bg-emerald-700/35 px-2 py-0.5 text-[9px] font-bold text-emerald-100">
-                  확정됨
-                </span>
-              ) : null}
+              <div className="ml-auto flex items-center gap-1.5">
+                {isToAct ? (
+                  <span className="rounded-full bg-emerald-600/30 px-2 py-0.5 text-[9px] font-bold text-emerald-200">
+                    액션 턴
+                  </span>
+                ) : isHandPickChoosing ? (
+                  <span className="rounded-full bg-amber-600/35 px-2 py-0.5 text-[9px] font-bold text-amber-100">
+                    핸드 선택
+                  </span>
+                ) : isHandPickSubmitted ? (
+                  <span className="rounded-full bg-emerald-700/35 px-2 py-0.5 text-[9px] font-bold text-emerald-100">
+                    확정됨
+                  </span>
+                ) : null}
+              </div>
             </div>
 
             {sel && showFaces ? (
               <div className="mt-1.5">
                 <div
                   className={[
-                    "flex justify-center sm:justify-start",
-                    showdownReveal ? "gap-2" : "gap-3",
+                    "flex flex-wrap items-center gap-x-4 gap-y-2",
+                    showdownReveal
+                      ? "justify-center gap-2 sm:justify-start"
+                      : "justify-center sm:justify-start",
                   ].join(" ")}
                 >
-                  {sel.hole.map((c, i) => (
-                    <PlayingCard
-                      key={i}
-                      card={c}
-                      size={cardSize}
-                      className={showdownReveal ? showdownCardClass : ""}
-                    />
-                  ))}
+                  {/* 카드 2장 */}
+                  <div className={["flex shrink-0", showdownReveal ? "gap-2" : "gap-3"].join(" ")}>
+                    {sel.hole.map((c, i) => (
+                      <PlayingCard
+                        key={i}
+                        card={c}
+                        size={cardSize}
+                        className={showdownReveal ? showdownCardClass : ""}
+                      />
+                    ))}
+                  </div>
+
+                  {/* 족보 — 내 카드·비쇼다운에서만 크게 표시 */}
+                  {compactHand && isMe && !showdownReveal ? (
+                    <span className="text-xl font-extrabold tracking-tight text-amber-300 drop-shadow-sm">
+                      {compactHand}
+                    </span>
+                  ) : null}
                 </div>
                 {isMe &&
                 iaOpponentLearnedAboutMe != null &&

@@ -9,6 +9,7 @@ import { HEADS_UP_RULES_BLURB } from "@/holdem/headsUpLabels";
 import {
   DEFAULT_HOLDEM_DISPLAY_NAMES,
 } from "@/holdem/playerDisplayNames";
+import { headsUpPositionLabel } from "@/holdem/headsUpLabels";
 import { AllInShowdownCinemaOverlay } from "./components/AllInShowdownCinemaOverlay";
 import { AllInBanner } from "./components/AllInBanner";
 import { ActionPanel } from "./components/ActionPanel";
@@ -20,7 +21,6 @@ import { HoleCards } from "./components/HoleCards";
 import { IaBanner } from "./components/IaBanner";
 import { PlayAreaPotBetting } from "./components/PlayAreaPotBetting";
 import { TableHeaderBar } from "./components/TableHeaderBar";
-import { ViewerHandStrength } from "./components/ViewerHandStrength";
 import { useAllInShowdownCinema } from "./hooks/useAllInShowdownCinema";
 
 const other = (p: PlayerIndex): PlayerIndex => (p === 0 ? 1 : 0);
@@ -309,21 +309,35 @@ export function HoldemPlayUI({
               </p>
             </div>
           ) : null}
-          <div className="hidden space-y-3 lg:block">
-            <p className="text-center text-[10px] font-bold uppercase tracking-[0.2em] text-zinc-500">
-              상대 · {playerNames[other(viewer)]}
-            </p>
-            <HoleCards
-              state={state}
-              viewer={viewer}
-              playerNames={playerNames}
-              seatFilter="opponent"
-              cinematicWinnerPulse={winnerCinematicPulse}
-            />
-            <div className="pt-1">
-              <IaBanner state={state} viewer={viewer} playerNames={playerNames} />
+          {/* 상대 카드 — 쇼다운·핸드오버: 전체 공개, 평시: compact 한 줄 배너 */}
+          {state.phase === "showdown" || state.phase === "hand_over" ? (
+            <div className="hidden space-y-3 lg:block">
+              <p className="text-center text-[10px] font-bold uppercase tracking-[0.2em] text-zinc-500">
+                상대 · {playerNames[other(viewer)]}
+              </p>
+              <HoleCards
+                state={state}
+                viewer={viewer}
+                playerNames={playerNames}
+                seatFilter="opponent"
+                cinematicWinnerPulse={winnerCinematicPulse}
+              />
+              <div className="pt-1">
+                <IaBanner state={state} viewer={viewer} playerNames={playerNames} />
+              </div>
             </div>
-          </div>
+          ) : (
+            <div className="hidden lg:block">
+              <OpponentCompactBanner
+                state={state}
+                viewer={viewer}
+                oppName={playerNames[other(viewer)]!}
+              />
+              <div className="mt-2">
+                <IaBanner state={state} viewer={viewer} playerNames={playerNames} />
+              </div>
+            </div>
+          )}
 
           <AllInBanner state={state} />
           {showResultBannerSlot ? (
@@ -353,9 +367,8 @@ export function HoldemPlayUI({
             />
           </div>
 
-          <div className="mx-auto w-full max-w-3xl space-y-3 lg:max-w-2xl">
+          <div className="mx-auto w-full max-w-3xl lg:max-w-2xl">
             <PlayAreaPotBetting state={state} viewer={viewer} />
-            <ViewerHandStrength state={state} viewer={viewer} />
           </div>
 
           <div className="mx-auto max-w-lg lg:max-w-xl">
@@ -377,18 +390,38 @@ export function HoldemPlayUI({
               mySeat={mySeat}
               actionTimerSecondsLeft={actionTimerSecondsLeft}
             />
-            <div className="rounded-xl border border-zinc-600/90 bg-zinc-700/40 p-3">
-              <div className="mb-2 text-xs font-medium uppercase text-zinc-400">
-                홀 카드
+            {/* 모바일 상대 카드 — 쇼다운에서만 전체 표시 */}
+            {state.phase === "showdown" || state.phase === "hand_over" ? (
+              <div className="rounded-xl border border-zinc-600/90 bg-zinc-700/40 p-3">
+                <div className="mb-2 text-xs font-medium uppercase text-zinc-400">
+                  홀 카드
+                </div>
+                <HoleCards
+                  state={state}
+                  viewer={viewer}
+                  playerNames={playerNames}
+                  seatFilter="both"
+                  cinematicWinnerPulse={winnerCinematicPulse}
+                />
               </div>
-              <HoleCards
-                state={state}
-                viewer={viewer}
-                playerNames={playerNames}
-                seatFilter="both"
-                cinematicWinnerPulse={winnerCinematicPulse}
-              />
-            </div>
+            ) : (
+              <>
+                <OpponentCompactBanner
+                  state={state}
+                  viewer={viewer}
+                  oppName={playerNames[other(viewer)]!}
+                />
+                <div className="rounded-xl border border-zinc-600/90 bg-zinc-700/40 p-3">
+                  <HoleCards
+                    state={state}
+                    viewer={viewer}
+                    playerNames={playerNames}
+                    seatFilter="hero"
+                    cinematicWinnerPulse={winnerCinematicPulse}
+                  />
+                </div>
+              </>
+            )}
             <IaBanner state={state} viewer={viewer} playerNames={playerNames} />
           </div>
 
@@ -438,6 +471,76 @@ export function HoldemPlayUI({
             playMode={playMode}
           />
         </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── 상대 compact 배너 ────────────────────────────────────────────────────────
+
+function OpponentCompactBanner({
+  state,
+  viewer,
+  oppName,
+}: {
+  state: GameState;
+  viewer: PlayerIndex;
+  oppName: string;
+}) {
+  const opp = other(viewer);
+  const bettingLive =
+    state.phase === "preflop" ||
+    state.phase === "flop" ||
+    state.phase === "turn" ||
+    state.phase === "river";
+  const isToAct = state.toAct === opp && bettingLive && state.matchWinner == null;
+  const selecting = state.phase === "hand_select";
+  const isHandPickChoosing = selecting && state.handPickPending[opp] == null && state.holes[opp] == null;
+  const isHandPickSubmitted = selecting && state.handPickPending[opp] != null && state.holes[opp] == null;
+  const posLabel = headsUpPositionLabel(state, opp);
+
+  return (
+    <div
+      className={[
+        "flex items-center gap-2.5 rounded-xl border px-3 py-2 transition-colors duration-200",
+        isToAct
+          ? "border-emerald-400/40 bg-emerald-900/20"
+          : "border-zinc-700/60 bg-zinc-800/30",
+      ].join(" ")}
+    >
+      {/* 미니 카드 뒷면 × 2 */}
+      <div className="flex shrink-0 gap-1">
+        {[0, 1].map((i) => (
+          <div
+            key={i}
+            className="flex h-7 w-5 items-center justify-center rounded border border-zinc-500/70 bg-gradient-to-br from-slate-700 to-slate-900"
+          >
+            <span className="text-[10px] text-slate-400" aria-hidden>♠</span>
+          </div>
+        ))}
+      </div>
+
+      {/* 이름 + 포지션 */}
+      <span className="text-sm font-medium text-zinc-200">{oppName}</span>
+      <span className="rounded bg-zinc-600/80 px-1.5 py-px text-[9px] text-zinc-300">
+        {posLabel}
+      </span>
+
+      {/* 상태 배지 */}
+      <div className="ml-auto">
+        {isToAct ? (
+          <span className="rounded-full bg-emerald-600/30 px-2 py-0.5 text-[9px] font-bold text-emerald-200">
+            액션 턴
+          </span>
+        ) : isHandPickChoosing ? (
+          <span className="rounded-full bg-amber-600/30 px-2 py-0.5 text-[9px] font-bold text-amber-200">
+            핸드 선택
+          </span>
+        ) : isHandPickSubmitted ? (
+          <span className="rounded-full bg-emerald-700/30 px-2 py-0.5 text-[9px] font-bold text-emerald-100">
+            확정됨
+          </span>
+        ) : null}
       </div>
     </div>
   );

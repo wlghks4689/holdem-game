@@ -250,6 +250,41 @@ export function handValueDetailKorean(v: HandValue): string {
   return handValueSummaryKorean(v);
 }
 
+/**
+ * UI 인라인 compact 표기 — "4원페어", "7스트레이트", "A플러시" 등
+ * 공간이 좁은 카드 헤더용
+ */
+export function compactHandLabel(v: HandValue): string {
+  const k = v.kickers;
+  const r0 = k[0] != null ? rankToChar(k[0]) : "";
+  const r1 = k[1] != null ? rankToChar(k[1]) : "";
+  switch (v.rank) {
+    case RANK_HIGH_CARD:      return `${r0}하이`;
+    case RANK_PAIR:           return `${r0}원페어`;
+    case RANK_TWO_PAIR:       return r1 ? `${r0}${r1}투페어` : `${r0}투페어`;
+    case RANK_TRIPS:          return `${r0}트립스`;
+    case RANK_STRAIGHT:       return `${r0}스트레이트`;
+    case RANK_FLUSH:          return `${r0}플러시`;
+    case RANK_FULL_HOUSE:     return `${r0}풀하우스`;
+    case RANK_QUADS:          return `${r0}포카드`;
+    case RANK_STRAIGHT_FLUSH: return `${r0}SF`;
+    default:                  return handValueLabel(v);
+  }
+}
+
+/** 현재 보드 기준 compact 족보 레이블. 없으면 "". */
+export function currentCompactHandLabel(
+  hole: [Card, Card],
+  board: Card[],
+  boardRevealed: number,
+): string {
+  const used = board.slice(0, boardRevealed);
+  const all = [...hole, ...used];
+  if (all.length < 2) return "";
+  if (used.length === 0) return compactHandLabel(bestHandFromHole2(hole));
+  return compactHandLabel(best5Of7(all));
+}
+
 /** winner vs loser 기준 한 줄 비교 (무승부면 null) */
 export function showdownComparisonLineKorean(
   winner: HandValue,
