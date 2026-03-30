@@ -25,7 +25,8 @@ function rankDisplay(rank: number): string {
 const sizeFrames = {
   /** 쇼다운·상대 줄 등 — board보다 낮음 */
   compact: "h-[4.35rem] w-[3.15rem] shrink-0",
-  board: "h-[5.38rem] w-[3.85rem] shrink-0",
+  /** 모바일: 5장이 한 줄에 들어가도록 축소 / sm+(640px+): 원래 크기 */
+  board: "h-[4.0rem] w-[3.0rem] sm:h-[5.38rem] sm:w-[3.85rem] shrink-0",
   hero: "h-[6.15rem] w-[4.62rem] shrink-0",
 } as const;
 
@@ -33,7 +34,8 @@ export type CardSize = keyof typeof sizeFrames;
 
 const rankText: Record<CardSize, string> = {
   compact: "text-base font-bold leading-none tracking-tight",
-  board: "text-lg font-bold leading-none tracking-tight sm:text-xl",
+  // 모바일: 현재 text-lg(18px) 대비 +8% → 1.22rem / sm+: 원래대로
+  board: "text-[1.22rem] font-bold leading-none tracking-tight sm:text-xl",
   hero: "text-xl font-bold leading-none tracking-tight sm:text-2xl",
 };
 
@@ -43,14 +45,16 @@ function rankClass(size: CardSize, narrow: boolean): string {
   if (size === "compact") {
     return "text-sm font-bold leading-none tracking-tight";
   }
+  // 모바일: 현재 text-base(16px) 대비 +8% → 1.08rem / sm+: 원래대로
   return size === "board"
-    ? "text-base font-bold leading-none tracking-tight sm:text-lg"
+    ? "text-[1.08rem] font-bold leading-none tracking-tight sm:text-lg"
     : "text-lg font-bold leading-none tracking-tight sm:text-xl";
 }
 
 const suitText: Record<CardSize, string> = {
   compact: "text-2xl leading-none",
-  board: "text-3xl leading-none sm:text-[2rem]",
+  // 모바일: 현재 text-3xl(30px) 대비 +8% → 2.025rem / sm+: 원래대로
+  board: "text-[2.025rem] leading-none sm:text-[2rem]",
   hero: "text-4xl leading-none sm:text-[2.35rem]",
 };
 

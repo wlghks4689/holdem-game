@@ -281,10 +281,6 @@ export function HandSelectPanel({
   if (mySeat !== undefined) {
     return (
       <div className="rounded-xl border border-violet-600/45 bg-violet-900/18 p-2 sm:p-3">
-        <p className="mb-2 text-[11px] leading-snug text-violet-100/85">
-          링크로 같이 하는 상대와 <strong className="text-violet-50">동시에</strong>{" "}
-          고르고, 각자 이 화면에서 확정하세요.
-        </p>
         <HandPickerColumn
           state={state}
           player={mySeat}

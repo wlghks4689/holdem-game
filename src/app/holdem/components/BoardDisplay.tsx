@@ -88,7 +88,7 @@ export function BoardDisplay({
       <div
         className={[
           "relative flex flex-wrap items-center justify-center",
-          showdown ? "gap-2.5 sm:gap-3 lg:gap-4" : "gap-4 sm:gap-5 lg:gap-7",
+          showdown ? "gap-2.5 sm:gap-3 lg:gap-4" : "gap-2 sm:gap-5 lg:gap-7",
         ].join(" ")}
       >
         {scanOn ? (

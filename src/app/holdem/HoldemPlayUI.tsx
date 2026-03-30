@@ -272,13 +272,7 @@ export function HoldemPlayUI({
                   내 좌석 ·{" "}
                 </span>
                 {mySeat != null ? (
-                  <>
-                    <span className="font-semibold">{playerNames[mySeat]}</span>
-                    <span className="mt-1 block text-[10px] text-zinc-500">
-                      상대 카드는 이 기기로 전송되지 않습니다. 표시 이름은 기기마다
-                      독립입니다.
-                    </span>
-                  </>
+                  <span className="font-semibold">{playerNames[mySeat]}</span>
                 ) : null}
               </div>
             )}
