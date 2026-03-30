@@ -27,6 +27,9 @@ function fmtPreflop(
   if (m.action === "레이즈" && m.amount != null) {
     return `${who}: 레이즈 → 총 ${amt}`;
   }
+  if (m.action === "올인" && m.amount != null) {
+    return `${who}: 올인 → 총 ${amt}`;
+  }
   return `${who}: ${m.action}${amt ? ` (${amt})` : ""}`;
 }
 

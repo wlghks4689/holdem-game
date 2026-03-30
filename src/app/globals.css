@@ -187,3 +187,43 @@ body {
     filter: brightness(1.1);
   }
 }
+
+/** 올인 쇼다운 타이틀 — 등장 후 페이드 */
+@keyframes holdem-all-in-title {
+  0% {
+    opacity: 0;
+    transform: scale(1.12) translateY(8px);
+  }
+  22% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+  68% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(0.98) translateY(-6px);
+  }
+}
+
+@keyframes holdem-card-flip-reveal {
+  0% {
+    opacity: 0.65;
+    transform: perspective(480px) rotateY(92deg) translateY(6px);
+  }
+  100% {
+    opacity: 1;
+    transform: perspective(480px) rotateY(0deg) translateY(0);
+  }
+}
+
+@keyframes holdem-board-street-pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(251, 191, 36, 0.45);
+  }
+  100% {
+    box-shadow: 0 0 0 10px rgba(251, 191, 36, 0);
+  }
+}

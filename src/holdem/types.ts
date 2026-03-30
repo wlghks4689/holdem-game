@@ -105,6 +105,10 @@ export type GameState = {
   board: Card[];
   /** 3장 이후 턴/리버는 단계적으로 공개 — 인덱스 0..4 */
   boardRevealed: number;
+  /**
+   * 올인 런아웃 직전 공개 장 수 — UI 단계 연출용. 런아웃이 아니면 null.
+   */
+  runoutUiStartRevealed: number | null;
   betting: BettingRoundMeta;
   /** 턴을 끝낼 플레이어 (액션해야 하는 사람) */
   toAct: PlayerIndex | null;
@@ -145,6 +149,8 @@ export type GameAction =
   /** BB 옵션: 버튼이 콜만 했을 때 추가 칩 없이 통과 */
   | { type: "PREFLOP_CHECK" }
   | { type: "PREFLOP_RAISE"; toLevelChips: number }
+  /** 15bb 이하 스택: 프리플랍 전액 레이즈(일반 최소·상한·BB배수 규칙 면제, 팟 캡은 유지) */
+  | { type: "PREFLOP_ALL_IN" }
   | { type: "POSTFLOP_CHECK" }
   | { type: "POSTFLOP_BET"; amount: number }
   | { type: "POSTFLOP_CALL" }

@@ -237,20 +237,24 @@ export function PlayAreaPotBetting({ state, viewer }: PlayAreaPotBettingProps) {
     <div className="rounded-xl border border-amber-900/45 bg-gradient-to-b from-zinc-900/80 to-zinc-800/90 px-4 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] lg:border-amber-800/50 lg:py-4">
       <div className="flex flex-col items-center gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-4 lg:items-center lg:justify-center lg:gap-10">
         <div className="text-center sm:text-left lg:text-center">
-          <div className="flex flex-wrap items-baseline justify-center gap-x-1.5 gap-y-0.5 sm:justify-start lg:justify-center">
+          <div
+            className="flex flex-wrap items-baseline justify-center gap-x-1.5 gap-y-0.5 sm:justify-start lg:justify-center"
+            aria-label={`팟: ${fmtChips(state.pot)}칩스 = ${potInBbCompact(state.pot, potBbUnit)}`}
+          >
             <span className="text-2xl font-bold uppercase leading-none tracking-wide text-amber-500/95 lg:text-3xl">
-              팟
+              팟{":  "}
             </span>
             <span
               key={potBumpKey}
-              className="font-mono text-2xl font-bold tabular-nums leading-none text-amber-100 lg:text-3xl"
+              className="text-2xl font-bold leading-none text-amber-100 lg:text-3xl"
               style={
                 potBumpKey > 0
                   ? { animation: "holdem-pot-bump 0.36s ease-out 1" }
                   : undefined
               }
             >
-              {fmtChips(state.pot)}
+              <span className="font-mono tabular-nums">{fmtChips(state.pot)}</span>
+              <span className="font-sans font-bold text-amber-100/95">칩스</span>
             </span>
             <span
               className="select-none text-2xl font-bold leading-none text-amber-200/55 lg:text-3xl"

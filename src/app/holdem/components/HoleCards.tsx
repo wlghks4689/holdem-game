@@ -16,6 +16,8 @@ export type HoleCardsProps = {
   playerNames: [string, string];
   /** `both`(기본). 테이블 레이아웃: 상대만 / 나만 분리 표시 */
   seatFilter?: "both" | "opponent" | "hero";
+  /** 올인 쇼다운 연출 마지막: 승자 패널 펄스 */
+  cinematicWinnerPulse?: boolean;
 };
 
 function showdownCompare(state: GameState): number | null {
@@ -33,6 +35,7 @@ export function HoleCards({
   viewer,
   playerNames,
   seatFilter = "both",
+  cinematicWinnerPulse = false,
 }: HoleCardsProps) {
   const selecting = state.phase === "hand_select";
   const opp = other(viewer);
@@ -139,6 +142,9 @@ export function HoleCards({
             ? "border-zinc-700/85 bg-zinc-800/35 text-zinc-500"
             : toneFrame,
           dimForNonTurn ? "opacity-[0.52] brightness-[0.88] saturate-75" : "",
+          cinematicWinnerPulse && winnerShowdown
+            ? "z-[1] scale-[1.02]"
+            : "",
         ].join(" ");
 
         const frameStyle: CSSProperties | undefined =
@@ -146,7 +152,9 @@ export function HoleCards({
             ? { animation: "holdem-turn-ring 0.32s ease-out 1" }
             : isHandPickChoosing
               ? { animation: "holdem-hand-pick-glow 1.8s ease-in-out infinite" }
-              : undefined;
+              : cinematicWinnerPulse && winnerShowdown
+                ? { animation: "holdem-showdown-win-pulse 1.15s ease-in-out 2" }
+                : undefined;
 
         const seatName = playerNames[p]!;
 

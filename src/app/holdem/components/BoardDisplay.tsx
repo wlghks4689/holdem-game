@@ -18,12 +18,32 @@ const DEAL_STAGGER_S = 0.18;
 
 export type BoardDisplayProps = {
   state: GameState;
+  /** 올인 쇼다운 연출: 실제 `boardRevealed` 대신 공개 장 수(없으면 상태값 사용) */
+  visualRevealedOverride?: number | null;
+  /** 보드 헤더 스트리트 라벨 치환(연출용) */
+  streetLabelOverride?: string | null;
+  /** 올인 연출: 새로 깔린 카드에 플립 애니메이션 */
+  cinematicFlip?: boolean;
+  /** 강조할 스트리트 — 해당 슬롯에 글로우 */
+  cinemaStreetPulse?: "flop" | "turn" | "river" | null;
 };
 
-export function BoardDisplay({ state }: BoardDisplayProps) {
-  const rev = state.boardRevealed;
+export function BoardDisplay({
+  state,
+  visualRevealedOverride = null,
+  streetLabelOverride = null,
+  cinematicFlip = false,
+  cinemaStreetPulse = null,
+}: BoardDisplayProps) {
+  const rev =
+    visualRevealedOverride != null
+      ? visualRevealedOverride
+      : state.boardRevealed;
   const slots = [0, 1, 2, 3, 4] as const;
-  const label = streetKo[state.phase] ?? state.phase;
+  const label =
+    streetLabelOverride ??
+    streetKo[state.phase] ??
+    state.phase;
   const showdown = state.phase === "showdown";
 
   /** 직전 커밋의 `boardRevealed` — 카드 등장 스태거(레이아웃 이펙트로 `rev`와 동기화) */
@@ -89,23 +109,45 @@ export function BoardDisplay({ state }: BoardDisplayProps) {
             const c = state.board[i]!;
             const newlyShown = i >= oldRev && i < rev;
             const stagger = newlyShown ? Math.max(0, i - oldRev) * DEAL_STAGGER_S : 0;
+            const pulseStreet =
+              (cinemaStreetPulse === "flop" && i <= 2) ||
+              (cinemaStreetPulse === "turn" && i === 3) ||
+              (cinemaStreetPulse === "river" && i === 4);
+            const dealAnim =
+              cinematicFlip && newlyShown
+                ? "holdem-card-flip-reveal 0.42s cubic-bezier(0.22, 1, 0.36, 1) both"
+                : newlyShown
+                  ? "holdem-deal-card 0.34s ease-out both"
+                  : undefined;
             return (
               <div
                 key={i}
-                className="transition-transform lg:origin-center lg:scale-[1.14]"
+                className={[
+                  "relative transition-transform lg:origin-center lg:scale-[1.14]",
+                  pulseStreet && newlyShown ? "rounded-md" : "",
+                ].join(" ")}
                 style={
-                  newlyShown
+                  dealAnim
                     ? {
-                        animation: "holdem-deal-card 0.3s ease-out both",
+                        animation: dealAnim,
                         animationDelay: `${stagger}s`,
                       }
-                    : undefined
+                    : pulseStreet
+                      ? {
+                          animation: "holdem-board-street-pulse 0.55s ease-out 1",
+                        }
+                      : undefined
                 }
               >
                 <PlayingCard
                   card={c}
                   size="board"
-                  className={showdown ? "drop-shadow-sm" : "drop-shadow-md"}
+                  className={[
+                    showdown ? "drop-shadow-sm" : "drop-shadow-md",
+                    pulseStreet && newlyShown
+                      ? "ring-2 ring-amber-400/55 ring-offset-2 ring-offset-zinc-900/90"
+                      : "",
+                  ].join(" ")}
                 />
               </div>
             );

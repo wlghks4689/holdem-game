@@ -8,6 +8,7 @@ import {
   levelFromContributions,
   postflopMaxBet,
   postflopEffectiveMaxRaiseToLevel,
+  canPreflopShortStackAllInShove,
   preflopMaxPotChips,
   preflopMaxRaiseTargetForActor,
   preflopMinTotalRaiseForActor,
@@ -27,7 +28,11 @@ import {
   templateLabel,
 } from "./handPool";
 import { compareHandValue, best5Of7, handValueSummaryKorean } from "./pokerEval";
-import { STARTING_CHIPS, TOTAL_ROUNDS } from "./constants";
+import {
+  ALL_IN_RUNOUT_LAST_NOTE,
+  STARTING_CHIPS,
+  TOTAL_ROUNDS,
+} from "./constants";
 import type {
   GameAction,
   GameMessage,
@@ -227,6 +232,7 @@ function applyCallPayment(s: GameState, p: PlayerIndex): {
 
 /** 올인 콜 이후 남은 스트리트를 모두 공개하고 즉시 쇼다운 */
 function runOutBoardToShowdown(s: GameState): void {
+  s.runoutUiStartRevealed = s.boardRevealed;
   s.isAllIn = true;
   const pushStreet = (revealed: number, street: Street) => {
     s.boardRevealed = revealed;
@@ -256,7 +262,7 @@ function runOutBoardToShowdown(s: GameState): void {
   } else if (s.phase === "river") {
     s.boardRevealed = 5;
   }
-  s.lastActionNote = "올인 — 남은 보드 전부 개시 후 쇼다운";
+  s.lastActionNote = ALL_IN_RUNOUT_LAST_NOTE;
   goShowdown(s);
 }
 
@@ -447,6 +453,7 @@ export function createInitialGameState(): GameState {
     handPickPending: [null, null],
     board: [],
     boardRevealed: 0,
+    runoutUiStartRevealed: null,
     betting: freshBetting(),
     toAct: null,
     handSelectPhase: "open",
@@ -541,6 +548,8 @@ export function holdemReducer(
     case "FOLD": {
       if (s.toAct == null) return state;
       if (s.phase === "preflop") {
+        /** 버튼이 콜(림프)만 한 상태 — BB 옵션에서는 폴드 불가 */
+        if (s.preflopStage === "bb_option") return state;
         const p = s.toAct;
         if (facingFor(p, s.betting) <= 0) return state;
         endHandFold(s, p);
@@ -617,6 +626,37 @@ export function holdemReducer(
       s.betting.currentLevel = target;
       s.preflopRaiseCount += 1;
       pushLog(s, { t: "preflop_action", player: p, action: "레이즈", amount: target });
+
+      if (s.preflopStage === "button_acts") {
+        s.preflopStage = "facing_raise";
+        s.toAct = other(s.button);
+        s.lastActionNote = "BB 응답 (콜/레이즈)";
+      } else {
+        s.preflopStage = "facing_raise";
+        s.toAct = other(p);
+        s.lastActionNote = "딜러·SB 응답 (콜만)";
+      }
+      return done(s);
+    }
+
+    case "PREFLOP_ALL_IN": {
+      if (s.phase !== "preflop" || s.toAct == null || s.preflopStage == null) return state;
+      if (!canPreflopShortStackAllInShove(s)) return state;
+      const p = s.toAct;
+      const cur = s.betting.contributed[p]!;
+      const target = roundHalfChip(cur + s.chips[p]!);
+      const add = roundHalfChip(target - cur);
+      const level = levelFromContributions(s.betting);
+      if (add <= 1e-9 || target <= level + 1e-9) {
+        return state;
+      }
+
+      s.chips[p]! -= add;
+      s.pot = roundHalfChip(s.pot + add);
+      s.betting.contributed[p]! = target;
+      s.betting.currentLevel = target;
+      s.preflopRaiseCount += 1;
+      pushLog(s, { t: "preflop_action", player: p, action: "올인", amount: target });
 
       if (s.preflopStage === "button_acts") {
         s.preflopStage = "facing_raise";
@@ -782,6 +822,7 @@ export function holdemReducer(
       s.handPickPending = [null, null];
       s.board = [];
       s.boardRevealed = 0;
+      s.runoutUiStartRevealed = null;
       s.pot = 0;
       s.potAwardFlash = null;
       s.betting = freshBetting();

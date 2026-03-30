@@ -9,6 +9,7 @@ import { HEADS_UP_RULES_BLURB } from "@/holdem/headsUpLabels";
 import {
   DEFAULT_HOLDEM_DISPLAY_NAMES,
 } from "@/holdem/playerDisplayNames";
+import { AllInShowdownCinemaOverlay } from "./components/AllInShowdownCinemaOverlay";
 import { AllInBanner } from "./components/AllInBanner";
 import { ActionPanel } from "./components/ActionPanel";
 import { BoardDisplay } from "./components/BoardDisplay";
@@ -20,6 +21,7 @@ import { IaBanner } from "./components/IaBanner";
 import { PlayAreaPotBetting } from "./components/PlayAreaPotBetting";
 import { TableHeaderBar } from "./components/TableHeaderBar";
 import { ViewerHandStrength } from "./components/ViewerHandStrength";
+import { useAllInShowdownCinema } from "./hooks/useAllInShowdownCinema";
 
 const other = (p: PlayerIndex): PlayerIndex => (p === 0 ? 1 : 0);
 
@@ -99,7 +101,11 @@ export function HoldemPlayUI({
     };
   }, []);
 
-  const showResultBanner =
+  const showdownCinema = useAllInShowdownCinema(state);
+  const winnerCinematicPulse =
+    showdownCinema.active && showdownCinema.phase === "result";
+
+  const showResultBannerSlot =
     state.phase === "showdown" ||
     (state.phase === "hand_over" && state.handEndMode === "fold");
 
@@ -327,6 +333,7 @@ export function HoldemPlayUI({
             "lg:mx-auto lg:mb-8 lg:max-w-5xl lg:rounded-[2rem] lg:border-zinc-700/70",
             "lg:bg-gradient-to-b lg:from-zinc-800 lg:via-zinc-800/95 lg:to-zinc-900/90",
             "lg:p-8 lg:shadow-[0_0_80px_rgba(0,0,0,0.45)]",
+            showdownCinema.blockingInput ? "pointer-events-none select-none" : "",
           ].join(" ")}
           aria-label="플레이 영역"
         >
@@ -346,6 +353,7 @@ export function HoldemPlayUI({
               viewer={viewer}
               playerNames={playerNames}
               seatFilter="opponent"
+              cinematicWinnerPulse={winnerCinematicPulse}
             />
             <div className="pt-1">
               <IaBanner state={state} viewer={viewer} playerNames={playerNames} />
@@ -353,8 +361,16 @@ export function HoldemPlayUI({
           </div>
 
           <AllInBanner state={state} />
-          {showResultBanner ? (
-            <HandResultBanner state={state} playerNames={playerNames} />
+          {showResultBannerSlot ? (
+            <HandResultBanner
+              state={state}
+              playerNames={playerNames}
+              visible={
+                state.phase === "hand_over" ||
+                !showdownCinema.active ||
+                showdownCinema.showHandResult
+              }
+            />
           ) : null}
 
           <div
@@ -363,7 +379,13 @@ export function HoldemPlayUI({
               state.phase === "showdown" ? "-mt-0.5 pt-0" : "",
             ].join(" ")}
           >
-            <BoardDisplay state={state} />
+            <BoardDisplay
+              state={state}
+              visualRevealedOverride={showdownCinema.visualRevealed}
+              streetLabelOverride={showdownCinema.boardStreetLabelKo}
+              cinematicFlip={showdownCinema.active}
+              cinemaStreetPulse={showdownCinema.streetPulse}
+            />
           </div>
 
           <div className="mx-auto w-full max-w-3xl space-y-3 lg:max-w-2xl">
@@ -399,6 +421,7 @@ export function HoldemPlayUI({
                 viewer={viewer}
                 playerNames={playerNames}
                 seatFilter="both"
+                cinematicWinnerPulse={winnerCinematicPulse}
               />
             </div>
             <IaBanner state={state} viewer={viewer} playerNames={playerNames} />
@@ -415,6 +438,7 @@ export function HoldemPlayUI({
                   viewer={viewer}
                   playerNames={playerNames}
                   seatFilter="hero"
+                  cinematicWinnerPulse={winnerCinematicPulse}
                 />
               </div>
             </div>
@@ -432,6 +456,13 @@ export function HoldemPlayUI({
             </div>
           </div>
         </section>
+
+        {showdownCinema.active ? (
+          <AllInShowdownCinemaOverlay
+            phase={showdownCinema.phase}
+            onSkip={showdownCinema.skip}
+          />
+        ) : null}
 
         {inviteToast ? (
           <div

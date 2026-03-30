@@ -146,9 +146,9 @@ export function TableHeaderBar({ state, playerNames }: TableHeaderBarProps) {
         </span>
         <span
           className={`shrink-0 text-zinc-100 ${headerMetaMono}`}
-          title="매치 시작부터 IA로 팟에서 빠져 나간 칩 누적 합계"
+          title="매치 시작부터 IA로 팟에서 빠져 나간 칩 누적(칩 단위)"
         >
-          IA 누적 제거 칩 −{chipsAsBbLabel(iaRemovedTotal, hb.bb)}
+          IA 누적 제거 칩 총 {fmtChips(iaRemovedTotal)}칩스
         </span>
         <span className="hidden shrink-0 text-zinc-600 lg:inline" aria-hidden>
           ·

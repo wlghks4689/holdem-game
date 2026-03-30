@@ -1,6 +1,7 @@
 import {
   ACTION_TIMER_SECONDS,
   HAND_SELECT_TIMER_SECONDS,
+  IA_RIVER_ACTION_EXTRA_SECONDS,
 } from "./constants";
 import { facingFor } from "./bettingHelpers";
 import { ALL_HAND_TEMPLATES, normalizeHandPoolRemaining } from "./handPool";
@@ -67,7 +68,15 @@ export function actionTimerLimitMs(state: GameState): number | null {
   if (state.phase === "hand_select" && state.handSelectPhase !== "done") {
     return HAND_SELECT_TIMER_SECONDS * 1000;
   }
-  return ACTION_TIMER_SECONDS * 1000;
+  const base = ACTION_TIMER_SECONDS * 1000;
+  if (
+    state.phase === "river" &&
+    state.toAct != null &&
+    state.iaUsed[state.toAct]
+  ) {
+    return base + IA_RIVER_ACTION_EXTRA_SECONDS * 1000;
+  }
+  return base;
 }
 
 /** 초과 시 디스패치할 액션 (핸드 자동 선택 / 체크 / 폴드) */

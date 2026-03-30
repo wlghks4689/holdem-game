@@ -19,6 +19,7 @@ export function canSeatSendAction(
     case "PREFLOP_CALL":
     case "PREFLOP_CHECK":
     case "PREFLOP_RAISE":
+    case "PREFLOP_ALL_IN":
     case "POSTFLOP_CHECK":
     case "POSTFLOP_CALL":
     case "POSTFLOP_BET":

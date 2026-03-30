@@ -13,9 +13,16 @@ import type { GameState, PlayerIndex } from "@/holdem/types";
 export type HandResultBannerProps = {
   state: GameState;
   playerNames: [string, string];
+  /** 올인 쇼다운 연출: false면 렌더하지 않음 */
+  visible?: boolean;
 };
 
-export function HandResultBanner({ state, playerNames }: HandResultBannerProps) {
+export function HandResultBanner({
+  state,
+  playerNames,
+  visible = true,
+}: HandResultBannerProps) {
+  if (!visible) return null;
   const pl = (p: PlayerIndex) => playerNames[p] ?? `플레이어 ${p + 1}`;
   const h0 = state.holes[0];
   const h1 = state.holes[1];

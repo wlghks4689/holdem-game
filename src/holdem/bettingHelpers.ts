@@ -7,6 +7,7 @@ import {
   PREFLOP_BB_MAX_RAISE_TO_BB,
   PREFLOP_BUTTON_MAX_RAISE_TO_BB,
   PREFLOP_MAX_POT_BB,
+  PREFLOP_SHORT_STACK_ALL_IN_MAX_BB,
   SMALLEST_CHIP,
 } from "./constants";
 import { resolveHandBlinds } from "./blindLevels";
@@ -209,6 +210,40 @@ export function isLegalPreflopRaiseTarget(s: GameState, targetRaw: number): bool
   if (target <= level) return false;
   if (!isVoluntaryBetMultiple(target, bbUnit)) return false;
   return target >= minT && target <= maxT;
+}
+
+/** 액션 시점 남은 스택을 현재 BB로 나눈 값 (프리플랍 숏스택 올인 처리용) */
+export function actorStackBb(s: GameState): number {
+  const p = s.toAct;
+  if (p == null) return Infinity;
+  const bb = resolveHandBlinds(s).bb;
+  if (bb < 1e-9) return Infinity;
+  return s.chips[p]! / bb;
+}
+
+/**
+ * 15bb 이하 프리플랍 올인(전액 레이즈): 레이즈 가능 차례·레벨 초과 전액 투입.
+ * 일반 프리플랍 `PREFLOP_MAX_POT_BB`(맥스 팟) 캡은 일반 레이즈에만 적용하고, 숏스택 전액 올인은 캡을 적용하지 않는다.
+ */
+export function canPreflopShortStackAllInShove(s: GameState): boolean {
+  const p = s.toAct;
+  if (p == null || s.phase !== "preflop" || s.preflopStage == null) return false;
+  if (!canActorPreflopRaise(s) || s.preflopRaiseCount >= 2) return false;
+  if (actorStackBb(s) > PREFLOP_SHORT_STACK_ALL_IN_MAX_BB + 1e-9) return false;
+  const cur = s.betting.contributed[p]!;
+  const stk = s.chips[p]!;
+  if (stk <= 1e-9) return false;
+  const target = roundHalfChip(cur + stk);
+  const level = levelFromContributions(s.betting);
+  if (target <= level + 1e-9) return false;
+  const add = roundHalfChip(target - cur);
+  if (add <= 1e-9 || add > stk + 1e-9) return false;
+  return true;
+}
+
+export function preflopAllInTotalContribution(s: GameState): number {
+  const p = s.toAct!;
+  return roundHalfChip(s.betting.contributed[p]! + s.chips[p]!);
 }
 
 /** 팟×30% 후 소수 칩은 내림. 그 값과 IA_COST_MIN_BB·현재 BB 치수 중 큰 값 */

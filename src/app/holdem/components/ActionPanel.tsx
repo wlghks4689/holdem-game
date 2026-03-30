@@ -2,7 +2,9 @@
 
 import * as React from "react";
 import {
+  actorStackBb,
   bettingMatched,
+  canPreflopShortStackAllInShove,
   effectiveCallPay,
   facingFor,
   iaCostFromPot,
@@ -12,18 +14,21 @@ import {
   postflopCustomMaxRaiseToLevel,
   postflopEffectiveMaxRaiseToLevel,
   postflopMinRaiseToLevelChips,
+  preflopAllInTotalContribution,
   preflopHasLegalRaise,
   preflopMaxRaiseTargetForActor,
+  preflopMinTotalRaiseForActor,
   roundHalfChip,
 } from "@/holdem/bettingHelpers";
 import {
   ACTION_TIMER_SECONDS,
   HAND_SELECT_TIMER_SECONDS,
+  IA_RIVER_ACTION_EXTRA_SECONDS,
   NEW_HAND_AUTO_SECONDS,
-  PREFLOP_UI_BB_VS_OPEN_BB,
-  PREFLOP_UI_BUTTON_OPEN_BB,
+  PREFLOP_SHORT_STACK_ALL_IN_MAX_BB,
   SMALLEST_CHIP,
 } from "@/holdem/constants";
+import { actionTimerLimitMs } from "@/holdem/actionTimer";
 import { resolveHandBlinds } from "@/holdem/blindLevels";
 import { chipsAsBbLabel } from "@/holdem/formatBb";
 import { headsUpPositionLabel } from "@/holdem/headsUpLabels";
@@ -42,10 +47,16 @@ export type ActionPanelProps = {
 function ActionTimerChip({
   secondsLeft,
   isHandSelect,
+  limitSeconds,
 }: {
   secondsLeft: number;
   isHandSelect: boolean;
+  /** 툴팁용 한도(초). 생략 시 핸드선택=40, 스트리트=30 */
+  limitSeconds?: number;
 }) {
+  const limitForTitle =
+    limitSeconds ??
+    (isHandSelect ? HAND_SELECT_TIMER_SECONDS : ACTION_TIMER_SECONDS);
   return (
     <div
       className={[
@@ -58,7 +69,7 @@ function ActionTimerChip({
       title={
         isHandSelect
           ? `${HAND_SELECT_TIMER_SECONDS}초 안에 미확정 좌석은 풀에서 가능한 첫 핸드로 자동 제출됩니다.`
-          : `${ACTION_TIMER_SECONDS}초 안에 액션이 없으면 자동 체크(맞출 베팅이 없을 때) 또는 폴드됩니다.`
+          : `${limitForTitle}초 안에 액션이 없으면 자동 체크(맞출 베팅이 없을 때) 또는 폴드됩니다.`
       }
     >
       남은 시간 {secondsLeft}s
@@ -75,6 +86,9 @@ const btnDanger =
 const btnIa =
   "rounded-lg border border-indigo-400/60 bg-indigo-900/45 px-3 py-2 text-xs font-semibold text-indigo-50 hover:bg-indigo-800/40 disabled:cursor-not-allowed disabled:opacity-45";
 
+const btnPreflopAllIn =
+  "rounded-lg border border-rose-500/65 bg-rose-950/50 px-3 py-2 text-xs font-bold text-rose-100 hover:bg-rose-900/45 disabled:cursor-not-allowed disabled:opacity-45";
+
 /** 입력 문자열을 [minV, maxV]로 클램프 후 0.5칩 단위 스냅 */
 function clampChipField(draft: string, minV: number, maxV: number): number {
   const t = draft.trim().replace(",", ".");
@@ -82,6 +96,65 @@ function clampChipField(draft: string, minV: number, maxV: number): number {
   const n = Number(t);
   if (!Number.isFinite(n)) return roundHalfChip(minV);
   return roundHalfChip(Math.min(maxV, Math.max(minV, n)));
+}
+
+/** 클램프한 뒤 규칙에 맞는 레이즈 총액으로 보정(미니멈·배수 등) */
+function snapPreflopRaiseTotal(
+  s: GameState,
+  draft: string,
+  minT: number,
+  maxT: number,
+): number | null {
+  if (minT > maxT + 1e-9) return null;
+  const raw = clampChipField(draft, minT, maxT);
+  if (isLegalPreflopRaiseTarget(s, raw)) return raw;
+  for (let k = 1; k <= 400; k++) {
+    const up = roundHalfChip(raw + k * SMALLEST_CHIP);
+    if (up > maxT + 1e-9) break;
+    if (isLegalPreflopRaiseTarget(s, up)) return up;
+  }
+  for (let k = 1; k <= 400; k++) {
+    const down = roundHalfChip(raw - k * SMALLEST_CHIP);
+    if (down < minT - 1e-9) break;
+    if (isLegalPreflopRaiseTarget(s, down)) return down;
+  }
+  return null;
+}
+
+function preflopCompactRaiseKeyFromState(state: GameState): string {
+  if (state.toAct == null) return "";
+  const preflop = state.phase === "preflop" && state.preflopStage != null;
+  if (!preflop || state.isAllIn || !preflopHasLegalRaise(state)) return "";
+  const preRaiseCap = preflopMaxRaiseTargetForActor(state);
+  const preMinRaiseTarget = preflopMinTotalRaiseForActor(state);
+  const level = levelFromContributions(state.betting);
+  return [
+    state.roundNumber,
+    state.preflopStage,
+    state.toAct,
+    preMinRaiseTarget,
+    preRaiseCap,
+    state.betting.contributed[0],
+    state.betting.contributed[1],
+    level,
+  ].join("|");
+}
+
+function preflopSnappedRaiseFromState(
+  state: GameState,
+  draft: string,
+): number | null {
+  if (state.toAct == null) return null;
+  const preflop = state.phase === "preflop" && state.preflopStage != null;
+  if (!preflop || state.isAllIn || !preflopHasLegalRaise(state)) return null;
+  const preRaiseCap = preflopMaxRaiseTargetForActor(state);
+  const preMinRaiseTarget = preflopMinTotalRaiseForActor(state);
+  return snapPreflopRaiseTotal(
+    state,
+    draft,
+    preMinRaiseTarget,
+    preRaiseCap,
+  );
 }
 
 export function ActionPanel({
@@ -96,9 +169,17 @@ export function ActionPanel({
   /** 포스트플랍 베트·레이즈 숫자 입력(폴링 등으로 매 틱 덮어쓰지 않도록 문자열 유지) */
   const [betDraft, setBetDraft] = React.useState("1");
   const [raiseDraft, setRaiseDraft] = React.useState("2");
+  /** 15bb 이하 프리플랍 — 단일 레이즈 입력 */
+  const [preflopRaiseDraft, setPreflopRaiseDraft] = React.useState("2");
+  const preflopRaiseDraftKeyRef = React.useRef<string | null>(null);
 
   const phase = state.phase;
   const betting = state.betting;
+
+  const streetActionLimitSec = React.useMemo(() => {
+    const ms = actionTimerLimitMs(state);
+    return ms != null ? Math.round(ms / 1000) : ACTION_TIMER_SECONDS;
+  }, [state]);
 
   const postFlopSyncKey = React.useMemo(() => {
     if (state.matchWinner != null) return "";
@@ -229,6 +310,28 @@ export function ActionPanel({
     };
   }, [nextHandAutoKey, dispatch]);
 
+  const preflopCompactRaiseKey = React.useMemo(
+    () => preflopCompactRaiseKeyFromState(state),
+    [state],
+  );
+
+  React.useEffect(() => {
+    if (preflopCompactRaiseKey === "") {
+      preflopRaiseDraftKeyRef.current = null;
+      return;
+    }
+    if (preflopRaiseDraftKeyRef.current === preflopCompactRaiseKey) return;
+    preflopRaiseDraftKeyRef.current = preflopCompactRaiseKey;
+    if (state.toAct == null) return;
+    const preMin = preflopMinTotalRaiseForActor(state);
+    setPreflopRaiseDraft(String(roundHalfChip(preMin)));
+  }, [preflopCompactRaiseKey, state]);
+
+  const preflopSnappedRaise = React.useMemo(
+    () => preflopSnappedRaiseFromState(state, preflopRaiseDraft),
+    [state, preflopRaiseDraft],
+  );
+
   if (state.matchWinner != null) {
     return (
       <div className="rounded-xl border border-emerald-600/50 bg-emerald-900/25 p-4 text-center">
@@ -323,6 +426,7 @@ export function ActionPanel({
             <ActionTimerChip
               secondsLeft={actionTimerSecondsLeft}
               isHandSelect={false}
+              limitSeconds={streetActionLimitSec}
             />
           ) : null}
         </div>
@@ -364,6 +468,9 @@ export function ActionPanel({
   const preRaiseCap = preflop ? preflopMaxRaiseTargetForActor(state) : 0;
   const showPreflopRaise = preflop && preflopHasLegalRaise(state);
   const isBbToAct = preflop && p !== state.button;
+  const preMinRaiseTarget = preflop
+    ? preflopMinTotalRaiseForActor(state)
+    : 0;
 
   const maxBet = post ? postflopMaxBet(state.pot, chips) : 0;
   const maxAffordableRaiseTotal = roundHalfChip(
@@ -425,6 +532,71 @@ export function ActionPanel({
   }
 
   const posShort = headsUpPositionLabel(state, p);
+  const preflopShortStackAllInAllowed =
+    preflop && !hideReraiseStreet && canPreflopShortStackAllInShove(state);
+  const preflopAllInTotalChips = preflopShortStackAllInAllowed
+    ? preflopAllInTotalContribution(state)
+    : 0;
+  const preflopAllInTitle = `프리플랍 전액 레이즈(총 ${chipsAsBbLabel(preflopAllInTotalChips, bbUnit)}). 남은 스택 ${actorStackBb(state).toFixed(1)}bb — ${PREFLOP_SHORT_STACK_ALL_IN_MAX_BB}bb 이하일 때만 가능합니다.`;
+
+  const preflopRaiseControls =
+    showPreflopRaise && !hideReraiseStreet ? (
+      <>
+        <label className="flex flex-col gap-0.5 text-[10px] text-zinc-400">
+          {`레이즈 총 기여(칩) · 최소 ${chipsAsBbLabel(preMinRaiseTarget, bbUnit)} — 최대 ${preMaxBbLabel}`}
+          <input
+            type="number"
+            min={preMinRaiseTarget}
+            max={preRaiseCap}
+            step={SMALLEST_CHIP}
+            inputMode="decimal"
+            value={preflopRaiseDraft}
+            onChange={(e) => setPreflopRaiseDraft(e.target.value)}
+            onBlur={() =>
+              setPreflopRaiseDraft(
+                String(
+                  clampChipField(
+                    preflopRaiseDraft,
+                    preMinRaiseTarget,
+                    preRaiseCap,
+                  ),
+                ),
+              )
+            }
+            className="w-24 rounded border border-zinc-500 bg-zinc-800 px-2 py-1 font-mono text-xs text-zinc-50"
+          />
+        </label>
+        <button
+          type="button"
+          className={btnPrimary}
+          disabled={preflopSnappedRaise == null}
+          title={
+            preflopSnappedRaise == null
+              ? "입력값을 최소·최대·(bb 배수) 규칙에 맞게 조정하세요."
+              : `총 기여 ${chipsAsBbLabel(preflopSnappedRaise, bbUnit)}로 레이즈`
+          }
+          onClick={() => {
+            if (preflopSnappedRaise == null) return;
+            dispatch({
+              type: "PREFLOP_RAISE",
+              toLevelChips: preflopSnappedRaise,
+            });
+          }}
+        >
+          Raise (
+          {preflopSnappedRaise != null
+            ? chipsAsBbLabel(preflopSnappedRaise, bbUnit)
+            : "—"}
+          )
+        </button>
+      </>
+    ) : null;
+
+  const preflopBbOptionLimpHint =
+    state.preflopStage === "bb_option" &&
+    isBbToAct &&
+    facing <= 1e-9 &&
+    state.preflopRaiseCount < 1;
 
   return (
     <div
@@ -447,6 +619,7 @@ export function ActionPanel({
           <ActionTimerChip
             secondsLeft={actionTimerSecondsLeft}
             isHandSelect={false}
+            limitSeconds={streetActionLimitSec}
           />
         ) : null}
       </div>
@@ -463,7 +636,7 @@ export function ActionPanel({
           <button
             type="button"
             className={[btnIa, "inline-flex items-center gap-1.5"].join(" ")}
-            title="스택에서 칩이 차감되며, 상대 홀 카드의 ‘카테고리’만 표시됩니다. 액면은 공개되지 않습니다."
+            title={`게임에서 제외되는 스택이 차감되고 상대 홀의 카테고리만 공개됩니다. 사용 직후 이 리버 액션에 ${IA_RIVER_ACTION_EXTRA_SECONDS}초가 추가됩니다.`}
             onClick={() => dispatch({ type: "USE_IA" })}
           >
             <span className="font-semibold text-indigo-50">IA</span>
@@ -473,7 +646,7 @@ export function ActionPanel({
             </span>
           </button>
           <span className="text-[10px] text-indigo-200/80">
-            스택에서 차감 · 리버 · 액션 전 · 카테고리만 공개
+            게임에서 제외되는 스택 · 카테고리만 공개 · 사용 시 {IA_RIVER_ACTION_EXTRA_SECONDS}s 추가
           </span>
         </div>
       ) : null}
@@ -484,6 +657,9 @@ export function ActionPanel({
             <div>
               <p className="mb-1.5 text-[10px] text-zinc-400">
                 딜러·SB — BB 총액까지 맞추기 (+{chipsAsBbLabel(facing, bbUnit)}).
+                <span className="block text-zinc-500">
+                  첫 프리플랍 액션 — 콜·레이즈만 가능 (폴드 없음).
+                </span>
               </p>
               <div className="flex w-full flex-wrap items-end justify-between gap-x-2 gap-y-2">
                 <div className="flex min-w-0 flex-wrap items-end gap-2">
@@ -499,66 +675,29 @@ export function ActionPanel({
                         : `Call (BB · +${chipsAsBbLabel(facing, bbUnit)})`}
                     </button>
                   ) : null}
-                  {showPreflopRaise && !hideReraiseStreet
-                    ? PREFLOP_UI_BUTTON_OPEN_BB.map((mult) => {
-                        const target = roundHalfChip(mult * bbUnit);
-                        if (!isLegalPreflopRaiseTarget(state, target)) return null;
-                        if (Math.abs(target - preRaiseCap) < 1e-6) return null;
-                        return (
-                          <button
-                            key={mult}
-                            type="button"
-                            className={btnPrimary}
-                            title={`총 기여 ${chipsAsBbLabel(target, bbUnit)} (상한 ${preMaxBbLabel})`}
-                            onClick={() =>
-                              dispatch({
-                                type: "PREFLOP_RAISE",
-                                toLevelChips: target,
-                              })
-                            }
-                          >
-                            Raise {mult}bb
-                          </button>
-                        );
-                      })
-                    : null}
-                  {showPreflopRaise &&
-                  !hideReraiseStreet &&
-                  isLegalPreflopRaiseTarget(state, roundHalfChip(preRaiseCap)) ? (
+                  {preflopRaiseControls}
+                  {preflopShortStackAllInAllowed ? (
                     <button
                       type="button"
-                      className={
-                        btnPrimary +
-                        " border-amber-500/70 ring-1 ring-amber-500/35"
-                      }
-                      title={`최대 총 기여 ${chipsAsBbLabel(preRaiseCap, bbUnit)} (${preMaxBbLabel} 상한)`}
-                      onClick={() =>
-                        dispatch({
-                          type: "PREFLOP_RAISE",
-                          toLevelChips: roundHalfChip(preRaiseCap),
-                        })
-                      }
+                      className={btnPreflopAllIn}
+                      title={preflopAllInTitle}
+                      onClick={() => dispatch({ type: "PREFLOP_ALL_IN" })}
                     >
-                      Raise MAX ({chipsAsBbLabel(preRaiseCap, bbUnit)})
+                      All-in ({chipsAsBbLabel(preflopAllInTotalChips, bbUnit)})
                     </button>
                   ) : null}
                 </div>
-                {facing > 0 ? (
-                  <button
-                    type="button"
-                    className={btnDanger + " shrink-0"}
-                    title="이번 판을 포기합니다."
-                    onClick={() => dispatch({ type: "FOLD" })}
-                  >
-                    Fold
-                  </button>
-                ) : null}
               </div>
             </div>
           ) : state.preflopStage === "bb_option" && isBbToAct ? (
             <div>
               <p className="mb-1.5 text-[10px] text-zinc-400">
                 BB 오픈 상한 {preMaxBbLabel}
+                {preflopBbOptionLimpHint ? (
+                  <span className="block text-zinc-500">
+                    상대 콜(림프) — 이 구간에서는 폴드할 수 없습니다.
+                  </span>
+                ) : null}
               </p>
               <div className="flex flex-wrap items-center gap-2">
                 {facing === 0 && !blockVoluntaryOpen ? (
@@ -571,47 +710,15 @@ export function ActionPanel({
                     Check
                   </button>
                 ) : null}
-                {showPreflopRaise && !hideReraiseStreet
-                  ? PREFLOP_UI_BUTTON_OPEN_BB.map((mult) => {
-                      const target = roundHalfChip(mult * bbUnit);
-                      if (!isLegalPreflopRaiseTarget(state, target)) return null;
-                      if (Math.abs(target - preRaiseCap) < 1e-6) return null;
-                      return (
-                        <button
-                          key={`bb-${mult}`}
-                          type="button"
-                          className={btnPrimary}
-                          title={`총 기여 ${chipsAsBbLabel(target, bbUnit)}`}
-                          onClick={() =>
-                            dispatch({
-                              type: "PREFLOP_RAISE",
-                              toLevelChips: target,
-                            })
-                          }
-                        >
-                          Raise {mult}bb
-                        </button>
-                      );
-                    })
-                  : null}
-                {showPreflopRaise &&
-                !hideReraiseStreet &&
-                isLegalPreflopRaiseTarget(state, roundHalfChip(preRaiseCap)) ? (
+                {preflopRaiseControls}
+                {preflopShortStackAllInAllowed ? (
                   <button
                     type="button"
-                    className={
-                      btnPrimary +
-                      " border-amber-500/70 ring-1 ring-amber-500/35"
-                    }
-                    title={`최대 총 기여 ${chipsAsBbLabel(preRaiseCap, bbUnit)}`}
-                    onClick={() =>
-                      dispatch({
-                        type: "PREFLOP_RAISE",
-                        toLevelChips: roundHalfChip(preRaiseCap),
-                      })
-                    }
+                    className={btnPreflopAllIn}
+                    title={preflopAllInTitle}
+                    onClick={() => dispatch({ type: "PREFLOP_ALL_IN" })}
                   >
-                    Raise MAX ({chipsAsBbLabel(preRaiseCap, bbUnit)})
+                    All-in ({chipsAsBbLabel(preflopAllInTotalChips, bbUnit)})
                   </button>
                 ) : null}
               </div>
@@ -636,47 +743,15 @@ export function ActionPanel({
                         : `Call (+${chipsAsBbLabel(facing, bbUnit)})`}
                     </button>
                   ) : null}
-                  {showPreflopRaise && !hideReraiseStreet
-                    ? PREFLOP_UI_BB_VS_OPEN_BB.map((mult) => {
-                        const target = roundHalfChip(mult * bbUnit);
-                        if (!isLegalPreflopRaiseTarget(state, target)) return null;
-                        if (Math.abs(target - preRaiseCap) < 1e-6) return null;
-                        return (
-                          <button
-                            key={`bb3-${mult}`}
-                            type="button"
-                            className={btnPrimary}
-                            title={`총 기여 ${chipsAsBbLabel(target, bbUnit)}`}
-                            onClick={() =>
-                              dispatch({
-                                type: "PREFLOP_RAISE",
-                                toLevelChips: target,
-                              })
-                            }
-                          >
-                            Raise {mult}bb
-                          </button>
-                        );
-                      })
-                    : null}
-                  {showPreflopRaise &&
-                  !hideReraiseStreet &&
-                  isLegalPreflopRaiseTarget(state, roundHalfChip(preRaiseCap)) ? (
+                  {preflopRaiseControls}
+                  {preflopShortStackAllInAllowed ? (
                     <button
                       type="button"
-                      className={
-                        btnPrimary +
-                        " border-amber-500/70 ring-1 ring-amber-500/35"
-                      }
-                      title={`최대 총 기여 ${chipsAsBbLabel(preRaiseCap, bbUnit)}`}
-                      onClick={() =>
-                        dispatch({
-                          type: "PREFLOP_RAISE",
-                          toLevelChips: roundHalfChip(preRaiseCap),
-                        })
-                      }
+                      className={btnPreflopAllIn}
+                      title={preflopAllInTitle}
+                      onClick={() => dispatch({ type: "PREFLOP_ALL_IN" })}
                     >
-                      Raise MAX ({chipsAsBbLabel(preRaiseCap, bbUnit)})
+                      All-in ({chipsAsBbLabel(preflopAllInTotalChips, bbUnit)})
                     </button>
                   ) : null}
                 </div>
