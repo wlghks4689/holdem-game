@@ -1,8 +1,8 @@
 /** 칩 단위. 1 BB = 이 칩 수 (SB = BB/2 칩) */
 export const CHIPS_PER_BB = 1;
 
-/** 최소 칩 단위 — 0.5bb = 0.5칩 */
-export const SMALLEST_CHIP = 0.5;
+/** 최소 칩 단위 — 0.1bb = 0.1칩 */
+export const SMALLEST_CHIP = 0.1;
 
 /** 자발 베트 기준 BB 배수 환산용(티어 1에서의 1BB 칩 수). 실제 최소 베트는 `handBlinds.bb` */
 export const BET_RAISE_UNIT = CHIPS_PER_BB;
@@ -11,19 +11,14 @@ export const BET_RAISE_UNIT = CHIPS_PER_BB;
 export const STARTING_CHIPS = 200;
 export const TOTAL_ROUNDS = 30;
 
-/** 헤즈업 딜러·SB 프리플랍 최대 총 기여 (bb) — `PREFLOP_MAX_POT_BB`·팟캡과 교차 */
-export const PREFLOP_BUTTON_MAX_RAISE_TO_BB = 3;
-/** BB 옵션(버튼 림프 후) 최대 총 기여 상한 (bb) — 팟 캡과 교차 */
-export const PREFLOP_BB_BB_OPTION_MAX_RAISE_TO_BB = 5;
-/** BB 리레이즈 등(프리플랍 facing_raise) 최대 총 기여 상한 (bb) */
-export const PREFLOP_BB_MAX_RAISE_TO_BB = 7;
-/** 프리플랍 팟 상한(bb) — 이 한도까지 프리플랍 베팅 가능 */
+/** 프리플랍 팟 상한(bb) — 양측 합산 팟이 이 값을 넘지 않도록 제한 */
 export const PREFLOP_MAX_POT_BB = 15;
 
 /** 남은 스택이 이 BB 이하일 때 프리플랍 올인(전액 레이즈) 허용 */
 export const PREFLOP_SHORT_STACK_ALL_IN_MAX_BB = 15;
 
-export const POSTFLOP_MAX_BET_POT_FRACTION = 0.5;
+/** 포스트플랍 최대 베팅 비율 — 1.0 = 팟사이즈(팟 리밋) */
+export const POSTFLOP_MAX_BET_POT_FRACTION = 1.0;
 
 export const IA_COST_POT_FRACTION = 0.3;
 

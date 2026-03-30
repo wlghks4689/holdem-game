@@ -3,9 +3,6 @@ import {
   IA_COST_MIN_BB,
   IA_COST_POT_FRACTION,
   POSTFLOP_MAX_BET_POT_FRACTION,
-  PREFLOP_BB_BB_OPTION_MAX_RAISE_TO_BB,
-  PREFLOP_BB_MAX_RAISE_TO_BB,
-  PREFLOP_BUTTON_MAX_RAISE_TO_BB,
   PREFLOP_MAX_POT_BB,
   PREFLOP_SHORT_STACK_ALL_IN_MAX_BB,
   SMALLEST_CHIP,
@@ -26,7 +23,8 @@ export function totalIaChipsRemovedFromLogs(logs: readonly GameMessage[]): numbe
 }
 
 export function roundHalfChip(n: number): number {
-  return Math.round(n * 2) / 2;
+  // 0.1 단위 반올림 (부동소수점 오차 대응: × 10 후 정수 반올림)
+  return Math.round(n * 10) / 10;
 }
 
 export function roundDownToBb(n: number, bbUnit: number = CHIPS_PER_BB): number {
@@ -57,7 +55,8 @@ export function isVoluntaryBetMultiple(n: number, bbUnit: number): boolean {
 
 /**
  * 2인 무승부 시 팟 분배 (앤티 포함 전액, 칩 단위).
- * 0.5bb 단위로만 존재한다고 가정할 때, 홀수 개의 0.5칩이 남으면 BB가 0.5bb 더 가져감.
+ * 0.1bb 단위 기준으로 나누고, 홀수 개의 0.1칩이 남으면 BB가 0.1bb 더 가져감.
+ * ex) 12.1bb chop → SB: 6.0bb / BB: 6.1bb
  */
 export function splitPotTwoWayChopChips(
   potChips: number,
@@ -73,18 +72,6 @@ export function splitPotTwoWayChopChips(
   const share0 = bbPlayer === 0 ? highChips : lowChips;
   const share1 = bbPlayer === 1 ? highChips : lowChips;
   return { share0, share1 };
-}
-
-export function preflopButtonMaxTotal(s: GameState): number {
-  return PREFLOP_BUTTON_MAX_RAISE_TO_BB * resolveHandBlinds(s).bb;
-}
-
-export function preflopBbMaxTotal(s: GameState): number {
-  return PREFLOP_BB_MAX_RAISE_TO_BB * resolveHandBlinds(s).bb;
-}
-
-export function preflopBbOptionMaxTotal(s: GameState): number {
-  return PREFLOP_BB_BB_OPTION_MAX_RAISE_TO_BB * resolveHandBlinds(s).bb;
 }
 
 export function preflopMaxPotChips(s: GameState): number {
@@ -162,30 +149,22 @@ export function preflopMinTotalRaiseForActor(s: GameState): number {
   return minT;
 }
 
+/** 프리플랍 최대 총 기여: 팟 캡(15bb) 기반, 스테이지별 하드 캡 없음 */
 export function preflopMaxRaiseTargetForActor(s: GameState): number {
-  const p = s.toAct!;
   const capT = maxMatchedContributionPreflop(s);
-  if (p === s.button && s.preflopStage === "button_acts") {
-    return Math.min(preflopButtonMaxTotal(s), capT);
-  }
-  if (p !== s.button) {
-    if (s.preflopStage === "bb_option") {
-      return Math.min(preflopBbOptionMaxTotal(s), capT);
-    }
-    return Math.min(preflopBbMaxTotal(s), capT);
-  }
-  return capT;
+  const p = s.toAct!;
+  const affordable = roundHalfChip(s.betting.contributed[p]! + s.chips[p]!);
+  return Math.min(capT, affordable);
 }
 
 export function canActorPreflopRaise(s: GameState): boolean {
   const p = s.toAct;
   if (p == null || s.phase !== "preflop" || s.preflopStage == null) return false;
+  // 3-bet 제한 없음: 팟 캡 이하라면 몇 번이든 레이즈 가능
   if (p === s.button) {
-    return s.preflopStage === "button_acts";
+    return s.preflopStage === "button_acts" || s.preflopStage === "facing_raise";
   }
-  if (s.preflopStage === "bb_option") return s.preflopRaiseCount < 2;
-  if (s.preflopStage === "facing_raise") return s.preflopRaiseCount < 2;
-  return false;
+  return s.preflopStage === "bb_option" || s.preflopStage === "facing_raise";
 }
 
 export function preflopHasLegalRaise(s: GameState): boolean {
@@ -197,7 +176,6 @@ export function preflopHasLegalRaise(s: GameState): boolean {
 
 export function isLegalPreflopRaiseTarget(s: GameState, targetRaw: number): boolean {
   if (!canActorPreflopRaise(s)) return false;
-  if (s.preflopRaiseCount >= 2) return false;
   const bbUnit = resolveHandBlinds(s).bb;
   const p = s.toAct!;
   const target = roundHalfChip(targetRaw);
@@ -228,7 +206,7 @@ export function actorStackBb(s: GameState): number {
 export function canPreflopShortStackAllInShove(s: GameState): boolean {
   const p = s.toAct;
   if (p == null || s.phase !== "preflop" || s.preflopStage == null) return false;
-  if (!canActorPreflopRaise(s) || s.preflopRaiseCount >= 2) return false;
+  if (!canActorPreflopRaise(s)) return false;
   if (actorStackBb(s) > PREFLOP_SHORT_STACK_ALL_IN_MAX_BB + 1e-9) return false;
   const cur = s.betting.contributed[p]!;
   const stk = s.chips[p]!;

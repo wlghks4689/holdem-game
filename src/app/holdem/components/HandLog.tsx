@@ -115,7 +115,7 @@ function buildSections(
   logs: GameMessage[],
   playerNames: [string, string],
   showdownHoleCtx: { holes: [SelectedHand, SelectedHand]; board: Card[] } | null,
-  playMode: "local" | "online",
+  playMode: "local" | "online" | "single" | undefined,
 ): Section[] {
   const pl = (p: PlayerIndex) => playerNames[p] ?? `플레이어 ${p + 1}`;
   const lastSd = lastShowdownIn(logs);
@@ -304,7 +304,7 @@ export type HandLogProps = {
   /** 쇼다운 직후에만 전달 — 마지막 `showdown` 블록에 양쪽 홀·족보를 붙입니다. */
   showdownHoleCtx?: { holes: [SelectedHand, SelectedHand]; board: Card[] } | null;
   /** 온라인: 풀 핸드 라벨·홀 상세 로그 비표시(동일 기기 공유 시 정보 누출 방지). */
-  playMode?: "local" | "online";
+  playMode?: "local" | "online" | "single";
 };
 
 export function HandLog({

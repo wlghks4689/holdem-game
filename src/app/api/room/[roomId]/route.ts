@@ -33,5 +33,6 @@ export async function GET(req: Request, ctx: Ctx) {
   return NextResponse.json({
     state: sanitizeGameStateForSeat(blob.state, seat),
     pause: normalizeRoomPause(blob.pause),
+    guestJoined: blob.tokens[1] != null,
   });
 }

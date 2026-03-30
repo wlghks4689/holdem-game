@@ -468,6 +468,16 @@ export function createInitialGameState(): GameState {
     logs: [{ t: "round_start", round: 1 }],
     lastActionNote: "양쪽 핸드 선택 (동시)",
     isAllIn: false,
+    highCardDraw: null,
+  };
+}
+
+/** 멀티플레이 방 전용: 로비 단계(게임 시작 전 대기)로 초기화 */
+export function createRoomInitialGameState(): GameState {
+  return {
+    ...createInitialGameState(),
+    phase: "lobby",
+    lastActionNote: "게임 시작 대기 중 — 호스트가 시작 버튼을 눌러 주세요",
   };
 }
 
@@ -834,6 +844,25 @@ export function holdemReducer(
       pushLog(s, { t: "round_start", round: s.roundNumber });
       s.lastActionNote = "양쪽 핸드 선택 (동시)";
       s.isAllIn = false;
+      return done(s);
+    }
+
+    case "START_GAME": {
+      if (s.phase !== "lobby") return state;
+      // 하이카드 드로우: 각 플레이어 랭크 2~14 무작위 뽑기
+      const rankA = Math.floor(random() * 13) + 2; // 시트 0
+      const rankB = Math.floor(random() * 13) + 2; // 시트 1
+      let winnerSeat: PlayerIndex;
+      if (rankA !== rankB) {
+        winnerSeat = rankA > rankB ? 0 : 1;
+      } else {
+        // 동점: 재결정 — 0.5 기준으로 둘 중 하나
+        winnerSeat = random() < 0.5 ? 0 : 1;
+      }
+      s.button = winnerSeat;
+      s.highCardDraw = { ranks: [rankA, rankB], winnerSeat };
+      s.phase = "hand_select";
+      s.lastActionNote = `하이카드 드로우 완료 — 버튼(SB) 결정됨`;
       return done(s);
     }
 

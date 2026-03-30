@@ -15,7 +15,14 @@ const key = (roomId: string) => `holdem:room:${roomId}`;
 
 const ROOM_TTL_SEC = 60 * 60 * 72;
 
-const devMem = new Map<string, string>();
+// globalThis에 붙여 Next.js 핫 리로드(모듈 재평가) 시에도 유지
+const devMemGlobal = globalThis as unknown as {
+  __holdemDevMem?: Map<string, string>;
+};
+if (!devMemGlobal.__holdemDevMem) {
+  devMemGlobal.__holdemDevMem = new Map<string, string>();
+}
+const devMem = devMemGlobal.__holdemDevMem;
 
 function redisUrl(): string | undefined {
   const u =

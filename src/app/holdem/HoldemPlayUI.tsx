@@ -35,8 +35,10 @@ export type HoldemPlayUIProps = {
   updateName: (p: PlayerIndex, raw: string) => void;
   /** 온라인 방: 내 좌석 — 핸드 선택·액션 패널을 이 좌석에만 표시 */
   mySeat?: PlayerIndex;
-  /** 로컬 vs 온라인 헤더 설명 */
-  playMode: "local" | "online";
+  /** 로컬 vs 온라인 vs 싱글플레이 헤더 설명 */
+  playMode: "local" | "online" | "single";
+  /** 싱글플레이 난이도 (playMode === "single" 일 때) */
+  singleDifficulty?: import("@/holdem/aiPlayer").Difficulty;
   /** 온라인일 때 방 ID 표시 등 */
   onlineMeta?: { roomId: string };
   /** 연습: 즉시 토글 퍼즈 */
@@ -63,43 +65,11 @@ export function HoldemPlayUI({
   updateName,
   mySeat,
   playMode,
+  singleDifficulty,
   onlineMeta,
   localPause,
   onlinePause,
 }: HoldemPlayUIProps) {
-  const [inviteToast, setInviteToast] = React.useState<string | null>(null);
-  const inviteToastTimer = React.useRef<ReturnType<typeof setTimeout> | null>(
-    null,
-  );
-
-  const copyInviteLink = React.useCallback(() => {
-    if (!onlineMeta || typeof window === "undefined") return;
-    const url = `${window.location.origin}/holdem/room/${onlineMeta.roomId}`;
-    void navigator.clipboard.writeText(url).then(
-      () => {
-        if (inviteToastTimer.current) clearTimeout(inviteToastTimer.current);
-        setInviteToast("초대 링크를 복사했습니다.");
-        inviteToastTimer.current = setTimeout(() => {
-          setInviteToast(null);
-          inviteToastTimer.current = null;
-        }, 2200);
-      },
-      () => {
-        setInviteToast("복사에 실패했습니다. 링크를 직접 보내 주세요.");
-        if (inviteToastTimer.current) clearTimeout(inviteToastTimer.current);
-        inviteToastTimer.current = setTimeout(() => {
-          setInviteToast(null);
-          inviteToastTimer.current = null;
-        }, 2800);
-      },
-    );
-  }, [onlineMeta]);
-
-  React.useEffect(() => {
-    return () => {
-      if (inviteToastTimer.current) clearTimeout(inviteToastTimer.current);
-    };
-  }, []);
 
   const showdownCinema = useAllInShowdownCinema(state);
   const winnerCinematicPulse =
@@ -214,6 +184,14 @@ export function HoldemPlayUI({
             >
               {pauseMainLabel}
             </button>
+            {playMode === "online" || playMode === "single" ? (
+              <Link
+                href="/holdem"
+                className="rounded-lg border border-zinc-600/80 bg-zinc-800/80 px-3 py-2 text-xs font-semibold text-zinc-300 shadow-md hover:bg-zinc-700/80"
+              >
+                홈으로
+              </Link>
+            ) : null}
           </div>
         ) : null}
         <header className="mb-4 flex flex-col gap-3 pr-[5.5rem] sm:pr-[6rem] lg:mb-6 lg:flex-row lg:items-start lg:justify-between">
@@ -221,39 +199,26 @@ export function HoldemPlayUI({
             <h1 className="text-lg font-bold text-zinc-50 lg:text-xl">
               핸드 풀 홀덤
             </h1>
-            <p className="text-xs text-zinc-400">
-              {playMode === "local" ? (
-                <>
-                  {TOTAL_ROUNDS}라운드 · 시작 {STARTING_CHIPS}칩 (1bb=1칩) ·{" "}
-                  {HEADS_UP_RULES_BLURB} · 표시 이름은 이 기기에 저장됩니다
-                </>
-              ) : (
-                <>
-                  {TOTAL_ROUNDS}라운드 · 온라인 대전 · {HEADS_UP_RULES_BLURB} · 상대
-                  홀 카드는 쇼다운 전까지 이 기기로 전달되지 않습니다
-                </>
-              )}
-            </p>
-            {playMode === "online" && onlineMeta ? (
-              <div className="mt-3 flex flex-wrap items-center gap-2">
-                <button
-                  type="button"
-                  onClick={copyInviteLink}
-                  className="rounded-lg bg-sky-600 px-3 py-2 text-xs font-semibold text-white hover:bg-sky-500"
-                >
-                  초대 링크 복사
-                </button>
-                <Link
-                  href="/holdem"
-                  className="rounded-lg border border-zinc-500/80 px-3 py-2 text-xs font-semibold text-zinc-200 hover:bg-zinc-700/50"
-                >
-                  홈으로
-                </Link>
-              </div>
+            {playMode === "local" ? (
+              <p className="text-xs text-zinc-400">
+                {TOTAL_ROUNDS}라운드 · 시작 {STARTING_CHIPS}칩 (1bb=1칩) ·{" "}
+                {HEADS_UP_RULES_BLURB} · 표시 이름은 이 기기에 저장됩니다
+              </p>
+            ) : playMode === "single" ? (
+              <p className="text-xs text-zinc-400">
+                싱글플레이 · AI{" "}
+                <span className={
+                  singleDifficulty === "hard" ? "font-semibold text-rose-400" :
+                  singleDifficulty === "normal" ? "font-semibold text-amber-400" :
+                  "font-semibold text-emerald-400"
+                }>
+                  {singleDifficulty === "hard" ? "Hard" : singleDifficulty === "normal" ? "Normal" : "Easy"}
+                </span>
+              </p>
             ) : null}
           </div>
           <div className="flex flex-col gap-2 rounded-lg border border-zinc-600/90 bg-zinc-700/50 p-2 lg:min-w-[18rem]">
-            {playMode === "local" && setViewer ? (
+            {playMode === "local" && setViewer != null ? (
               <>
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="px-1 text-[10px] font-medium uppercase text-zinc-400">
@@ -464,20 +429,12 @@ export function HoldemPlayUI({
           />
         ) : null}
 
-        {inviteToast ? (
-          <div
-            className="fixed bottom-6 left-1/2 z-50 max-w-[min(90vw,20rem)] -translate-x-1/2 rounded-lg border border-emerald-700/60 bg-emerald-950/95 px-4 py-2.5 text-center text-sm text-emerald-50 shadow-lg"
-            role="status"
-          >
-            {inviteToast}
-          </div>
-        ) : null}
 
         <div className="mx-auto max-w-4xl lg:max-w-5xl">
           <HandLog
             logs={state.logs}
             playerNames={playerNames}
-            showdownHoleCtx={playMode === "online" ? null : showdownHoleCtx}
+            showdownHoleCtx={playMode === "online" || playMode === "single" ? null : showdownHoleCtx}
             playMode={playMode}
           />
         </div>

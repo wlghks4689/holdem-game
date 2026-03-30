@@ -23,6 +23,12 @@ export function useHoldemGame() {
     stateRef.current = state;
   }, [state]);
 
+  // dispatch는 useReducer에서 오므로 항상 안정적이지만, 패턴 통일을 위해 ref 사용
+  const dispatchRef = React.useRef(dispatch);
+  React.useLayoutEffect(() => {
+    dispatchRef.current = dispatch;
+  }, [dispatch]);
+
   const [actionTimerLeft, setActionTimerLeft] = React.useState<number | null>(
     null,
   );
@@ -54,14 +60,15 @@ export function useHoldemGame() {
       if (cur == null) return;
       if (actionTimerSignature(cur) !== sigAtStart) return;
       const a = computeTimeoutAction(cur);
-      if (a != null) dispatch(a);
+      if (a != null) dispatchRef.current(a);
     }, limitMs);
 
     return () => {
       window.clearTimeout(to);
       window.clearInterval(iv);
     };
-  }, [timerSig, limitMs, dispatch, localPaused]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [timerSig, limitMs, localPaused]);
 
   const toggleLocalPause = React.useCallback(() => {
     setLocalPaused((v) => !v);

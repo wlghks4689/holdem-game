@@ -4,8 +4,10 @@ import * as React from "react";
 import Link from "next/link";
 import {
   clearRoomAuth,
+  clearLastActiveRoom,
   loadRoomAuth,
   saveRoomAuth,
+  saveLastActiveRoom,
 } from "@/holdem/roomCredentials";
 import type { PlayerIndex } from "@/holdem/types";
 import { HoldemOnlinePage } from "./HoldemOnlinePage";
@@ -46,11 +48,28 @@ export function HoldemRoomClient({ roomId }: { roomId: string }) {
         );
         if (cancelled) return;
         if (r.ok) {
+          saveLastActiveRoom(id, saved.seat);
           setSession(saved);
           setPhase("play");
           return;
         }
-        clearRoomAuth(id);
+        // 403: 토큰이 무효 — 자격 삭제 후 게스트 재시도
+        // 404: 방이 만료/삭제됨 — 자격 삭제 후 "방 없음" 표시
+        // 그 외(5xx, 네트워크 오류): 자격 유지, 에러만 표시
+        if (r.status === 403) {
+          clearRoomAuth(id);
+          clearLastActiveRoom();
+        } else if (r.status === 404) {
+          clearRoomAuth(id);
+          clearLastActiveRoom();
+          setMessage("이 방은 없거나 만료되었습니다.");
+          setPhase("gone");
+          return;
+        } else {
+          setMessage("방에 연결할 수 없습니다. 잠시 후 다시 시도해 주세요.");
+          setPhase("error");
+          return;
+        }
       }
 
       const stRes = await fetch(`/api/room/${id}/status`);
@@ -103,6 +122,7 @@ export function HoldemRoomClient({ roomId }: { roomId: string }) {
 
       const auth = { seat: 1 as PlayerIndex, token: jj.token };
       saveRoomAuth(id, auth);
+      saveLastActiveRoom(id, 1 as PlayerIndex);
       setSession(auth);
       setPhase("play");
     };

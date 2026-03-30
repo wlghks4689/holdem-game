@@ -3,9 +3,13 @@
 import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { saveRoomAuth } from "@/holdem/roomCredentials";
-
-const ROOM_ID_RE = /^[a-f0-9]{8}$/;
+import {
+  saveRoomAuth,
+  loadLastActiveRoom,
+  clearLastActiveRoom,
+  loadRoomAuth,
+  type LastActiveRoom,
+} from "@/holdem/roomCredentials";
 
 const cardClass =
   "flex flex-col gap-2 rounded-2xl border border-zinc-600/80 bg-zinc-800/60 p-5 shadow-lg transition hover:border-sky-500/50 hover:bg-zinc-800/90 active:scale-[0.99]";
@@ -14,7 +18,17 @@ export function HoldemHomeHub() {
   const router = useRouter();
   const [creating, setCreating] = React.useState(false);
   const [err, setErr] = React.useState<string | null>(null);
-  const [devId, setDevId] = React.useState("");
+  const [lastRoom, setLastRoom] = React.useState<LastActiveRoom | null>(null);
+
+  React.useEffect(() => {
+    const info = loadLastActiveRoom();
+    if (info && loadRoomAuth(info.roomId)) {
+      setLastRoom(info);
+    } else if (info) {
+      // 방 인증 토큰이 없으면 마지막 방 기록도 지운다
+      clearLastActiveRoom();
+    }
+  }, []);
 
   const onCreateRoom = async () => {
     setCreating(true);
@@ -57,6 +71,40 @@ export function HoldemHomeHub() {
           </p>
         </header>
 
+        {lastRoom ? (
+          <div className="mb-4 rounded-2xl border border-emerald-600/50 bg-emerald-950/30 p-4 shadow-lg">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-sm font-semibold text-emerald-300">
+                  진행 중인 게임이 있습니다
+                </p>
+                <p className="mt-0.5 font-mono text-xs text-zinc-400">
+                  방 {lastRoom.roomId} · {lastRoom.seat === 0 ? "호스트" : "게스트"}
+                </p>
+              </div>
+              <div className="flex shrink-0 gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    clearLastActiveRoom();
+                    setLastRoom(null);
+                  }}
+                  className="rounded-lg border border-zinc-600/70 px-3 py-1.5 text-xs text-zinc-400 hover:bg-zinc-800"
+                >
+                  무시
+                </button>
+                <button
+                  type="button"
+                  onClick={() => router.push(`/holdem/room/${lastRoom.roomId}`)}
+                  className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-500"
+                >
+                  돌아가기
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : null}
+
         <div className="grid gap-4 sm:grid-cols-2">
           <button
             type="button"
@@ -82,14 +130,14 @@ export function HoldemHomeHub() {
           <Link href="/holdem/guide" className={cardClass}>
             <span className="text-lg font-semibold text-zinc-100">게임 설명</span>
             <span className="text-xs leading-relaxed text-zinc-400">
-              규칙, 포지션, IA 등 짧게 정리한 안내입니다.
+              처음 하는 분도 30초면 이해할 수 있는 플레이 흐름 안내입니다.
             </span>
           </Link>
 
-          <Link href="/holdem/practice" className={cardClass}>
-            <span className="text-lg font-semibold text-zinc-100">연습 게임</span>
+          <Link href="/holdem/single" className={cardClass}>
+            <span className="text-lg font-semibold text-zinc-100">싱글플레이</span>
             <span className="text-xs leading-relaxed text-zinc-400">
-              이 기기에서만 돌아가는 연습(로컬 2인 시점 전환).
+              AI 상대와 1:1 · Easy / Normal / Hard 난이도 선택.
             </span>
           </Link>
 
@@ -97,6 +145,13 @@ export function HoldemHomeHub() {
             <span className="text-lg font-semibold text-zinc-100">환경 설정</span>
             <span className="text-xs leading-relaxed text-zinc-400">
               표시 이름, 사운드 등 기본 옵션.
+            </span>
+          </Link>
+
+          <Link href="/holdem/feedback" className={cardClass}>
+            <span className="text-lg font-semibold text-zinc-100">피드백</span>
+            <span className="text-xs leading-relaxed text-zinc-400">
+              버그 제보, 개선 아이디어, 게임 평가를 남겨 주세요.
             </span>
           </Link>
         </div>
@@ -109,35 +164,6 @@ export function HoldemHomeHub() {
             {err}
           </p>
         ) : null}
-
-        <details className="mt-12 rounded-lg border border-zinc-800 bg-zinc-900/50 px-3 py-2 text-zinc-600">
-          <summary className="cursor-pointer select-none text-xs">고급 · 개발</summary>
-          <div className="mt-2 flex flex-wrap items-end gap-2 pb-2">
-            <label className="flex flex-col gap-0.5 text-[10px]">
-              방 ID (8자 hex)
-              <input
-                value={devId}
-                onChange={(e) =>
-                  setDevId(
-                    e.target.value.replace(/[^a-fA-F0-9]/g, "").slice(0, 8),
-                  )
-                }
-                className="w-36 rounded border border-zinc-700 bg-zinc-800 px-2 py-1 font-mono text-xs text-zinc-200"
-                placeholder="abcd123"
-              />
-            </label>
-            <button
-              type="button"
-              disabled={!ROOM_ID_RE.test(devId.toLowerCase())}
-              onClick={() =>
-                router.push(`/holdem/room/${devId.trim().toLowerCase()}`)
-              }
-              className="rounded-md border border-zinc-600 px-2 py-1 text-xs text-zinc-300 hover:bg-zinc-800 disabled:opacity-40"
-            >
-              해당 방으로 이동
-            </button>
-          </div>
-        </details>
       </div>
     </div>
   );

@@ -1,6 +1,6 @@
 import { randomBytes } from "crypto";
 import { NextResponse } from "next/server";
-import { createInitialGameState } from "@/holdem/gameReducer";
+import { createRoomInitialGameState } from "@/holdem/gameReducer";
 import {
   isRoomPersistenceConfigured,
   roomSet,
@@ -21,7 +21,7 @@ export async function POST() {
   const roomId = randomBytes(4).toString("hex");
   const token0 = randomBytes(24).toString("hex");
   const blob: RoomBlob = {
-    state: createInitialGameState(),
+    state: createRoomInitialGameState(),
     tokens: [token0, null],
   };
   await roomSet(roomId, blob);

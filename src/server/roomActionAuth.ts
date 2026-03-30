@@ -7,6 +7,8 @@ export function canSeatSendAction(
   seat: PlayerIndex,
 ): boolean {
   switch (action.type) {
+    case "START_GAME":
+      return state.phase === "lobby" && seat === 0;
     case "NEW_HAND":
       return (
         state.matchWinner == null &&

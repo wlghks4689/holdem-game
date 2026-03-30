@@ -72,6 +72,11 @@ export async function POST(req: Request, ctx: Ctx) {
     return NextResponse.json({ error: "game paused" }, { status: 403 });
   }
 
+  // START_GAME은 게스트(토큰 1)가 입장한 뒤에만 허용
+  if (typedAction.type === "START_GAME" && blob.tokens[1] == null) {
+    return NextResponse.json({ error: "상대방이 아직 입장하지 않았습니다" }, { status: 403 });
+  }
+
   if (!canSeatSendAction(blob.state, typedAction, typedSeat)) {
     return NextResponse.json({ error: "not your action" }, { status: 403 });
   }

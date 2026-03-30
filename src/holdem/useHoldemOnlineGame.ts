@@ -30,6 +30,7 @@ export function useHoldemOnlineGame(opts: {
     kind: "running",
   });
   const [loadError, setLoadError] = React.useState<string | null>(null);
+  const [guestJoined, setGuestJoined] = React.useState(false);
 
   const stateRef = React.useRef<GameState | null>(null);
   React.useLayoutEffect(() => {
@@ -45,6 +46,7 @@ export function useHoldemOnlineGame(opts: {
       error?: string;
       state?: GameState;
       pause?: unknown;
+      guestJoined?: boolean;
     };
     if (!r.ok) {
       setLoadError(j.error ?? r.statusText);
@@ -54,6 +56,9 @@ export function useHoldemOnlineGame(opts: {
       setLoadError(null);
       setState(j.state);
       setPause(normalizeRoomPause(j.pause));
+    }
+    if (typeof j.guestJoined === "boolean") {
+      setGuestJoined(j.guestJoined);
     }
   }, [roomId, mySeat, token]);
 
@@ -100,6 +105,12 @@ export function useHoldemOnlineGame(opts: {
     },
     [roomId, mySeat, token, fetchSnapshot],
   );
+
+  // dispatch ref: 타이머 effect deps에서 제거해도 항상 최신 참조 유지
+  const dispatchRef = React.useRef(dispatch);
+  React.useLayoutEffect(() => {
+    dispatchRef.current = dispatch;
+  }, [dispatch]);
 
   const sendPauseCmd = React.useCallback(
     async (cmd: OnlinePauseCmd) => {
@@ -158,14 +169,15 @@ export function useHoldemOnlineGame(opts: {
       if (cur == null) return;
       if (actionTimerSignature(cur) !== sigAtStart) return;
       const a = computeTimeoutAction(cur);
-      if (a != null) void dispatch(a);
+      if (a != null) void dispatchRef.current(a);
     }, limitMs);
 
     return () => {
       window.clearInterval(iv);
       window.clearTimeout(to);
     };
-  }, [timerSig, limitMs, dispatch, paused]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [timerSig, limitMs, paused]);
 
   return {
     state,
@@ -175,5 +187,6 @@ export function useHoldemOnlineGame(opts: {
     refetch: fetchSnapshot,
     pause,
     sendPauseCmd,
+    guestJoined,
   };
 }

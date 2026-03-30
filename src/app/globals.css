@@ -227,3 +227,41 @@ body {
     box-shadow: 0 0 0 10px rgba(251, 191, 36, 0);
   }
 }
+
+/* ── 하이카드 드로우 오버레이 ── */
+@keyframes holdem-hcd-backdrop-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes holdem-hcd-title-in {
+  0%   { opacity: 0; transform: translateY(-14px) scale(0.92); }
+  100% { opacity: 1; transform: translateY(0)     scale(1);    }
+}
+
+@keyframes holdem-hcd-deal-in {
+  0%   { opacity: 0; transform: translateY(-32px) scale(0.82); }
+  100% { opacity: 1; transform: translateY(0)      scale(1);   }
+}
+
+@keyframes holdem-hcd-card-flip {
+  0%   { opacity: 0; transform: perspective(520px) rotateY(90deg) scale(0.88); }
+  55%  { opacity: 1; }
+  100% { opacity: 1; transform: perspective(520px) rotateY(0deg)  scale(1);    }
+}
+
+@keyframes holdem-hcd-winner-glow {
+  0%   { box-shadow: 0 0 0   0   rgba(251,191,36,0.0); }
+  40%  { box-shadow: 0 0 22px 6px rgba(251,191,36,0.7); }
+  100% { box-shadow: 0 0 10px 2px rgba(251,191,36,0.35); }
+}
+
+@keyframes holdem-hcd-result-in {
+  0%   { opacity: 0; transform: scale(0.85) translateY(10px); }
+  100% { opacity: 1; transform: scale(1)    translateY(0);    }
+}
+
+@keyframes holdem-lobby-pulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.45; }
+}

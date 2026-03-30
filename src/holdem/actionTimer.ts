@@ -9,7 +9,17 @@ import type { GameAction, GameState, PlayerIndex } from "./types";
 
 export { ACTION_TIMER_SECONDS, HAND_SELECT_TIMER_SECONDS };
 
-/** 아직 미확정인 좌석부터 자동 제출 (0 → 1 순) */
+/** Fisher-Yates shuffle (in-place) */
+function shuffled<T>(arr: readonly T[]): T[] {
+  const a = arr.slice();
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j]!, a[i]!];
+  }
+  return a;
+}
+
+/** 아직 미확정인 좌석부터 자동 제출 (0 → 1 순) — 선택 가능한 전체 풀에서 무작위 */
 function buildAutoSelectHand(state: GameState): GameAction | null {
   if (state.handSelectPhase === "done") return null;
   const pools = normalizeHandPoolRemaining(state.handPoolRemaining as unknown);
@@ -17,10 +27,10 @@ function buildAutoSelectHand(state: GameState): GameAction | null {
     if (state.handPickPending[player] != null) continue;
     const poolForActor = pools[player] ?? {};
     const canPick = (tid: string): boolean => (poolForActor[tid] ?? 0) > 0;
-    for (const tpl of ALL_HAND_TEMPLATES) {
-      if (!canPick(tpl.id)) continue;
-      return { type: "SELECT_HAND", player, templateId: tpl.id };
-    }
+    const available = ALL_HAND_TEMPLATES.filter((tpl) => canPick(tpl.id));
+    if (available.length === 0) continue;
+    const pick = shuffled(available)[0]!;
+    return { type: "SELECT_HAND", player, templateId: pick.id };
   }
   return null;
 }
@@ -34,12 +44,12 @@ export function actionTimerSignature(state: GameState): string | null {
   if (state.phase === "showdown" || state.phase === "hand_over") return null;
 
   if (state.phase === "hand_select" && state.handSelectPhase !== "done") {
+    // p0/p1 는 의도적으로 제외: 핸드 선택·변경이 타이머를 리셋해선 안 됨.
+    // 라운드·버튼이 바뀌는 시점(새 핸드 시작)에만 타이머를 새로 시작한다.
     return JSON.stringify({
       kind: "hand_select",
       round: state.roundNumber,
       button: state.button,
-      p0: state.handPickPending[0]?.templateId ?? null,
-      p1: state.handPickPending[1]?.templateId ?? null,
     });
   }
 

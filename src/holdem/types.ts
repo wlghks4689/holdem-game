@@ -9,7 +9,7 @@ export type OpponentHandCategory =
   | "로우파켓"
   | "커넥터 수딧";
 
-export type Street = "hand_select" | "preflop" | "flop" | "turn" | "river" | "showdown" | "hand_over";
+export type Street = "lobby" | "hand_select" | "preflop" | "flop" | "turn" | "river" | "showdown" | "hand_over";
 
 export type PlayerIndex = 0 | 1;
 
@@ -137,6 +137,12 @@ export type GameState = {
   lastActionNote: string;
   /** 이번 핸드에서 한 명 이상 스택 0 — 올인 런아웃·UI 표시용 */
   isAllIn: boolean;
+  /**
+   * 게임 시작 시 하이카드 드로우 결과 — 로비 입장 후 첫 핸드 시작 직전에만 설정.
+   * ranks[0] = 시트 0 드로우 랭크, ranks[1] = 시트 1 드로우 랭크 (2~14).
+   * UI 연출 전용. NEW_HAND에서 제거하지 않음(연출 중 유지용).
+   */
+  highCardDraw: { ranks: [number, number]; winnerSeat: PlayerIndex } | null;
 };
 
 export type GameAction =
@@ -157,4 +163,6 @@ export type GameAction =
   | { type: "POSTFLOP_RAISE"; toLevelChips: number }
   | { type: "FOLD" }
   | { type: "USE_IA" }
-  | { type: "NEW_HAND" };
+  | { type: "NEW_HAND" }
+  /** 멀티플레이 로비: 호스트(시트 0)가 누르는 게임 시작. 하이카드 드로우 후 hand_select로 전환 */
+  | { type: "START_GAME" };
