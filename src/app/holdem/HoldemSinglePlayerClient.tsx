@@ -2,10 +2,11 @@
 
 import * as React from "react";
 import {
-  DEFAULT_HOLDEM_DISPLAY_NAMES,
-  loadHoldemDisplayNames,
-  saveHoldemDisplayNames,
-} from "@/holdem/playerDisplayNames";
+  HOLDEM_PREFS_CHANGED_EVENT,
+  loadRoomNickname,
+  saveRoomNickname,
+} from "@/holdem/holdemPrefs";
+import { DEFAULT_HOLDEM_DISPLAY_NAMES } from "@/holdem/playerDisplayNames";
 import type { Difficulty } from "@/holdem/aiPlayer";
 import type { PlayerIndex } from "@/holdem/types";
 import { useHoldemSinglePlayer } from "@/holdem/useHoldemSinglePlayer";
@@ -39,34 +40,41 @@ export default function HoldemSinglePlayerClient({ difficulty }: Props) {
     toggleLocalPause,
   } = useHoldemSinglePlayer({ difficulty, aiSeat: AI_SEAT });
 
-  // 플레이어 이름: 좌석 0 = 사용자, 좌석 1 = AI
-  const [playerNames, setPlayerNames] = React.useState<[string, string]>([
-    DEFAULT_HOLDEM_DISPLAY_NAMES[0]!,
-    AI_NAMES[difficulty],
-  ]);
+  const buildNames = React.useCallback(
+    (): [string, string] => {
+      const nick = loadRoomNickname();
+      const hero =
+        nick.length > 0 ? nick : DEFAULT_HOLDEM_DISPLAY_NAMES[HUMAN_SEAT]!;
+      return [hero, AI_NAMES[difficulty]];
+    },
+    [difficulty],
+  );
+
+  const [playerNames, setPlayerNames] = React.useState<[string, string]>(() => {
+    const nick = loadRoomNickname();
+    const hero =
+      nick.length > 0 ? nick : DEFAULT_HOLDEM_DISPLAY_NAMES[HUMAN_SEAT]!;
+    return [hero, AI_NAMES[difficulty]];
+  });
 
   React.useEffect(() => {
-    const saved = loadHoldemDisplayNames();
-    setPlayerNames([saved[HUMAN_SEAT], AI_NAMES[difficulty]]);
-  }, [difficulty]);
+    setPlayerNames(buildNames());
+  }, [buildNames]);
 
-  const updateName = React.useCallback(
-    (p: PlayerIndex, raw: string) => {
-      // AI 이름은 변경 불가
-      if (p === AI_SEAT) return;
-      setPlayerNames((prev) => {
-        const fb = DEFAULT_HOLDEM_DISPLAY_NAMES[0]!;
-        const t = raw.trim();
-        const next: [string, string] = [
-          t.length > 0 ? t.slice(0, 24) : fb,
-          prev[1]!,
-        ];
-        saveHoldemDisplayNames([next[0], DEFAULT_HOLDEM_DISPLAY_NAMES[1]!]);
-        return next;
-      });
-    },
-    [],
-  );
+  React.useEffect(() => {
+    const onPrefs = () => setPlayerNames(buildNames());
+    window.addEventListener(HOLDEM_PREFS_CHANGED_EVENT, onPrefs);
+    return () => window.removeEventListener(HOLDEM_PREFS_CHANGED_EVENT, onPrefs);
+  }, [buildNames]);
+
+  const updateName = React.useCallback((p: PlayerIndex, raw: string) => {
+    if (p === AI_SEAT) return;
+    const t = raw.trim().slice(0, 24);
+    const fb = DEFAULT_HOLDEM_DISPLAY_NAMES[HUMAN_SEAT]!;
+    const nextHero = t.length > 0 ? t : fb;
+    saveRoomNickname(t.length > 0 ? t : "");
+    setPlayerNames((prev) => [nextHero, prev[1]!]);
+  }, []);
 
   return (
     <HoldemPlayUI

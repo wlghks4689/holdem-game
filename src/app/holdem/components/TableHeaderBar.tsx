@@ -99,7 +99,7 @@ export function TableHeaderBar({ state, playerNames }: TableHeaderBarProps) {
       ? `${nextR}R부터 ${formatBlindTriple(getBlindLevel(nextR))}`
       : "이후 상향 없음 (최종 티어)";
 
-  const blindTooltip = `${debugBlindLine(state.roundNumber, hb)}\n다음: ${nextBlindHint}`;
+  const blindTooltip = `${debugBlindLine(state.roundNumber, hb)}\n다음: ${nextBlindHint}\nIA 누적: ${fmtChips(iaRemovedTotal)}칩`;
 
   return (
     <>
@@ -120,8 +120,8 @@ export function TableHeaderBar({ state, playerNames }: TableHeaderBarProps) {
         </div>
       ) : null}
 
-      <div className="rounded-xl border border-zinc-600/90 bg-zinc-700/70 p-3 text-sm">
-      <div className="mb-2 flex flex-wrap items-center gap-x-2 gap-y-1 border-b border-zinc-600/70 pb-2 text-zinc-300">
+      <div className="rounded-xl border border-zinc-600/90 bg-zinc-700/70 p-2 text-sm sm:p-2.5">
+      <div className="mb-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 border-b border-zinc-600/70 pb-1.5 text-zinc-300 sm:mb-2 sm:pb-2">
         <span
           className={`shrink-0 text-zinc-100 ${headerMetaMono}`}
           title={debugBlindLine(state.roundNumber, hb)}
@@ -145,16 +145,16 @@ export function TableHeaderBar({ state, playerNames }: TableHeaderBarProps) {
           ·
         </span>
         <span
-          className={`shrink-0 text-zinc-100 ${headerMetaMono}`}
+          className={`hidden shrink-0 text-zinc-100 sm:inline ${headerMetaMono}`}
           title="매치 시작부터 IA로 팟에서 빠져 나간 칩 누적(칩 단위)"
         >
-          IA 누적 제거 칩 총 {fmtChips(iaRemovedTotal)}칩스
+          IA 누적 {fmtChips(iaRemovedTotal)}칩
         </span>
         <span className="hidden shrink-0 text-zinc-600 lg:inline" aria-hidden>
           ·
         </span>
         <span
-          className="min-w-0 shrink text-[10px] text-zinc-400 sm:text-[11px]"
+          className="hidden min-w-0 shrink text-[10px] text-zinc-400 md:inline md:text-[11px]"
           title={HEADS_UP_RULES_BLURB}
         >
           {HU_DEALER_SB_LABEL}{" "}
@@ -165,7 +165,7 @@ export function TableHeaderBar({ state, playerNames }: TableHeaderBarProps) {
         </span>
       </div>
 
-      <div className="grid gap-2 sm:grid-cols-2">
+      <div className="grid gap-1.5 sm:grid-cols-2 sm:gap-2">
         {([0, 1] as PlayerIndex[]).map((p) => {
           const bettingUi =
             state.matchWinner == null &&
@@ -186,7 +186,7 @@ export function TableHeaderBar({ state, playerNames }: TableHeaderBarProps) {
             <div
               key={p}
               className={[
-                "relative rounded-lg px-2 py-2 transition-[background-color,opacity,box-shadow,filter] duration-200",
+                "relative rounded-lg px-2 py-1.5 transition-[background-color,opacity,box-shadow,filter] duration-200 sm:py-2",
                 acting
                   ? "z-[1] bg-emerald-900/40 ring-2 ring-emerald-400/50 shadow-[0_0_22px_rgba(52,211,153,0.22)]"
                   : dimOpponentTurn

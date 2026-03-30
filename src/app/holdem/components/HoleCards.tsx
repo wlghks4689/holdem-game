@@ -1,7 +1,18 @@
 "use client";
 
+import * as React from "react";
 import type { CSSProperties } from "react";
-import { best5Of7, compareHandValue, currentCompactHandLabel } from "@/holdem/pokerEval";
+import {
+  best5Of7,
+  compareHandValue,
+  currentCompactHandLabel,
+  madeHandFxTier,
+} from "@/holdem/pokerEval";
+import {
+  HOLDEM_PREFS_CHANGED_EVENT,
+  loadMadeHandFxEnabled,
+} from "@/holdem/holdemPrefs";
+import { useHoldemI18n } from "@/holdem/i18n/HoldemLocaleProvider";
 import { iaCategoryHandListText } from "@/holdem/handPool";
 import { headsUpPositionLabel } from "@/holdem/headsUpLabels";
 import type { GameState, PlayerIndex } from "@/holdem/types";
@@ -9,6 +20,28 @@ import { useTurnPulse } from "../hooks/useTurnPulse";
 import { CardBack, PlayingCard } from "./Card";
 
 const other = (p: PlayerIndex): PlayerIndex => (p === 0 ? 1 : 0);
+
+/** 메이드 연출용 — 카드 링(글로우가 ::after 뒤에서도 보이도록) */
+const MADE_FX_CARD_RING: Record<number, string> = {
+  1: "ring-2 ring-amber-400/90 shadow-[0_0_26px_rgba(251,191,36,0.55)]",
+  2: "ring-2 ring-teal-400/85 shadow-[0_0_26px_rgba(45,212,191,0.5)]",
+  3: "ring-2 ring-violet-400/85 shadow-[0_0_28px_rgba(167,139,250,0.45)]",
+  4: "ring-2 ring-amber-300/90 shadow-[0_0_30px_rgba(252,211,77,0.55)]",
+  5: "ring-2 ring-yellow-300/90 shadow-[0_0_32px_rgba(253,224,71,0.5)]",
+};
+
+function useMadeHandFxEnabled(): boolean {
+  const [on, setOn] = React.useState(() =>
+    typeof window !== "undefined" ? loadMadeHandFxEnabled() : true,
+  );
+  React.useEffect(() => {
+    setOn(loadMadeHandFxEnabled());
+    const h = () => setOn(loadMadeHandFxEnabled());
+    window.addEventListener(HOLDEM_PREFS_CHANGED_EVENT, h);
+    return () => window.removeEventListener(HOLDEM_PREFS_CHANGED_EVENT, h);
+  }, []);
+  return on;
+}
 
 export type HoleCardsProps = {
   state: GameState;
@@ -37,6 +70,8 @@ export function HoleCards({
   seatFilter = "both",
   cinematicWinnerPulse = false,
 }: HoleCardsProps) {
+  const { t, locale } = useHoldemI18n();
+  const madeHandFxOn = useMadeHandFxEnabled();
   const selecting = state.phase === "hand_select";
   const opp = other(viewer);
   const showdownReveal = state.phase === "showdown";
@@ -98,6 +133,22 @@ export function HoleCards({
         const showOpponentBacks =
           sel != null && !isMe && !selecting && !showdownReveal;
 
+        const boardUsedForFx = state.board.slice(0, state.boardRevealed);
+        let madeFxTier = 0;
+        if (sel != null && showFaces && madeHandFxOn) {
+          const all = [...sel.hole, ...boardUsedForFx];
+          if (all.length >= 5) {
+            madeFxTier = madeHandFxTier(best5Of7(all));
+          }
+        }
+        const madeFxOuterKey =
+          madeFxTier > 0
+            ? `made-fx-${state.roundNumber}-${state.boardRevealed}-${madeFxTier}-p${p}`
+            : `hole-row-${p}`;
+        /** 메이드 연출이 보이도록: 내 패가 스트레이트↑일 때 상대 턴 디밍 제외 */
+        const dimPanelForIdleTurn =
+          dimForNonTurn && !(isMe && madeFxTier > 0);
+
         const winnerShowdown =
           showdownReveal &&
           sdCmp != null &&
@@ -141,7 +192,7 @@ export function HoleCards({
           loserShowdown
             ? "border-zinc-700/85 bg-zinc-800/35 text-zinc-500"
             : toneFrame,
-          dimForNonTurn ? "opacity-[0.52] brightness-[0.88] saturate-75" : "",
+          dimPanelForIdleTurn ? "opacity-[0.52] brightness-[0.88] saturate-75" : "",
           cinematicWinnerPulse && winnerShowdown
             ? "z-[1] scale-[1.02]"
             : "",
@@ -164,7 +215,12 @@ export function HoleCards({
           sel != null &&
           state.phase !== "hand_select" &&
           state.phase !== "showdown"
-            ? currentCompactHandLabel(sel.hole, state.board, state.boardRevealed)
+            ? currentCompactHandLabel(
+                sel.hole,
+                state.board,
+                state.boardRevealed,
+                locale,
+              )
             : "";
 
         const cardSize =
@@ -183,22 +239,22 @@ export function HoleCards({
                 {headsUpPositionLabel(state, p)}
               </span>
               {isMe ? (
-                <span className="text-emerald-300">내 카드</span>
+                <span className="text-emerald-300">{t("hole.myCards")}</span>
               ) : (
-                <span className="text-zinc-500">상대</span>
+                <span className="text-zinc-500">{t("hole.opponent")}</span>
               )}
               <div className="ml-auto flex items-center gap-1.5">
                 {isToAct ? (
                   <span className="rounded-full bg-emerald-600/30 px-2 py-0.5 text-[9px] font-bold text-emerald-200">
-                    액션 턴
+                    {t("hole.actionTurn")}
                   </span>
                 ) : isHandPickChoosing ? (
                   <span className="rounded-full bg-amber-600/35 px-2 py-0.5 text-[9px] font-bold text-amber-100">
-                    핸드 선택
+                    {t("hole.handPick")}
                   </span>
                 ) : isHandPickSubmitted ? (
                   <span className="rounded-full bg-emerald-700/35 px-2 py-0.5 text-[9px] font-bold text-emerald-100">
-                    확정됨
+                    {t("hole.submitted")}
                   </span>
                 ) : null}
               </div>
@@ -214,21 +270,62 @@ export function HoleCards({
                       : "justify-center sm:justify-start",
                   ].join(" ")}
                 >
-                  {/* 카드 2장 */}
-                  <div className={["flex shrink-0", showdownReveal ? "gap-2" : "gap-3"].join(" ")}>
-                    {sel.hole.map((c, i) => (
-                      <PlayingCard
-                        key={i}
-                        card={c}
-                        size={cardSize}
-                        className={showdownReveal ? showdownCardClass : ""}
-                      />
-                    ))}
+                  {/* 카드 2장 — 스트레이트↑ 메이드 시 티어별 연출 */}
+                  <div
+                    key={madeFxOuterKey}
+                    className={[
+                      madeFxTier > 0
+                        ? `holdem-made-fx holdem-made-fx-t${madeFxTier} overflow-visible`
+                        : "",
+                    ]
+                      .filter(Boolean)
+                      .join(" ")}
+                  >
+                    <div
+                      className={[
+                        "flex shrink-0",
+                        showdownReveal ? "gap-2" : "gap-3",
+                        madeFxTier > 0 ? "holdem-made-fx-stack" : "",
+                      ].join(" ")}
+                    >
+                      {sel.hole.map((c, i) => (
+                        <div
+                          key={i}
+                          className={madeFxTier > 0 ? "holdem-made-fx-card" : undefined}
+                          style={
+                            madeFxTier > 0
+                              ? { animationDelay: `${i * 0.08}s` }
+                              : undefined
+                          }
+                        >
+                          <PlayingCard
+                            card={c}
+                            size={cardSize}
+                            className={[
+                              showdownReveal ? showdownCardClass : "",
+                              madeFxTier > 0 && !showdownReveal
+                                ? MADE_FX_CARD_RING[madeFxTier] ?? ""
+                                : "",
+                            ]
+                              .filter(Boolean)
+                              .join(" ")}
+                          />
+                        </div>
+                      ))}
+                    </div>
                   </div>
 
                   {/* 족보 — 내 카드·비쇼다운에서만 크게 표시 */}
                   {compactHand && isMe && !showdownReveal ? (
-                    <span className="text-xl font-extrabold tracking-tight text-amber-300 drop-shadow-sm">
+                    <span
+                      key={`hand-label-${madeFxOuterKey}`}
+                      className={[
+                        "inline-block origin-left text-xl font-extrabold tracking-tight drop-shadow-sm",
+                        madeFxTier > 0
+                          ? `holdem-made-hand-label holdem-made-hand-label-t${madeFxTier}`
+                          : "text-zinc-50",
+                      ].join(" ")}
+                    >
                       {compactHand}
                     </span>
                   ) : null}
@@ -237,7 +334,7 @@ export function HoleCards({
                 iaOpponentLearnedAboutMe != null &&
                 !showdownReveal ? (
                   <p className="mt-2 text-center text-[11px] leading-snug text-indigo-200/90 sm:text-left">
-                    상대 IA로 공개된 내 카테고리:{" "}
+                    {t("hole.iaLearnedPrefix")}{" "}
                     <span className="font-semibold text-indigo-100">
                       {iaOpponentLearnedAboutMe}
                     </span>
@@ -255,7 +352,7 @@ export function HoleCards({
                 </div>
                 {p === opp && iaCategoryForOpp ? (
                   <p className="text-[11px] leading-snug text-indigo-200/90">
-                    IA · 상대 카테고리:{" "}
+                    {t("hole.iaOppCategory")}{" "}
                     <span className="font-semibold text-indigo-100">
                       {iaCategoryForOpp}
                     </span>
@@ -263,17 +360,19 @@ export function HoleCards({
                       {iaCategoryHandListText(iaCategoryForOpp)}
                     </span>
                     <span className="mt-0.5 block text-[10px] font-normal text-indigo-300/70">
-                      (실제 카드는 비공개)
+                      {t("hole.iaHidden")}
                     </span>
                   </p>
                 ) : null}
               </div>
             ) : showPendingOnly ? (
               <p className="mt-2 text-[11px] text-zinc-400">
-                제출됨 · 실제 카드는 상대 확정 후 공개
+                {t("hole.pendingReveal")}
               </p>
             ) : (
-              <p className="mt-2 text-[11px] text-zinc-500">핸드 선택 대기 중</p>
+              <p className="mt-2 text-[11px] text-zinc-500">
+                {t("hole.pickWait")}
+              </p>
             )}
           </div>
         );

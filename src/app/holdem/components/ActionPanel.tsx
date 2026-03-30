@@ -11,14 +11,15 @@ import {
   isLegalPreflopRaiseTarget,
   levelFromContributions,
   postflopCustomMaxRaiseToLevel,
-  postflopEffectiveMaxRaiseToLevel,
-  postflopMaxBet,
+  postflopRaiseTargetCappedByOpponent,
+  postflopMaxOpenBetForActor,
   postflopMinRaiseToLevelChips,
   preflopAllInTotalContribution,
   preflopHasLegalRaise,
   preflopMaxRaiseTargetForActor,
   preflopMinTotalRaiseForActor,
   roundHalfChip,
+  streetRaiseCapReached,
 } from "@/holdem/bettingHelpers";
 import {
   ACTION_TIMER_SECONDS,
@@ -258,6 +259,7 @@ function preflopCompactRaiseKeyFromState(state: GameState): string {
     state.betting.contributed[0],
     state.betting.contributed[1],
     level,
+    state.betting.raisesThisStreet ?? 0,
   ].join("|");
 }
 
@@ -298,17 +300,9 @@ export function ActionPanel({
     const b = state.betting;
     const f = facingFor(actor, b);
     const lv = levelFromContributions(b);
-    const maxBetHere = postflopMaxBet(state.pot, state.chips[actor]!);
+    const maxBetHere = postflopMaxOpenBetForActor(state);
     const minR = f > 0 ? postflopMinRaiseToLevelChips(lv, f) : 0;
-    const maxT =
-      f > 0
-        ? postflopEffectiveMaxRaiseToLevel(
-            state.pot,
-            f,
-            b.contributed[actor]!,
-            state.chips[actor]!,
-          )
-        : 0;
+    const maxT = f > 0 ? postflopRaiseTargetCappedByOpponent(state) : 0;
     return [
       state.roundNumber,
       state.phase,
@@ -325,6 +319,7 @@ export function ActionPanel({
       minR,
       maxT,
       state.handBlinds.bb,
+    state.betting.raisesThisStreet ?? 0,
     ].join("|");
   }, [
     state.matchWinner,
@@ -333,6 +328,7 @@ export function ActionPanel({
     state.toAct,
     state.handBlinds,
     state.betting.checksThisStreet,
+    state.betting.raisesThisStreet,
     state.betting.contributed[0],
     state.betting.contributed[1],
     state.betting.currentLevel,
@@ -356,7 +352,7 @@ export function ActionPanel({
     const b = state.betting;
     const f = facingFor(actor, b);
     const lv = levelFromContributions(b);
-    const maxB = postflopMaxBet(state.pot, state.chips[actor]!);
+    const maxB = postflopMaxOpenBetForActor(state);
     const streetBb = resolveHandBlinds(state).bb;
     // 기본 베팅: ½ 팟 (최소 1bb, 최대 maxBet)
     setBetValue(
@@ -435,9 +431,6 @@ export function ActionPanel({
         <p className="mt-1 text-sm text-zinc-200">
           승자:{" "}
           <span className="font-mono text-emerald-100">{pl(state.matchWinner)}</span>
-        </p>
-        <p className="mt-2 font-mono text-xs text-zinc-400">
-          칩 {pl(0)} {state.chips[0]} · {pl(1)} {state.chips[1]}
         </p>
       </div>
     );
@@ -540,6 +533,7 @@ export function ActionPanel({
   const bbUnit = resolveHandBlinds(state).bb;
   const facing = facingFor(p, betting);
   const level = levelFromContributions(betting);
+  const streetCapped = streetRaiseCapReached(betting);
   const isAllIn = state.isAllIn;
   const blockVoluntaryOpen = isAllIn && facing <= 1e-9;
   const hideReraiseStreet = isAllIn;
@@ -572,25 +566,19 @@ export function ActionPanel({
     showPreflopRaise && isLegalPreflopRaiseTarget(state, preflopRaiseClamped);
 
   // ── 포스트플랍 ────────────────────────────────────────────────────────────
-  const maxBet = post ? postflopMaxBet(state.pot, chips) : 0;
+  const maxBet = post ? postflopMaxOpenBetForActor(state) : 0;
   const maxAffordableRaiseTotal = roundHalfChip(betting.contributed[p]! + chips);
   const postRaiseRuleCap =
     facing > 0 ? postflopCustomMaxRaiseToLevel(state.pot, facing) : level;
   const postRaiseCap =
-    facing > 0
-      ? postflopEffectiveMaxRaiseToLevel(
-          state.pot,
-          facing,
-          betting.contributed[p]!,
-          chips,
-        )
-      : level;
+    facing > 0 ? postflopRaiseTargetCappedByOpponent(state) : level;
   const postRaiseOnlyByStack = facing > 0 && postRaiseCap + 1e-9 < postRaiseRuleCap;
   const postRaiseMin =
     facing > 0 ? postflopMinRaiseToLevelChips(level, facing) : level;
   const canPostflopRaise =
     post &&
     facing > 0 &&
+    !streetCapped &&
     postRaiseMin <= postRaiseCap + 1e-9 &&
     postRaiseMin <= maxAffordableRaiseTotal + 1e-9;
 
@@ -710,6 +698,13 @@ export function ActionPanel({
           <span className="font-semibold">Fold</span> or{" "}
           <span className="font-semibold">Call (full stack)</span> only.
         </p>
+      ) : facing > 0 && streetCapped ? (
+        <p className="rounded-md border border-sky-500/40 bg-sky-950/25 px-2 py-1.5 text-[11px] text-sky-100/95">
+          <span className="font-semibold">레이즈 캡</span> — 이번 스트리트에서
+          레이즈가 허용 횟수에 도달했습니다.{" "}
+          <span className="font-semibold">콜</span> 또는{" "}
+          <span className="font-semibold">폴드</span>만 가능합니다.
+        </p>
       ) : null}
 
       {/* IA 버튼 */}
@@ -810,7 +805,7 @@ export function ActionPanel({
             </>
           ) : null}
 
-          {/* facing_raise: BB의 3-벳 or 콜/폴드 */}
+          {/* facing_raise: BB — 리레이즈·콜·폴드 */}
           {state.preflopStage === "facing_raise" && isBbToAct ? (
             <>
               <p className="text-[10px] text-zinc-400">
@@ -857,12 +852,16 @@ export function ActionPanel({
             </>
           ) : null}
 
-          {/* facing_raise: 딜러(SB) 콜/폴드만 */}
+          {/* facing_raise: 딜러(SB) — 4-bet+·콜·폴드 */}
           {state.preflopStage === "facing_raise" && p === state.button ? (
             <>
               <p className="text-[10px] text-zinc-400">
-                딜러·SB — BB 리레이즈에 맞출 칩만 추가할 수 있습니다.
+                딜러·SB — 상대 레이즈에 응답 · 추가 레이즈 상한{" "}
+                <span className="font-mono text-zinc-300">
+                  {chipsAsBbLabel(preRaiseCap, bbUnit)}
+                </span>
               </p>
+              {preflopRaiseBlock}
               <div className="flex flex-wrap gap-2">
                 {facing > 0 && callPay > 0 ? (
                   <button
@@ -874,6 +873,16 @@ export function ActionPanel({
                     {isAllInCallUi
                       ? `All-in Call (${callPayBb})`
                       : `Call (+${chipsAsBbLabel(facing, bbUnit)})`}
+                  </button>
+                ) : null}
+                {preflopShortStackAllInAllowed ? (
+                  <button
+                    type="button"
+                    className={btnPreflopAllIn}
+                    title={preflopAllInTitle}
+                    onClick={() => void dispatch({ type: "PREFLOP_ALL_IN" })}
+                  >
+                    All-in ({chipsAsBbLabel(preflopAllInTotalChips, bbUnit)})
                   </button>
                 ) : null}
                 {facing > 0 ? (

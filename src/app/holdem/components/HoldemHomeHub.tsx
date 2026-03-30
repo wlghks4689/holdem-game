@@ -3,6 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useHoldemI18n } from "@/holdem/i18n/HoldemLocaleProvider";
 import {
   saveRoomAuth,
   loadLastActiveRoom,
@@ -15,6 +16,7 @@ const cardClass =
   "flex flex-col gap-2 rounded-2xl border border-zinc-600/80 bg-zinc-800/60 p-5 shadow-lg transition hover:border-sky-500/50 hover:bg-zinc-800/90 active:scale-[0.99]";
 
 export function HoldemHomeHub() {
+  const { t } = useHoldemI18n();
   const router = useRouter();
   const [creating, setCreating] = React.useState(false);
   const [err, setErr] = React.useState<string | null>(null);
@@ -64,10 +66,10 @@ export function HoldemHomeHub() {
       <div className="mx-auto max-w-lg px-4 py-10 pb-20 sm:max-w-xl md:max-w-2xl lg:max-w-4xl lg:px-8 lg:py-14">
         <header className="mb-10 text-center lg:mb-12">
           <h1 className="text-2xl font-bold tracking-tight text-zinc-50 lg:text-3xl">
-            핸드 풀 홀덤
+            {t("home.title")}
           </h1>
           <p className="mt-2 text-sm text-zinc-400 lg:text-base">
-            헤즈업 · 핸드 셀렉 · 리미트 홀덤
+            {t("home.subtitle")}
           </p>
         </header>
 
@@ -76,10 +78,13 @@ export function HoldemHomeHub() {
             <div className="flex items-center justify-between gap-3">
               <div>
                 <p className="text-sm font-semibold text-emerald-300">
-                  진행 중인 게임이 있습니다
+                  {t("home.activeMatchTitle")}
                 </p>
                 <p className="mt-0.5 font-mono text-xs text-zinc-400">
-                  방 {lastRoom.roomId} · {lastRoom.seat === 0 ? "호스트" : "게스트"}
+                  방 {lastRoom.roomId} ·{" "}
+                  {lastRoom.seat === 0
+                    ? t("home.activeMatchSeatHost")
+                    : t("home.activeMatchSeatGuest")}
                 </p>
               </div>
               <div className="flex shrink-0 gap-2">
@@ -91,14 +96,14 @@ export function HoldemHomeHub() {
                   }}
                   className="rounded-lg border border-zinc-600/70 px-3 py-1.5 text-xs text-zinc-400 hover:bg-zinc-800"
                 >
-                  무시
+                  {t("home.dismiss")}
                 </button>
                 <button
                   type="button"
                   onClick={() => router.push(`/holdem/room/${lastRoom.roomId}`)}
                   className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-500"
                 >
-                  돌아가기
+                  {t("home.rejoin")}
                 </button>
               </div>
             </div>
@@ -117,41 +122,51 @@ export function HoldemHomeHub() {
             ].join(" ")}
           >
             <span className="text-lg font-semibold text-sky-100">
-              멀티플레이 — 방 만들기
+              {t("home.multiplayTitle")}
             </span>
             <span className="text-xs leading-relaxed text-zinc-400">
-              상대에게 링크만 보내면 됩니다. 방 코드는 필요 없어요.
+              {t("home.multiplayDesc")}
             </span>
             {creating ? (
-              <span className="text-xs text-sky-300">방 준비 중…</span>
+              <span className="text-xs text-sky-300">
+                {t("home.creatingRoom")}
+              </span>
             ) : null}
           </button>
 
           <Link href="/holdem/guide" className={cardClass}>
-            <span className="text-lg font-semibold text-zinc-100">게임 설명</span>
+            <span className="text-lg font-semibold text-zinc-100">
+              {t("home.guide")}
+            </span>
             <span className="text-xs leading-relaxed text-zinc-400">
-              처음 하는 분도 30초면 이해할 수 있는 플레이 흐름 안내입니다.
+              {t("home.guideDesc")}
             </span>
           </Link>
 
           <Link href="/holdem/single" className={cardClass}>
-            <span className="text-lg font-semibold text-zinc-100">싱글플레이</span>
+            <span className="text-lg font-semibold text-zinc-100">
+              {t("home.singleTitle")}
+            </span>
             <span className="text-xs leading-relaxed text-zinc-400">
-              AI 상대와 1:1 · Easy / Normal / Hard 난이도 선택.
+              {t("home.singleDesc")}
             </span>
           </Link>
 
           <Link href="/holdem/settings" className={cardClass}>
-            <span className="text-lg font-semibold text-zinc-100">환경 설정</span>
+            <span className="text-lg font-semibold text-zinc-100">
+              {t("home.settings")}
+            </span>
             <span className="text-xs leading-relaxed text-zinc-400">
-              표시 이름, 사운드 등 기본 옵션.
+              {t("home.settingsDesc")}
             </span>
           </Link>
 
           <Link href="/holdem/feedback" className={cardClass}>
-            <span className="text-lg font-semibold text-zinc-100">피드백</span>
+            <span className="text-lg font-semibold text-zinc-100">
+              {t("home.feedback")}
+            </span>
             <span className="text-xs leading-relaxed text-zinc-400">
-              버그 제보, 개선 아이디어, 게임 평가를 남겨 주세요.
+              {t("home.feedbackDesc")}
             </span>
           </Link>
         </div>

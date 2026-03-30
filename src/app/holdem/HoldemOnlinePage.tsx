@@ -2,10 +2,10 @@
 
 import * as React from "react";
 import {
-  DEFAULT_HOLDEM_DISPLAY_NAMES,
-  loadHoldemDisplayNames,
-  saveHoldemDisplayNames,
-} from "@/holdem/playerDisplayNames";
+  HOLDEM_PREFS_CHANGED_EVENT,
+  loadRoomNickname,
+} from "@/holdem/holdemPrefs";
+import { DEFAULT_HOLDEM_DISPLAY_NAMES } from "@/holdem/playerDisplayNames";
 import type { PlayerIndex } from "@/holdem/types";
 import { useHoldemOnlineGame } from "@/holdem/useHoldemOnlineGame";
 import { clearLastActiveRoom } from "@/holdem/roomCredentials";
@@ -47,28 +47,36 @@ export function HoldemOnlinePage(props: {
     }
   }, [state]);
 
-  const [playerNames, setPlayerNames] = React.useState<[string, string]>([
-    DEFAULT_HOLDEM_DISPLAY_NAMES[0]!,
-    DEFAULT_HOLDEM_DISPLAY_NAMES[1]!,
-  ]);
+  const buildOnlinePlayerNames = React.useCallback((): [string, string] => {
+    const nick = loadRoomNickname();
+    const d = DEFAULT_HOLDEM_DISPLAY_NAMES;
+    const myName =
+      nick.length > 0 ? nick : d[mySeat]!;
+    return mySeat === 0 ? [myName, d[1]!] : [d[0]!, myName];
+  }, [mySeat]);
+
+  const [playerNames, setPlayerNames] = React.useState<[string, string]>(() => {
+    const nick = loadRoomNickname();
+    const d = DEFAULT_HOLDEM_DISPLAY_NAMES;
+    const seat = mySeat;
+    const myName = nick.length > 0 ? nick : d[seat]!;
+    return seat === 0 ? [myName, d[1]!] : [d[0]!, myName];
+  });
 
   React.useEffect(() => {
-    setPlayerNames(loadHoldemDisplayNames());
-  }, []);
+    setPlayerNames(buildOnlinePlayerNames());
+  }, [buildOnlinePlayerNames]);
 
-  const updateName = React.useCallback((p: PlayerIndex, raw: string) => {
-    setPlayerNames((prev) => {
-      const fb =
-        p === 0
-          ? DEFAULT_HOLDEM_DISPLAY_NAMES[0]!
-          : DEFAULT_HOLDEM_DISPLAY_NAMES[1]!;
-      const t = raw.trim();
-      const nextName = t.length > 0 ? t.slice(0, 24) : fb;
-      const next: [string, string] =
-        p === 0 ? [nextName, prev[1]!] : [prev[0]!, nextName];
-      saveHoldemDisplayNames(next);
-      return next;
-    });
+  React.useEffect(() => {
+    const onPrefs = () => {
+      setPlayerNames(buildOnlinePlayerNames());
+    };
+    window.addEventListener(HOLDEM_PREFS_CHANGED_EVENT, onPrefs);
+    return () => window.removeEventListener(HOLDEM_PREFS_CHANGED_EVENT, onPrefs);
+  }, [buildOnlinePlayerNames]);
+
+  const updateName = React.useCallback((_p: PlayerIndex, _raw: string) => {
+    /* 온라인: 닉네임은 환경설정에서만 변경 */
   }, []);
 
   if (loadError && state == null) {

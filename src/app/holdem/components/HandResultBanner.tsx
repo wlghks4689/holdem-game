@@ -142,25 +142,21 @@ export function HandResultBanner({
 
   if (state.phase === "hand_over" && state.handEndMode === "fold") {
     const w = state.winner;
-    const folder = w != null ? (w === 0 ? 1 : 0) : null;
     return (
-      <div className="rounded-xl border border-rose-500/40 bg-rose-900/22 p-4">
-        <p className="text-[11px] font-semibold uppercase tracking-wider text-rose-300/90">
-          판 끝 — 폴드
-        </p>
-        <p className="mt-2 text-base font-bold text-zinc-50">
+      <div className="rounded-lg border border-rose-500/40 bg-rose-900/22 px-3 py-2">
+        <p className="text-sm font-bold leading-snug text-zinc-50 sm:text-[15px]">
           {w != null ? (
             <>
-              상대 폴드로 승리 —{" "}
+              상대 폴드로 승리 ·{" "}
               <span className="text-emerald-300">{pl(w)}</span>
             </>
           ) : (
             "폴드로 종료"
           )}
         </p>
-        {folder != null ? (
-          <p className="mt-1 text-xs text-zinc-400">
-            {pl(folder)} 폴드 · 상대 홀 카드는 비공개입니다.
+        {w != null ? (
+          <p className="mt-0.5 text-[10px] leading-tight text-zinc-500">
+            상대 홀 카드 비공개
           </p>
         ) : null}
       </div>

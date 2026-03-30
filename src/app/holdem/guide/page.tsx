@@ -1,5 +1,12 @@
 import Link from "next/link";
-import { TOTAL_ROUNDS, STARTING_CHIPS, IA_COST_MIN_BB } from "@/holdem/constants";
+import {
+  TOTAL_ROUNDS,
+  STARTING_CHIPS,
+  IA_COST_MIN_BB,
+  PREFLOP_MAX_POT_BB,
+  MAX_RAISES_PER_STREET,
+  PREFLOP_SHORT_STACK_ALL_IN_MAX_BB,
+} from "@/holdem/constants";
 
 /* ──────────────────────────────────────────────
    재사용 컴포넌트
@@ -161,6 +168,16 @@ export default function HoldemGuidePage() {
             브로드웨이 수딧 등)만 공개됩니다. 사용 후 해당 베팅 타이머가 10초
             추가됩니다.
           </p>
+          <p>
+            IA로 칩을 쓴 <strong className="text-zinc-100">뒤</strong>에
+            맞춰야 할 금액이 남은 스택보다 크다면,{" "}
+            <strong className="text-zinc-100">콜</strong>은{" "}
+            <em>가진 스택만큼만</em> 실리는 부분 올인 콜로 처리됩니다. 상대가
+            건 금액 중 맞추지 못한{" "}
+            <strong className="text-zinc-100">나머지(언콜분)</strong>는 팟에
+            남지 않고 <strong className="text-zinc-100">상대 스택으로 돌아갑니다</strong>
+            (이 게임은 1:1·사이드 팟 없음과 같은 방식).
+          </p>
         </Section>
 
         {/* 5. 온라인 멀티플레이 */}
@@ -193,20 +210,53 @@ export default function HoldemGuidePage() {
                 프리플랍(공용 카드 공개 전)
               </span>{" "}
               — <span className="text-zinc-300">딜러(SB)</span>가 먼저
-              베팅합니다. 콜·레이즈·폴드 중 선택.
+              베팅합니다. 콜·레이즈·폴드 중 선택(맞춰야 할 상황에서는 폴드가
+              막힐 수 있음).
             </li>
             <li>
               <span className="font-medium text-zinc-200">
                 플랍·턴·리버(공용 카드 공개 후)
               </span>{" "}
               — <span className="text-zinc-300">BB(상대방)</span>가 먼저
-              액션합니다. 체크·베팅·폴드 중 선택.
+              액션합니다. 체크·베팅·콜·레이즈·폴드 중 선택.
+            </li>
+            <li>
+              <span className="font-medium text-zinc-200">프리플랍 팟 상한</span>{" "}
+              — 한 스트리트 안에서 자발 베팅으로 쌓이는 팟(블라인드·앤티 제외
+              분)이 대략{" "}
+              <Tag>{PREFLOP_MAX_POT_BB}bb</Tag>를 넘지 않도록 제한됩니다.
+            </li>
+            <li>
+              <span className="font-medium text-zinc-200">
+                스트리트당 레이즈 제한
+              </span>{" "}
+              — 프리플랍·플랍·턴·리버 각각에서{" "}
+              <Tag>레이즈는 최대 {MAX_RAISES_PER_STREET}번</Tag>까지입니다.
+              첫 베트(오픈)는 레이즈로 치지 않으며, 숏스택 프리 올인이
+              &quot;레이즈&quot;로 처리될 때도 1회로 셉니다. 상한에 도달한 뒤
+              맞는 플레이어는 <strong className="text-zinc-200">콜·폴드만</strong>{" "}
+              가능합니다.
+            </li>
+            <li>
+              <span className="font-medium text-zinc-200">
+                부분 콜(스택 부족)과 언콜
+              </span>{" "}
+              — 맞춰야 할 액수보다 남은 스택이 적으면(예: IA 비용 등으로 스택이
+              줄어든 뒤) 콜은{" "}
+              <strong className="text-zinc-200">남은 칩 전부</strong>만큼만
+              이뤄집니다. 상대 베팅액 중 그보다 초과한 분은{" "}
+              <strong className="text-zinc-200">상대에게 환급</strong>되고 팟
+              크기는 실제로 맞춘 액만큼만 커집니다(1:1·사이드 팟 없음).
             </li>
             <li>매 라운드가 끝날 때마다 딜러 역할이 바뀝니다.</li>
           </ul>
           <p className="text-zinc-400">
-            스택이 {STARTING_CHIPS > 0 ? `남은 칩의` : ``}{" "}
-            <strong className="text-zinc-200">15bb 이하</strong>로 줄어들면 프리플랍에서 바로 전액 올인을 선택할 수도 있습니다.
+            스택이{" "}
+            <strong className="text-zinc-200">
+              {PREFLOP_SHORT_STACK_ALL_IN_MAX_BB}bb 이하
+            </strong>
+            로 줄어들면 프리플랍에서 레이즈 캡에 걸리지 않은 경우에 한해 전액
+            올인(레이즈)을 선택할 수 있습니다.
           </p>
         </Section>
 

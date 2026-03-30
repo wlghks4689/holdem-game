@@ -25,15 +25,85 @@ body {
   font-family: Arial, Helvetica, sans-serif;
 }
 
-@keyframes holdem-deal-card {
+/** 커뮤니티 카드 딜 — scale 0.8→1, fade-in, 약간 아래에서 상승 */
+@keyframes holdem-opponent-action-in {
   from {
     opacity: 0;
-    transform: translateY(12px);
+    transform: translateY(6px) scale(0.98);
   }
   to {
     opacity: 1;
-    transform: translateY(0);
+    transform: translateY(0) scale(1);
   }
+}
+
+@keyframes holdem-deal-card {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.82) rotate(-2.5deg);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1) rotate(0deg);
+  }
+}
+
+/** 스트리트 마지막(방금 깔린) 카드 — 살짝 튀어나오듯, 이전 카드보다 강한 체감 */
+@keyframes holdem-deal-card-board-lead {
+  0% {
+    opacity: 0;
+    transform: translateY(14px) scale(0.82) rotate(-3deg);
+  }
+  55% {
+    opacity: 1;
+    transform: translateY(-5px) scale(1.08) rotate(1deg);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1) rotate(0deg);
+  }
+}
+
+/** 보드 컨테이너 perspective + 카드 rotateY 딜 인 (부모에 .holdem-board-perspective) */
+@keyframes holdem-board-deal-3d {
+  0% {
+    opacity: 0;
+    transform: rotateY(-88deg) translateZ(-36px) translateY(14px);
+  }
+  62% {
+    opacity: 1;
+    transform: rotateY(8deg) translateZ(8px) translateY(-4px);
+  }
+  100% {
+    opacity: 1;
+    transform: rotateY(0deg) translateZ(0) translateY(0);
+  }
+}
+
+@keyframes holdem-board-deal-3d-lead {
+  0% {
+    opacity: 0;
+    transform: rotateY(-94deg) translateZ(-48px) translateY(18px) scale(0.9);
+  }
+  52% {
+    opacity: 1;
+    transform: rotateY(12deg) translateZ(14px) translateY(-6px) scale(1.03);
+  }
+  100% {
+    opacity: 1;
+    transform: rotateY(0deg) translateZ(0) translateY(0) scale(1);
+  }
+}
+
+.holdem-board-perspective {
+  perspective: 1100px;
+  perspective-origin: 50% 38%;
+}
+
+.holdem-board-card-3d-root {
+  transform-style: preserve-3d;
+  transform-origin: center center;
+  backface-visibility: hidden;
 }
 
 @keyframes holdem-turn-ring {
@@ -84,6 +154,22 @@ body {
   }
   100% {
     transform: scale(1);
+  }
+}
+
+/** 레이즈/베트 직후 팟 숫자 — 살짝 로즈 톤으로 강조 */
+@keyframes holdem-pot-aggro-color {
+  0% {
+    color: rgb(254 243 199);
+    text-shadow: 0 0 0 transparent;
+  }
+  40% {
+    color: rgb(254 202 202);
+    text-shadow: 0 0 12px rgba(248, 113, 113, 0.45);
+  }
+  100% {
+    color: rgb(254 243 199);
+    text-shadow: 0 0 0 transparent;
   }
 }
 
@@ -264,4 +350,318 @@ body {
 @keyframes holdem-lobby-pulse {
   0%, 100% { opacity: 1; }
   50%       { opacity: 0.45; }
+}
+
+/* ── 메이드 홀 연출 (스트레이트↑, 트립스 제외) ── */
+@keyframes holdem-made-straight {
+  0% {
+    filter: brightness(1);
+    transform: scale(1);
+  }
+  40% {
+    filter: brightness(1.12);
+    transform: scale(1.045);
+  }
+  100% {
+    filter: brightness(1);
+    transform: scale(1);
+  }
+}
+
+@keyframes holdem-made-straight-scan {
+  0% {
+    opacity: 0;
+    transform: translateX(-70%);
+  }
+  35% {
+    opacity: 0.55;
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(70%);
+  }
+}
+
+@keyframes holdem-made-flush-pulse {
+  0%,
+  100% {
+    box-shadow:
+      0 0 0 0 rgba(45, 212, 191, 0),
+      inset 0 0 0 1px rgba(45, 212, 191, 0.15);
+  }
+  50% {
+    box-shadow:
+      0 0 18px 2px rgba(45, 212, 191, 0.35),
+      inset 0 0 12px rgba(45, 212, 191, 0.12);
+  }
+}
+
+@keyframes holdem-made-flush-sheen {
+  0% {
+    background-position: 0% 50%;
+  }
+  100% {
+    background-position: 200% 50%;
+  }
+}
+
+@keyframes holdem-made-house {
+  0%,
+  100% {
+    transform: scale(1);
+    filter: brightness(1);
+    box-shadow:
+      0 0 0 0 rgba(251, 191, 36, 0),
+      0 0 0 0 rgba(167, 139, 250, 0);
+  }
+  20% {
+    transform: scale(1.045);
+    filter: brightness(1.12);
+    box-shadow:
+      0 0 24px 5px rgba(251, 191, 36, 0.55),
+      0 0 12px 0 rgba(167, 139, 250, 0.45);
+  }
+  45% {
+    transform: scale(1.02);
+    filter: brightness(1.18);
+    box-shadow:
+      0 0 32px 8px rgba(167, 139, 250, 0.4),
+      0 0 0 4px rgba(251, 191, 36, 0.35),
+      inset 0 0 20px rgba(251, 191, 36, 0.08);
+  }
+  70% {
+    transform: scale(1.035);
+    filter: brightness(1.1);
+    box-shadow:
+      0 0 20px 4px rgba(251, 191, 36, 0.45),
+      0 0 18px 2px rgba(167, 139, 250, 0.35);
+  }
+}
+
+@keyframes holdem-made-house-flash {
+  0% {
+    opacity: 0;
+    transform: scale(0.92);
+  }
+  30% {
+    opacity: 0.65;
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.08);
+  }
+}
+
+@keyframes holdem-made-quads {
+  0% {
+    transform: scale(1);
+    filter: brightness(1) drop-shadow(0 0 0 transparent);
+  }
+  40% {
+    transform: scale(1.06);
+    filter: brightness(1.14) drop-shadow(0 0 14px rgba(251, 191, 36, 0.7));
+  }
+  100% {
+    transform: scale(1);
+    filter: brightness(1) drop-shadow(0 0 0 transparent);
+  }
+}
+
+@keyframes holdem-made-sf {
+  0% {
+    filter: brightness(1) hue-rotate(0deg);
+    box-shadow: 0 0 0 0 rgba(254, 240, 138, 0);
+  }
+  40% {
+    filter: brightness(1.18) hue-rotate(18deg);
+    box-shadow:
+      0 0 22px 3px rgba(253, 224, 71, 0.55),
+      0 0 40px 6px rgba(244, 114, 182, 0.25);
+  }
+  100% {
+    filter: brightness(1) hue-rotate(0deg);
+    box-shadow: 0 0 0 0 transparent;
+  }
+}
+
+@keyframes holdem-made-card-stagger {
+  0% {
+    transform: translateY(6px) scale(0.94);
+    opacity: 0.82;
+  }
+  55% {
+    transform: translateY(-2px) scale(1.03);
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(0) scale(1);
+    opacity: 1;
+  }
+}
+
+.holdem-made-fx {
+  position: relative;
+  isolation: isolate;
+  overflow: visible;
+}
+
+.holdem-made-fx-stack {
+  position: relative;
+  z-index: 1;
+}
+
+.holdem-made-fx-t1 {
+  animation: holdem-made-straight 0.9s ease-out 1;
+}
+.holdem-made-fx-t1::after {
+  content: "";
+  position: absolute;
+  inset: -4px;
+  border-radius: 0.85rem;
+  pointer-events: none;
+  z-index: 0;
+  background: linear-gradient(
+    105deg,
+    transparent 38%,
+    rgba(251, 191, 36, 0.22) 50%,
+    transparent 62%
+  );
+  animation: holdem-made-straight-scan 0.95s ease-out 1;
+}
+
+.holdem-made-fx-t1 .holdem-made-fx-card,
+.holdem-made-fx-t2 .holdem-made-fx-card,
+.holdem-made-fx-t3 .holdem-made-fx-card,
+.holdem-made-fx-t4 .holdem-made-fx-card,
+.holdem-made-fx-t5 .holdem-made-fx-card {
+  position: relative;
+  z-index: 1;
+  animation: holdem-made-card-stagger 0.65s cubic-bezier(0.22, 1, 0.36, 1) 1
+    both;
+}
+
+.holdem-made-fx-t2 {
+  border-radius: 0.85rem;
+  animation: holdem-made-flush-pulse 1.15s ease-in-out 1;
+}
+.holdem-made-fx-t2::after {
+  content: "";
+  position: absolute;
+  inset: -3px;
+  border-radius: inherit;
+  pointer-events: none;
+  z-index: 0;
+  background: linear-gradient(
+    110deg,
+    transparent 0%,
+    rgba(45, 212, 191, 0.25) 45%,
+    transparent 90%
+  );
+  background-size: 220% 100%;
+  animation: holdem-made-flush-sheen 1.25s linear 1;
+  opacity: 0.85;
+}
+
+.holdem-made-fx-t3 {
+  border-radius: 0.85rem;
+  animation: holdem-made-house 1.55s cubic-bezier(0.34, 1.15, 0.52, 1) 1;
+}
+.holdem-made-fx-t3::after {
+  content: "";
+  position: absolute;
+  inset: -6px;
+  border-radius: 1rem;
+  pointer-events: none;
+  z-index: 0;
+  background: radial-gradient(
+    closest-side,
+    rgba(251, 191, 36, 0.35) 0%,
+    rgba(167, 139, 250, 0.2) 45%,
+    transparent 70%
+  );
+  animation: holdem-made-house-flash 1.55s ease-out 1;
+}
+
+.holdem-made-fx-t4 {
+  border-radius: 0.85rem;
+  animation: holdem-made-quads 1.05s cubic-bezier(0.34, 1.3, 0.64, 1) 1;
+}
+
+.holdem-made-fx-t5 {
+  border-radius: 0.85rem;
+  animation: holdem-made-sf 1.45s ease-in-out 1;
+}
+
+@keyframes holdem-made-hand-label-glow {
+  0% {
+    text-shadow: 0 0 0 transparent;
+    transform: scale(1);
+    filter: brightness(1);
+  }
+  40% {
+    text-shadow:
+      0 0 22px rgba(251, 191, 36, 0.6),
+      0 0 10px rgba(255, 255, 255, 0.35);
+    transform: scale(1.08);
+    filter: brightness(1.18);
+  }
+  100% {
+    text-shadow: 0 0 16px rgba(251, 191, 36, 0.4);
+    transform: scale(1.03);
+    filter: brightness(1.08);
+  }
+}
+
+/* tier 텍스트 색 — Tailwind text-zinc-50 과 함께 쓰지 말 것 */
+.holdem-made-hand-label {
+  animation: holdem-made-hand-label-glow 1.45s ease-out 1 both;
+}
+
+.holdem-made-hand-label-t1 {
+  color: rgb(253 230 138);
+}
+.holdem-made-hand-label-t2 {
+  color: rgb(153 246 228);
+}
+.holdem-made-hand-label-t3 {
+  color: rgb(216 180 254);
+}
+.holdem-made-hand-label-t4 {
+  color: rgb(254 240 138);
+}
+.holdem-made-hand-label-t5 {
+  color: rgb(253 224 71);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .holdem-board-card-3d-root {
+    animation: none !important;
+    opacity: 1 !important;
+    transform: none !important;
+  }
+  .holdem-made-fx-t1,
+  .holdem-made-fx-t2,
+  .holdem-made-fx-t3,
+  .holdem-made-fx-t4,
+  .holdem-made-fx-t5 {
+    animation: none !important;
+    background: none !important;
+    box-shadow: none !important;
+    filter: none !important;
+    transform: none !important;
+  }
+  .holdem-made-fx-t1::after,
+  .holdem-made-fx-t2::after,
+  .holdem-made-fx-t3::after {
+    display: none !important;
+  }
+  .holdem-made-fx-t1 .holdem-made-fx-card {
+    animation: none !important;
+  }
+  .holdem-made-hand-label {
+    animation: none !important;
+    text-shadow: none !important;
+    transform: none !important;
+    filter: none !important;
+  }
 }

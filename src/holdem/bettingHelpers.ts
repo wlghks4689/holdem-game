@@ -2,6 +2,7 @@ import {
   CHIPS_PER_BB,
   IA_COST_MIN_BB,
   IA_COST_POT_FRACTION,
+  MAX_RAISES_PER_STREET,
   POSTFLOP_MAX_BET_POT_FRACTION,
   PREFLOP_MAX_POT_BB,
   PREFLOP_SHORT_STACK_ALL_IN_MAX_BB,
@@ -149,18 +150,30 @@ export function preflopMinTotalRaiseForActor(s: GameState): number {
   return minT;
 }
 
-/** 프리플랍 최대 총 기여: 팟 캡(15bb) 기반, 스테이지별 하드 캡 없음 */
+/** 해당 좌석이 이번 스트리트에서 맞출 수 있는 최대 총 기여(이미 넣은 칩 + 남은 스택) */
+export function maxMatchedTotalForPlayer(s: GameState, player: PlayerIndex): number {
+  return roundHalfChip(s.betting.contributed[player]! + s.chips[player]!);
+}
+
+/** 프리플랍 최대 총 기여: 팟 캡(15bb) 기반 + 상대 스택 상한 */
 export function preflopMaxRaiseTargetForActor(s: GameState): number {
   const capT = maxMatchedContributionPreflop(s);
   const p = s.toAct!;
   const affordable = roundHalfChip(s.betting.contributed[p]! + s.chips[p]!);
-  return Math.min(capT, affordable);
+  const opp: PlayerIndex = p === 0 ? 1 : 0;
+  const oppCeiling = maxMatchedTotalForPlayer(s, opp);
+  return roundHalfChip(Math.min(capT, affordable, oppCeiling));
+}
+
+/** 이번 스트리트에서 허용된 레이즈 횟수에 도달 — 추가 레이즈·레이즈성 프리 올인 불가 */
+export function streetRaiseCapReached(b: BettingRoundMeta): boolean {
+  return (b.raisesThisStreet ?? 0) >= MAX_RAISES_PER_STREET;
 }
 
 export function canActorPreflopRaise(s: GameState): boolean {
   const p = s.toAct;
   if (p == null || s.phase !== "preflop" || s.preflopStage == null) return false;
-  // 3-bet 제한 없음: 팟 캡 이하라면 몇 번이든 레이즈 가능
+  // 레이즈 타이밍·좌석만 검사; 팟 캡·스트리트당 레이즈 상한은 별도 헬퍼에서 처리
   if (p === s.button) {
     return s.preflopStage === "button_acts" || s.preflopStage === "facing_raise";
   }
@@ -169,6 +182,7 @@ export function canActorPreflopRaise(s: GameState): boolean {
 
 export function preflopHasLegalRaise(s: GameState): boolean {
   if (!canActorPreflopRaise(s)) return false;
+  if (streetRaiseCapReached(s.betting)) return false;
   const minT = preflopMinTotalRaiseForActor(s);
   const maxT = preflopMaxRaiseTargetForActor(s);
   return minT <= maxT + 1e-9;
@@ -176,6 +190,7 @@ export function preflopHasLegalRaise(s: GameState): boolean {
 
 export function isLegalPreflopRaiseTarget(s: GameState, targetRaw: number): boolean {
   if (!canActorPreflopRaise(s)) return false;
+  if (streetRaiseCapReached(s.betting)) return false;
   const bbUnit = resolveHandBlinds(s).bb;
   const p = s.toAct!;
   const target = roundHalfChip(targetRaw);
@@ -207,6 +222,7 @@ export function canPreflopShortStackAllInShove(s: GameState): boolean {
   const p = s.toAct;
   if (p == null || s.phase !== "preflop" || s.preflopStage == null) return false;
   if (!canActorPreflopRaise(s)) return false;
+  if (streetRaiseCapReached(s.betting)) return false;
   if (actorStackBb(s) > PREFLOP_SHORT_STACK_ALL_IN_MAX_BB + 1e-9) return false;
   const cur = s.betting.contributed[p]!;
   const stk = s.chips[p]!;
@@ -284,6 +300,33 @@ export function postflopEffectiveMaxRaiseToLevel(
   const ruleCap = postflopCustomMaxRaiseToLevel(pot, facing);
   const affordable = roundHalfChip(actorContributed + actorStack);
   return roundHalfChip(Math.min(ruleCap, affordable));
+}
+
+/**
+ * 포스트플랍 레이즈 시 상대가 도달할 수 있는 총액을 넘지 않도록 한 상한(규칙·자기 스택 캡 위에 적용).
+ */
+export function postflopRaiseTargetCappedByOpponent(s: GameState): number {
+  const p = s.toAct;
+  if (p == null) return 0;
+  const opp: PlayerIndex = p === 0 ? 1 : 0;
+  const f = facingFor(p, s.betting);
+  if (f <= 0) return levelFromContributions(s.betting);
+  const ruleAndStack = postflopEffectiveMaxRaiseToLevel(
+    s.pot,
+    f,
+    s.betting.contributed[p]!,
+    s.chips[p]!,
+  );
+  return roundHalfChip(Math.min(ruleAndStack, maxMatchedTotalForPlayer(s, opp)));
+}
+
+/** 오픈 베트: 규칙·내 스택뿐 아니라 상대가 이번 액션에서 맞을 수 있는 칩(통상 남은 스택)을 넘지 않음 */
+export function postflopMaxOpenBetForActor(s: GameState): number {
+  const p = s.toAct;
+  if (p == null) return 0;
+  const opp: PlayerIndex = p === 0 ? 1 : 0;
+  const base = postflopMaxBet(s.pot, s.chips[p]!);
+  return roundHalfChip(Math.min(base, maxMatchedTotalForPlayer(s, opp)));
 }
 
 export function levelFromContributions(b: BettingRoundMeta): number {

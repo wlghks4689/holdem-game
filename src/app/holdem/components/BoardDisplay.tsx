@@ -14,7 +14,9 @@ const streetKo: Record<string, string> = {
   hand_over: "종료",
 };
 
-const DEAL_STAGGER_S = 0.18;
+/** 새로 공개되는 카드마다 딜레이 (카드 0,1,2 … 순) */
+const DEAL_STAGGER_MS = 115;
+const DEAL_STAGGER_S = DEAL_STAGGER_MS / 1000;
 
 export type BoardDisplayProps = {
   state: GameState;
@@ -74,20 +76,23 @@ export function BoardDisplay({
     <div
       className={[
         "rounded-xl border bg-gradient-to-b from-zinc-900 via-zinc-800/95 to-zinc-800/90",
-        showdown ? "border-zinc-600/70 p-3" : "border-amber-900/40 p-4 shadow-[0_0_40px_rgba(245,158,11,0.06)]",
+        showdown
+          ? "border-zinc-600/70 p-2 sm:p-3"
+          : "border-amber-900/40 p-2.5 shadow-[0_0_40px_rgba(245,158,11,0.06)] sm:p-3.5 lg:p-4",
       ].join(" ")}
     >
-      <div className={showdown ? "mb-2 text-center" : "mb-4 text-center lg:mb-5"}>
-        <div className="text-xs font-semibold uppercase tracking-widest text-amber-500/80 lg:text-sm">
-          보드
-        </div>
-        <div className="mt-1 text-[11px] text-zinc-400 lg:text-xs">
-          스트리트 · {label}
+      <div className={showdown ? "mb-1.5 text-center sm:mb-2" : "mb-2 text-center sm:mb-3"}>
+        <div className="text-[11px] font-semibold uppercase tracking-wider text-amber-500/85 sm:text-xs lg:text-sm">
+          <span className="text-zinc-500">보드</span>
+          <span className="mx-1.5 text-zinc-600" aria-hidden>
+            ·
+          </span>
+          <span className="text-zinc-300">{label}</span>
         </div>
       </div>
       <div
         className={[
-          "relative flex flex-wrap items-center justify-center",
+          "holdem-board-perspective relative flex flex-wrap items-center justify-center overflow-visible",
           showdown ? "gap-2.5 sm:gap-3 lg:gap-4" : "gap-2 sm:gap-5 lg:gap-7",
         ].join(" ")}
       >
@@ -109,16 +114,25 @@ export function BoardDisplay({
             const c = state.board[i]!;
             const newlyShown = i >= oldRev && i < rev;
             const stagger = newlyShown ? Math.max(0, i - oldRev) * DEAL_STAGGER_S : 0;
+            /** 이번에 공개된 카드들 중 맨 마지막(스트리트 전환 체감용 강조) */
+            const isLeadNewCard = newlyShown && i === rev - 1;
             const pulseStreet =
               (cinemaStreetPulse === "flop" && i <= 2) ||
               (cinemaStreetPulse === "turn" && i === 3) ||
               (cinemaStreetPulse === "river" && i === 4);
-            const dealAnim =
-              cinematicFlip && newlyShown
-                ? "holdem-card-flip-reveal 0.42s cubic-bezier(0.22, 1, 0.36, 1) both"
-                : newlyShown
-                  ? "holdem-deal-card 0.34s ease-out both"
-                  : undefined;
+            const dealEase = "cubic-bezier(0.22, 1, 0.36, 1) both";
+            const innerDealAnim =
+              newlyShown && cinematicFlip
+                ? `holdem-card-flip-reveal 0.48s ${dealEase}`
+                : newlyShown && !cinematicFlip
+                  ? isLeadNewCard
+                    ? `holdem-board-deal-3d-lead 0.68s ${dealEase}`
+                    : `holdem-board-deal-3d 0.58s ${dealEase}`
+                  : null;
+            const outerPulseStyle =
+              pulseStreet && newlyShown
+                ? { animation: "holdem-board-street-pulse 0.55s ease-out 1" }
+                : undefined;
             return (
               <div
                 key={i}
@@ -126,29 +140,32 @@ export function BoardDisplay({
                   "relative transition-transform lg:origin-center lg:scale-[1.14]",
                   pulseStreet && newlyShown ? "rounded-md" : "",
                 ].join(" ")}
-                style={
-                  dealAnim
-                    ? {
-                        animation: dealAnim,
-                        animationDelay: `${stagger}s`,
-                      }
-                    : pulseStreet
+                style={outerPulseStyle}
+              >
+                <div
+                  className={newlyShown ? "holdem-board-card-3d-root" : undefined}
+                  style={
+                    innerDealAnim
                       ? {
-                          animation: "holdem-board-street-pulse 0.55s ease-out 1",
+                          animation: innerDealAnim,
+                          animationDelay: `${stagger}s`,
                         }
                       : undefined
-                }
-              >
-                <PlayingCard
-                  card={c}
-                  size="board"
-                  className={[
-                    showdown ? "drop-shadow-sm" : "drop-shadow-md",
-                    pulseStreet && newlyShown
-                      ? "ring-2 ring-amber-400/55 ring-offset-2 ring-offset-zinc-900/90"
-                      : "",
-                  ].join(" ")}
-                />
+                  }
+                >
+                  <PlayingCard
+                    card={c}
+                    size="board"
+                    className={[
+                      showdown ? "drop-shadow-sm" : "drop-shadow-md",
+                      isLeadNewCard && newlyShown && !cinematicFlip
+                        ? "z-[1] ring-2 ring-amber-400/70 ring-offset-2 ring-offset-zinc-900/90 shadow-[0_0_20px_rgba(251,191,36,0.35)]"
+                        : pulseStreet && newlyShown
+                          ? "ring-2 ring-amber-400/55 ring-offset-2 ring-offset-zinc-900/90"
+                          : "",
+                    ].join(" ")}
+                  />
+                </div>
               </div>
             );
           }

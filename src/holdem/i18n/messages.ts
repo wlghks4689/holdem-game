@@ -1,0 +1,190 @@
+import type { HoldemUiLocale } from "../holdemPrefs";
+
+export type MessageKey =
+  | "settings.title"
+  | "settings.backHome"
+  | "settings.intro"
+  | "settings.nicknameLabel"
+  | "settings.nicknameHint"
+  | "settings.madeHandFx"
+  | "settings.madeHandFxHint"
+  | "settings.language"
+  | "settings.languageKo"
+  | "settings.languageEn"
+  | "settings.languageNote"
+  | "settings.sound"
+  | "settings.soundHint"
+  | "home.title"
+  | "home.subtitle"
+  | "home.settings"
+  | "home.guide"
+  | "home.guideDesc"
+  | "home.feedback"
+  | "home.multiplayTitle"
+  | "home.multiplayDesc"
+  | "home.singleTitle"
+  | "home.singleDesc"
+  | "home.settingsDesc"
+  | "home.feedbackDesc"
+  | "home.activeMatchTitle"
+  | "home.activeMatchSeatHost"
+  | "home.activeMatchSeatGuest"
+  | "home.dismiss"
+  | "home.rejoin"
+  | "home.creatingRoom"
+  | "common.player"
+  | "hole.myCards"
+  | "hole.opponent"
+  | "hole.actionTurn"
+  | "hole.handPick"
+  | "hole.submitted"
+  | "hole.pendingReveal"
+  | "hole.pickWait"
+  | "hole.iaLearnedPrefix"
+  | "hole.iaOppCategory"
+  | "hole.iaHidden"
+  | "viewer.panelTitle"
+  | "viewer.currentHand"
+  | "action.fold"
+  | "action.check"
+  | "action.call"
+  | "action.raise"
+  | "action.bet"
+  | "action.allInCall"
+  | "action.matchEnd"
+  | "action.winner";
+
+const KO: Record<MessageKey, string> = {
+  "settings.title": "환경 설정",
+  "settings.backHome": "← 홈으로",
+  "settings.intro":
+    "닉네임·연출·언어는 이 브라우저에만 저장됩니다. 온라인 방에서는 아래 닉네임이 내 좌석 이름으로 쓰입니다.",
+  "settings.nicknameLabel": "방 입장 시 닉네임",
+  "settings.nicknameHint":
+    "비워 두면 기본 이름이 사용됩니다. 싱글/온라인·내 좌석 표시에 적용됩니다.",
+  "settings.madeHandFx": "메이드 핸드 연출 (스트레이트 이상)",
+  "settings.madeHandFxHint":
+    "카드 주변 하이라이트 애니메이션. 끄면 저사양·집중 모드에 적합합니다.",
+  "settings.language": "게임 언어 (UI)",
+  "settings.languageKo": "한국어",
+  "settings.languageEn": "English",
+  "settings.languageNote":
+    "영어 선택 시 주요 화면·버튼·족보 이름이 영어로 표시됩니다. 일부 메시지·로그는 아직 한국어일 수 있습니다.",
+  "settings.sound": "사운드 효과",
+  "settings.soundHint": "(준비 중 — 옵션만 저장됩니다)",
+  "home.title": "핸드 풀 홀덤",
+  "home.subtitle": "헤즈업 · 핸드 셀렉 · 리미트 홀덤",
+  "home.settings": "환경 설정",
+  "home.guide": "게임 설명",
+  "home.guideDesc":
+    "처음 하는 분도 30초면 이해할 수 있는 플레이 흐름 안내입니다.",
+  "home.feedback": "의견 보내기",
+  "home.multiplayTitle": "멀티플레이 — 방 만들기",
+  "home.multiplayDesc":
+    "상대에게 링크만 보내면 됩니다. 방 코드는 필요 없어요.",
+  "home.singleTitle": "싱글플레이",
+  "home.singleDesc": "AI 상대와 1:1 · Easy / Normal / Hard 난이도 선택.",
+  "home.settingsDesc": "닉네임, 메이드 연출, 언어, 사운드.",
+  "home.feedbackDesc":
+    "버그 제보, 개선 아이디어, 게임 평가를 남겨 주세요.",
+  "home.activeMatchTitle": "진행 중인 게임이 있습니다",
+  "home.activeMatchSeatHost": "호스트",
+  "home.activeMatchSeatGuest": "게스트",
+  "home.dismiss": "무시",
+  "home.rejoin": "돌아가기",
+  "home.creatingRoom": "방 준비 중…",
+  "common.player": "플레이어",
+  "hole.myCards": "내 카드",
+  "hole.opponent": "상대",
+  "hole.actionTurn": "액션 턴",
+  "hole.handPick": "핸드 선택",
+  "hole.submitted": "확정됨",
+  "hole.pendingReveal": "제출됨 · 실제 카드는 상대 확정 후 공개",
+  "hole.pickWait": "핸드 선택 대기 중",
+  "hole.iaLearnedPrefix": "상대 IA로 공개된 내 카테고리:",
+  "hole.iaOppCategory": "IA · 상대 카테고리:",
+  "hole.iaHidden": "(실제 카드는 비공개)",
+  "viewer.panelTitle": "현재 핸드 (내 카드 + 공개 보드)",
+  "viewer.currentHand": "👉 현재 핸드:",
+  "action.fold": "Fold",
+  "action.check": "Check",
+  "action.call": "Call",
+  "action.raise": "Raise",
+  "action.bet": "Bet",
+  "action.allInCall": "All-in Call",
+  "action.matchEnd": "매치 종료",
+  "action.winner": "승자:",
+};
+
+const EN: Record<MessageKey, string> = {
+  "settings.title": "Settings",
+  "settings.backHome": "← Home",
+  "settings.intro":
+    "Nickname, effects, and language are stored in this browser only. Online: the nickname is used as your seat label.",
+  "settings.nicknameLabel": "Room nickname",
+  "settings.nicknameHint":
+    "Leave blank to use defaults. Applies to your seat in online & single-player.",
+  "settings.madeHandFx": "Made-hand effects (straight+)",
+  "settings.madeHandFxHint":
+    "Card highlight animations. Turn off for low-end devices or focus mode.",
+  "settings.language": "Game language (UI)",
+  "settings.languageKo": "Korean",
+  "settings.languageEn": "English",
+  "settings.languageNote":
+    "English translates major UI, buttons, and hand names. Some logs or edge strings may stay in Korean until fully localized.",
+  "settings.sound": "Sound effects",
+  "settings.soundHint": "(coming soon — preference is saved)",
+  "home.title": "Hand-pool Hold’em",
+  "home.subtitle": "Heads-up · hand select · limit hold’em",
+  "home.settings": "Settings",
+  "home.guide": "How to play",
+  "home.guideDesc": "A quick walkthrough of how a hand flows.",
+  "home.feedback": "Send feedback",
+  "home.multiplayTitle": "Multiplayer — create room",
+  "home.multiplayDesc":
+    "Send your opponent the link. No room code needed.",
+  "home.singleTitle": "Single-player",
+  "home.singleDesc": "1v1 vs AI · Easy / Normal / Hard.",
+  "home.settingsDesc": "Nickname, made-hand FX, language, sound.",
+  "home.feedbackDesc": "Bugs, ideas, and ratings welcome.",
+  "home.activeMatchTitle": "You have a game in progress",
+  "home.activeMatchSeatHost": "Host",
+  "home.activeMatchSeatGuest": "Guest",
+  "home.dismiss": "Dismiss",
+  "home.rejoin": "Rejoin",
+  "home.creatingRoom": "Preparing room…",
+  "common.player": "Player",
+  "hole.myCards": "Hero",
+  "hole.opponent": "Villain",
+  "hole.actionTurn": "Your action",
+  "hole.handPick": "Pick hand",
+  "hole.submitted": "Locked in",
+  "hole.pendingReveal":
+    "Submitted · cards reveal after opponent locks in",
+  "hole.pickWait": "Waiting for hand pick",
+  "hole.iaLearnedPrefix": "Category you revealed to opponent IA:",
+  "hole.iaOppCategory": "IA · opponent category:",
+  "hole.iaHidden": "(Hole cards hidden)",
+  "viewer.panelTitle": "Current hand (your cards + board)",
+  "viewer.currentHand": "👉 Current hand:",
+  "action.fold": "Fold",
+  "action.check": "Check",
+  "action.call": "Call",
+  "action.raise": "Raise",
+  "action.bet": "Bet",
+  "action.allInCall": "All-in call",
+  "action.matchEnd": "Match over",
+  "action.winner": "Winner:",
+};
+
+const MAP: Record<HoldemUiLocale, Record<MessageKey, string>> = {
+  ko: KO,
+  en: EN,
+};
+
+export function message(
+  locale: HoldemUiLocale,
+  key: MessageKey,
+): string {
+  return MAP[locale][key] ?? MAP.ko[key] ?? key;
+}

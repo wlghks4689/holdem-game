@@ -2,6 +2,11 @@
 
 import * as React from "react";
 import {
+  HOLDEM_PREFS_CHANGED_EVENT,
+  loadRoomNickname,
+  saveRoomNickname,
+} from "@/holdem/holdemPrefs";
+import {
   DEFAULT_HOLDEM_DISPLAY_NAMES,
   loadHoldemDisplayNames,
   saveHoldemDisplayNames,
@@ -25,7 +30,25 @@ export default function HoldemPageClient() {
   ]);
 
   React.useEffect(() => {
-    setPlayerNames(loadHoldemDisplayNames());
+    const saved = loadHoldemDisplayNames();
+    const nick = loadRoomNickname();
+    setPlayerNames([
+      nick.length > 0 ? nick : saved[0]!,
+      saved[1]!,
+    ]);
+  }, []);
+
+  React.useEffect(() => {
+    const onPrefs = () => {
+      const nick = loadRoomNickname();
+      const fb = DEFAULT_HOLDEM_DISPLAY_NAMES[0]!;
+      setPlayerNames((prev) => [
+        nick.length > 0 ? nick : fb,
+        prev[1]!,
+      ]);
+    };
+    window.addEventListener(HOLDEM_PREFS_CHANGED_EVENT, onPrefs);
+    return () => window.removeEventListener(HOLDEM_PREFS_CHANGED_EVENT, onPrefs);
   }, []);
 
   const updateName = React.useCallback((p: PlayerIndex, raw: string) => {
@@ -38,6 +61,11 @@ export default function HoldemPageClient() {
       const nextName = t.length > 0 ? t.slice(0, 24) : fb;
       const next: [string, string] =
         p === 0 ? [nextName, prev[1]!] : [prev[0]!, nextName];
+      if (p === 0) {
+        saveRoomNickname(
+          nextName === fb ? "" : nextName.slice(0, 24),
+        );
+      }
       saveHoldemDisplayNames(next);
       return next;
     });

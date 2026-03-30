@@ -9,13 +9,14 @@ import {
   facingFor,
   iaCostFromPot,
   levelFromContributions,
-  postflopEffectiveMaxRaiseToLevel,
-  postflopMaxBet,
+  postflopRaiseTargetCappedByOpponent,
+  postflopMaxOpenBetForActor,
   postflopMinRaiseToLevelChips,
   preflopHasLegalRaise,
   preflopMaxRaiseTargetForActor,
   preflopMinTotalRaiseForActor,
   roundHalfChip,
+  streetRaiseCapReached,
 } from "./bettingHelpers";
 import { resolveHandBlinds } from "./blindLevels";
 import { SMALLEST_CHIP } from "./constants";
@@ -218,6 +219,15 @@ function preflopAction(
       }
     }
     if (state.preflopStage === "facing_raise") {
+      if (aiSeat === state.button) {
+        if (canRaise && r < 0.14 + tier * 0.03) {
+          return { type: "PREFLOP_RAISE", toLevelChips: preflopRaiseTo(state, tier, difficulty) };
+        }
+        const r2 = Math.random();
+        if (r2 < 0.58) return { type: "PREFLOP_CALL" };
+        if (facing > 0) return { type: "FOLD" };
+        return { type: "PREFLOP_CALL" };
+      }
       if (r < 0.55) return { type: "PREFLOP_CALL" };
       if (facing > 0) return { type: "FOLD" };
     }
@@ -264,9 +274,13 @@ function preflopAction(
     return { type: "PREFLOP_CALL" };
   }
 
-  // facing_raise — 버튼 콜/폴드만
+  // facing_raise — 버튼 4-bet+·콜·폴드
   if (state.preflopStage === "facing_raise" && aiSeat === state.button) {
-    if (facing > 0 && r < foldP) return { type: "FOLD" };
+    if (canAllIn && tier >= 5 && r < 0.2) return { type: "PREFLOP_ALL_IN" };
+    if (canRaise && r < raiseP * 0.38) {
+      return { type: "PREFLOP_RAISE", toLevelChips: preflopRaiseTo(state, tier, difficulty) };
+    }
+    if (facing > 0 && r < raiseP * 0.38 + foldP) return { type: "FOLD" };
     return { type: "PREFLOP_CALL" };
   }
 
@@ -298,15 +312,15 @@ function postflopAction(
   if (difficulty === "easy") {
     const r = Math.random();
     if (facing === 0) {
-      const maxB = postflopMaxBet(pot, chips);
+      const maxB = postflopMaxOpenBetForActor(state);
       if (!isAllIn && r < 0.38 && maxB >= bb) {
         return { type: "POSTFLOP_BET", amount: clamp(maxB * rng(0.25, 0.65), bb, maxB) };
       }
       return { type: "POSTFLOP_CHECK" };
     } else {
-      if (!isAllIn && r < 0.18) {
+      if (!isAllIn && !streetRaiseCapReached(state.betting) && r < 0.18) {
         const minR = postflopMinRaiseToLevelChips(level, facing);
-        const maxR = postflopEffectiveMaxRaiseToLevel(pot, facing, state.betting.contributed[aiSeat]!, chips);
+        const maxR = postflopRaiseTargetCappedByOpponent(state);
         if (minR <= maxR + 1e-9) {
           return { type: "POSTFLOP_RAISE", toLevelChips: clamp(rng(minR, maxR), minR, maxR) };
         }
@@ -322,7 +336,7 @@ function postflopAction(
       ([0, 0.15, 0.25, 0.45, 0.68, 0.82][effectiveTier] ?? 0.4) + agg,
       0, 0.95,
     );
-    const maxB = postflopMaxBet(pot, chips);
+    const maxB = postflopMaxOpenBetForActor(state);
 
     if (!isAllIn && Math.random() < betThresh && maxB >= bb) {
       const frac =
@@ -346,9 +360,9 @@ function postflopAction(
     );
 
     const r = Math.random();
-    if (!isAllIn && r < raiseThresh) {
+    if (!isAllIn && !streetRaiseCapReached(state.betting) && r < raiseThresh) {
       const minR = postflopMinRaiseToLevelChips(level, facing);
-      const maxR = postflopEffectiveMaxRaiseToLevel(pot, facing, state.betting.contributed[aiSeat]!, chips);
+      const maxR = postflopRaiseTargetCappedByOpponent(state);
       const contrib = state.betting.contributed[aiSeat]!;
       const affordable = roundHalfChip(contrib + chips);
       if (minR <= maxR + 1e-9 && minR <= affordable + 1e-9) {

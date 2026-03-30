@@ -6,8 +6,8 @@ import {
   iaCostFromPot,
   totalIaChipsRemovedFromLogs,
   levelFromContributions,
-  postflopMaxBet,
-  postflopEffectiveMaxRaiseToLevel,
+  postflopMaxOpenBetForActor,
+  postflopRaiseTargetCappedByOpponent,
   canPreflopShortStackAllInShove,
   preflopMaxPotChips,
   preflopMaxRaiseTargetForActor,
@@ -30,6 +30,7 @@ import {
 import { compareHandValue, best5Of7, handValueSummaryKorean } from "./pokerEval";
 import {
   ALL_IN_RUNOUT_LAST_NOTE,
+  MAX_RAISES_PER_STREET,
   STARTING_CHIPS,
   TOTAL_ROUNDS,
 } from "./constants";
@@ -67,6 +68,10 @@ function pushLog(s: GameState, m: GameMessage): void {
 /** 팟 배분 후: 다음 라운드 블라인드를 낼 칩이 없으면 매치 즉시 종료(라운드 한도보다 우선) */
 function bustCheck(s: GameState): boolean {
   if (s.phase !== "showdown" && s.phase !== "hand_over") return false;
+  s.chips[0]! = roundHalfChip(s.chips[0]!);
+  s.chips[1]! = roundHalfChip(s.chips[1]!);
+  if (s.chips[0]! < 1e-6) s.chips[0]! = 0;
+  if (s.chips[1]! < 1e-6) s.chips[1]! = 0;
   const c0 = s.chips[0]!;
   const c1 = s.chips[1]!;
   if (c0 <= 1e-9 && c1 <= 1e-9) {
@@ -99,17 +104,21 @@ function awardPot(s: GameState, winners: PlayerIndex[]): void {
   if (winners.length === 1) {
     const w = winners[0]!;
     const l = other(w);
-    s.chips[w]! += pot;
+    s.chips[w]! = roundHalfChip(s.chips[w]! + pot);
     flash[w] = pot;
     flash[l] = -pot;
   } else {
     const bbPlayer = other(s.button);
     const { share0, share1 } = splitPotTwoWayChopChips(pot, bbPlayer);
-    s.chips[0]! += share0;
-    s.chips[1]! += share1;
+    s.chips[0]! = roundHalfChip(s.chips[0]! + share0);
+    s.chips[1]! = roundHalfChip(s.chips[1]! + share1);
     flash[0] = share0;
     flash[1] = share1;
   }
+  s.chips[0]! = roundHalfChip(s.chips[0]!);
+  s.chips[1]! = roundHalfChip(s.chips[1]!);
+  if (s.chips[0]! < 1e-6) s.chips[0]! = 0;
+  if (s.chips[1]! < 1e-6) s.chips[1]! = 0;
   s.pot = 0;
   s.potAwardFlash = flash;
 }
@@ -120,6 +129,7 @@ function freshBetting(): GameState["betting"] {
     currentLevel: 0,
     raiseDone: false,
     checksThisStreet: 0,
+    raisesThisStreet: 0,
   };
 }
 
@@ -326,6 +336,7 @@ function startPreflopAfterHands(s: GameState, deckRng: () => number): void {
     currentLevel: Math.max(postBtn, postBb),
     raiseDone: false,
     checksThisStreet: 0,
+    raisesThisStreet: 0,
   };
 
   normalizeUncalledBlindExcess(s);
@@ -502,6 +513,10 @@ export function holdemReducer(
   }
   if (s.matchWinner != null) return state;
 
+  if (typeof s.betting.raisesThisStreet !== "number") {
+    s.betting.raisesThisStreet = 0;
+  }
+
   switch (action.type) {
     case "SELECT_HAND": {
       if (s.phase !== "hand_select") return state;
@@ -612,7 +627,7 @@ export function holdemReducer(
       if (s.phase !== "preflop" || s.toAct == null || s.preflopStage == null) return state;
       const p = s.toAct;
       if (!canActorPreflopRaise(s)) return state;
-      if (s.preflopRaiseCount >= 2) return state;
+      if (s.betting.raisesThisStreet >= MAX_RAISES_PER_STREET) return state;
 
       const target = roundHalfChip(action.toLevelChips);
       const cur = s.betting.contributed[p]!;
@@ -635,6 +650,7 @@ export function holdemReducer(
       s.betting.contributed[p]! = target;
       s.betting.currentLevel = target;
       s.preflopRaiseCount += 1;
+      s.betting.raisesThisStreet += 1;
       pushLog(s, { t: "preflop_action", player: p, action: "레이즈", amount: target });
 
       if (s.preflopStage === "button_acts") {
@@ -644,7 +660,7 @@ export function holdemReducer(
       } else {
         s.preflopStage = "facing_raise";
         s.toAct = other(p);
-        s.lastActionNote = "딜러·SB 응답 (콜만)";
+        s.lastActionNote = "딜러·SB 응답 (콜/레이즈)";
       }
       return done(s);
     }
@@ -652,6 +668,7 @@ export function holdemReducer(
     case "PREFLOP_ALL_IN": {
       if (s.phase !== "preflop" || s.toAct == null || s.preflopStage == null) return state;
       if (!canPreflopShortStackAllInShove(s)) return state;
+      if (s.betting.raisesThisStreet >= MAX_RAISES_PER_STREET) return state;
       const p = s.toAct;
       const cur = s.betting.contributed[p]!;
       const target = roundHalfChip(cur + s.chips[p]!);
@@ -666,6 +683,7 @@ export function holdemReducer(
       s.betting.contributed[p]! = target;
       s.betting.currentLevel = target;
       s.preflopRaiseCount += 1;
+      s.betting.raisesThisStreet += 1;
       pushLog(s, { t: "preflop_action", player: p, action: "올인", amount: target });
 
       if (s.preflopStage === "button_acts") {
@@ -675,7 +693,7 @@ export function holdemReducer(
       } else {
         s.preflopStage = "facing_raise";
         s.toAct = other(p);
-        s.lastActionNote = "딜러·SB 응답 (콜만)";
+        s.lastActionNote = "딜러·SB 응답 (콜/레이즈)";
       }
       return done(s);
     }
@@ -702,11 +720,11 @@ export function holdemReducer(
       const p = s.toAct;
       if (!bettingMatched(s.betting) || s.betting.raiseDone) return state;
       const amt = roundHalfChip(action.amount);
-      const maxB = postflopMaxBet(s.pot, s.chips[p]!);
+      const maxB = postflopMaxOpenBetForActor(s);
       const bbUnit = resolveHandBlinds(s).bb;
       if (
         amt < bbUnit ||
-        amt > maxB ||
+        amt > maxB + 1e-9 ||
         !isVoluntaryBetMultiple(amt, bbUnit)
       ) {
         return state;
@@ -717,7 +735,14 @@ export function holdemReducer(
       s.betting.currentLevel = s.betting.contributed[p]!;
       s.betting.raiseDone = false;
       s.betting.checksThisStreet = 0;
-      pushLog(s, { t: "postflop_action", player: p, action: "베트", amount: amt });
+      const allInBet = s.chips[p]! <= 1e-9;
+      const totalStreet = s.betting.contributed[p]!;
+      pushLog(s, {
+        t: "postflop_action",
+        player: p,
+        action: allInBet ? "올인" : "베트",
+        amount: allInBet ? totalStreet : amt,
+      });
       s.toAct = other(p);
       return done(s);
     }
@@ -744,22 +769,17 @@ export function holdemReducer(
       if (!(s.phase === "flop" || s.phase === "turn" || s.phase === "river")) return state;
       if (s.toAct == null) return state;
       const p = s.toAct;
-      if (s.betting.raiseDone) return state;
+      if (s.betting.raisesThisStreet >= MAX_RAISES_PER_STREET) return state;
       const f = facingFor(p, s.betting);
       if (f <= 0) return state;
       const target = roundHalfChip(action.toLevelChips);
       const lv = levelFromContributions(s.betting);
-      const cap = postflopEffectiveMaxRaiseToLevel(
-        s.pot,
-        f,
-        s.betting.contributed[p]!,
-        s.chips[p]!,
-      );
+      const cap = postflopRaiseTargetCappedByOpponent(s);
       const minTarget = postflopMinRaiseToLevelChips(lv, f);
       const bbUnitPost = resolveHandBlinds(s).bb;
       if (
         !isVoluntaryBetMultiple(target, bbUnitPost) ||
-        target > cap ||
+        target > cap + 1e-9 ||
         target < minTarget
       ) {
         return state;
@@ -770,9 +790,16 @@ export function holdemReducer(
       s.pot += add;
       s.betting.contributed[p]! = target;
       s.betting.currentLevel = target;
-      s.betting.raiseDone = true;
+      s.betting.raiseDone = false;
       s.betting.checksThisStreet = 0;
-      pushLog(s, { t: "postflop_action", player: p, action: "레이즈", amount: target });
+      s.betting.raisesThisStreet += 1;
+      const allInRaise = s.chips[p]! <= 1e-9;
+      pushLog(s, {
+        t: "postflop_action",
+        player: p,
+        action: allInRaise ? "올인" : "레이즈",
+        amount: target,
+      });
       s.toAct = other(p);
       return done(s);
     }

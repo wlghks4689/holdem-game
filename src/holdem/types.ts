@@ -44,10 +44,16 @@ export type BettingRoundMeta = {
   contributed: [number, number];
   /** 현재 베팅 레벨 (스트리트 기준 상대 최대 기여액) */
   currentLevel: number;
-  /** 이 스트리트에서 벌써 리레이즈가 있었는지 (3-bet 금지) */
+  /** 레거시 플래그 — 베팅 연산에만 사용(포스트플랍 다중 레이즈 허용 시 사실상 항상 false에 가깝게 유지) */
   raiseDone: boolean;
   /** 포스트플랍: 체크 연속 (둘 다 체크 시 스트리트 종료) */
   checksThisStreet: number;
+  /**
+   * 이번 스트리트에서 이미 나온 레이즈 횟수(프리플랍·포스트플랍 공통).
+   * 오픈 레이즈(PREFLOP_RAISE, 포스트의 POSTFLOP_RAISE만 — 베트는 제외) 및
+   * 레이즈 성격의 프리 올인(PREFLOP_ALL_IN)마다 +1. `MAX_RAISES_PER_STREET` 도달 후 추가 레이즈 불가.
+   */
+  raisesThisStreet: number;
 };
 
 /** 프리플랍 서브단계 — 헤즈업 블라인드 포스팅 후 */
@@ -116,7 +122,7 @@ export type GameState = {
   /** 핸드 선택: `open`이면 양쪽이 동시에 고르고 각각 확정 가능 */
   handSelectPhase: "open" | "done";
   preflopStage: PreflopStage | null;
-  /** 프리플랍 레이즈 횟수 (3-bet 금지: 2 도달 후 추가 레이즈 불가) */
+  /** 프리플랍 레이즈(및 프리 올인) 횟수 — UI 힌트 등(팟 캡·최소 레이즈로 실제 제한) */
   preflopRaiseCount: number;
   /** 리버에서 IA 사용 여부 (플레이어별) */
   iaUsed: [boolean, boolean];

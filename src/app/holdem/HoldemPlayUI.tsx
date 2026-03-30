@@ -6,9 +6,8 @@ import { STARTING_CHIPS, TOTAL_ROUNDS } from "@/holdem/constants";
 import type { RoomPauseState } from "@/holdem/roomPause";
 import type { GameAction, GameState, PlayerIndex, SelectedHand } from "@/holdem/types";
 import { HEADS_UP_RULES_BLURB } from "@/holdem/headsUpLabels";
-import {
-  DEFAULT_HOLDEM_DISPLAY_NAMES,
-} from "@/holdem/playerDisplayNames";
+import { DEFAULT_HOLDEM_DISPLAY_NAMES } from "@/holdem/playerDisplayNames";
+import { useHoldemI18n } from "@/holdem/i18n/HoldemLocaleProvider";
 import { headsUpPositionLabel } from "@/holdem/headsUpLabels";
 import { AllInShowdownCinemaOverlay } from "./components/AllInShowdownCinemaOverlay";
 import { AllInBanner } from "./components/AllInBanner";
@@ -70,6 +69,7 @@ export function HoldemPlayUI({
   localPause,
   onlinePause,
 }: HoldemPlayUIProps) {
+  const { t } = useHoldemI18n();
 
   const showdownCinema = useAllInShowdownCinema(state);
   const winnerCinematicPulse =
@@ -128,7 +128,7 @@ export function HoldemPlayUI({
 
   return (
     <div className="min-h-dvh bg-gradient-to-b from-zinc-800 via-zinc-800 to-zinc-900 text-zinc-50">
-      <div className="relative mx-auto max-w-3xl px-4 py-6 pb-16 lg:max-w-6xl lg:px-8 lg:py-8 lg:pb-10">
+      <div className="relative mx-auto max-w-3xl px-3 py-4 pb-14 sm:px-4 sm:py-5 sm:pb-16 lg:max-w-6xl lg:px-8 lg:py-6 lg:pb-8">
         {showPauseChrome ? (
           <div className="pointer-events-auto absolute right-3 top-3 z-40 flex max-w-[min(19rem,calc(100%-1.5rem))] flex-col items-end gap-2 sm:right-5 sm:top-5">
             {onlinePause != null &&
@@ -194,15 +194,23 @@ export function HoldemPlayUI({
             ) : null}
           </div>
         ) : null}
-        <header className="mb-4 flex flex-col gap-3 pr-[5.5rem] sm:pr-[6rem] lg:mb-6 lg:flex-row lg:items-start lg:justify-between">
+        <header className="mb-3 flex flex-col gap-2 pr-[5.5rem] sm:pr-[6rem] lg:mb-4 lg:flex-row lg:items-start lg:justify-between">
           <div>
-            <h1 className="text-lg font-bold text-zinc-50 lg:text-xl">
-              핸드 풀 홀덤
+            <h1 className="text-base font-bold text-zinc-50 sm:text-lg lg:text-xl">
+              {t("home.title")}
             </h1>
             {playMode === "local" ? (
-              <p className="text-xs text-zinc-400">
-                {TOTAL_ROUNDS}라운드 · 시작 {STARTING_CHIPS}칩 (1bb=1칩) ·{" "}
-                {HEADS_UP_RULES_BLURB} · 표시 이름은 이 기기에 저장됩니다
+              <p
+                className="text-[11px] text-zinc-400 sm:text-xs"
+                title={`${HEADS_UP_RULES_BLURB} · 표시 이름은 이 기기에 저장됩니다`}
+              >
+                <span className="sm:hidden">
+                  {TOTAL_ROUNDS}R · {STARTING_CHIPS}칩 · 1bb=1칩
+                </span>
+                <span className="hidden sm:inline">
+                  {TOTAL_ROUNDS}라운드 · 시작 {STARTING_CHIPS}칩 (1bb=1칩) ·{" "}
+                  {HEADS_UP_RULES_BLURB} · 이름 로컬 저장
+                </span>
               </p>
             ) : playMode === "single" ? (
               <p className="text-xs text-zinc-400">
@@ -217,7 +225,7 @@ export function HoldemPlayUI({
               </p>
             ) : null}
           </div>
-          <div className="flex flex-col gap-2 rounded-lg border border-zinc-600/90 bg-zinc-700/50 p-2 lg:min-w-[18rem]">
+          <div className="flex flex-col gap-1.5 rounded-lg border border-zinc-600/90 bg-zinc-700/50 p-1.5 sm:gap-2 sm:p-2 lg:min-w-[18rem]">
             {playMode === "local" && setViewer != null ? (
               <>
                 <div className="flex flex-wrap items-center gap-2">
@@ -279,19 +287,19 @@ export function HoldemPlayUI({
           </div>
         </header>
 
-        <div className="mb-4 space-y-3 lg:mb-5 lg:grid lg:grid-cols-1 lg:gap-4">
+        <div className="mb-3 space-y-2 lg:mb-4 lg:grid lg:grid-cols-1 lg:gap-3">
           <TableHeaderBar state={state} playerNames={playerNames} />
         </div>
 
         <section
           className={[
-            "relative mb-6 rounded-2xl border border-zinc-600/80 bg-zinc-800/35 p-4 shadow-[0_0_40px_rgba(0,0,0,0.2)]",
+            "relative mb-4 rounded-2xl border border-zinc-600/80 bg-zinc-800/35 p-3 shadow-[0_0_40px_rgba(0,0,0,0.2)] sm:p-4",
             state.phase === "showdown"
-              ? "space-y-2.5 lg:space-y-3"
-              : "space-y-4",
-            "lg:mx-auto lg:mb-8 lg:max-w-5xl lg:rounded-[2rem] lg:border-zinc-700/70",
+              ? "space-y-2 sm:space-y-2.5 lg:space-y-3"
+              : "space-y-3 sm:space-y-4",
+            "lg:mx-auto lg:mb-6 lg:max-w-5xl lg:rounded-[2rem] lg:border-zinc-700/70",
             "lg:bg-gradient-to-b lg:from-zinc-800 lg:via-zinc-800/95 lg:to-zinc-900/90",
-            "lg:p-8 lg:shadow-[0_0_80px_rgba(0,0,0,0.45)]",
+            "lg:p-6 lg:shadow-[0_0_80px_rgba(0,0,0,0.45)]",
             showdownCinema.blockingInput ? "pointer-events-none select-none" : "",
           ].join(" ")}
           aria-label="플레이 영역"
@@ -362,7 +370,11 @@ export function HoldemPlayUI({
           </div>
 
           <div className="mx-auto w-full max-w-3xl lg:max-w-2xl">
-            <PlayAreaPotBetting state={state} viewer={viewer} />
+            <PlayAreaPotBetting
+              state={state}
+              viewer={viewer}
+              playerNames={playerNames}
+            />
           </div>
 
           <div className="mx-auto max-w-lg lg:max-w-xl">

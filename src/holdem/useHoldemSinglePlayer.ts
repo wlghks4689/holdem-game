@@ -16,6 +16,7 @@ import {
 } from "./aiPlayer";
 import { iaCostFromPot } from "./bettingHelpers";
 import { resolveHandBlinds } from "./blindLevels";
+import { SINGLE_PLAYER_AI_THINK_EXTRA_MS } from "./constants";
 import { createInitialGameState, holdemReducer } from "./gameReducer";
 import type { GameAction, GameState, PlayerIndex } from "./types";
 
@@ -119,8 +120,9 @@ export function useHoldemSinglePlayer({
     if (state.handSelectPhase === "done") return;
     if (state.handPickPending[aiSeat] != null) return; // 이미 선택함
 
-    // 0.8 ~ 2.2 초 지연 후 핸드 선택
-    const delay = 800 + Math.random() * 1400;
+    // 0.8 ~ 2.2 초 + 추가 생각 시간 후 핸드 선택
+    const delay =
+      SINGLE_PLAYER_AI_THINK_EXTRA_MS + 800 + Math.random() * 1400;
     const timer = window.setTimeout(() => {
       const cur = stateRef.current;
       if (cur.phase !== "hand_select") return;
@@ -153,8 +155,9 @@ export function useHoldemSinglePlayer({
     ) return;
     if (localPaused) return;
 
-    // 0.6 ~ 1.6 초 지연 후 AI 액션
-    const delay = 600 + Math.random() * 1000;
+    // 0.6 ~ 1.6 초 + 추가 생각 시간 후 AI 액션
+    const delay =
+      SINGLE_PLAYER_AI_THINK_EXTRA_MS + 600 + Math.random() * 1000;
     const timer = window.setTimeout(() => {
       const cur = stateRef.current;
       if (cur.toAct !== aiSeat) return;

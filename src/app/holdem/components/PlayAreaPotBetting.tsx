@@ -1,13 +1,19 @@
 "use client";
 
 import * as React from "react";
-import {
-  effectiveCallPay,
-  facingFor,
-} from "@/holdem/bettingHelpers";
 import { resolveHandBlinds } from "@/holdem/blindLevels";
 import { chipsAsBbLabel } from "@/holdem/formatBb";
-import type { GameState, PlayerIndex } from "@/holdem/types";
+import {
+  playBettingCallSound,
+  playBettingCheckSound,
+  playBettingIASound,
+  playBettingRaiseSound,
+  playHeroCallSound,
+  playHeroCheckSound,
+  playHeroIASound,
+  playHeroRaiseSound,
+} from "../showdownCinemaSounds";
+import type { GameMessage, GameState, PlayerIndex } from "@/holdem/types";
 
 function fmtChips(v: number): string {
   const r = Math.round(v * 100) / 100;
@@ -15,7 +21,6 @@ function fmtChips(v: number): string {
   return r.toFixed(1);
 }
 
-/** 팟을 BB로 — 정수면 소수 없음, 아니면 최대 소수 1자리(끝 .0 제거) */
 function potInBbCompact(pot: number, bbUnit: number): string {
   if (bbUnit < 1e-9) return "—";
   const bb = pot / bbUnit;
@@ -25,185 +30,92 @@ function potInBbCompact(pot: number, bbUnit: number): string {
 
 const other = (p: PlayerIndex): PlayerIndex => (p === 0 ? 1 : 0);
 
+function tailSignature(logs: readonly GameMessage[]): string {
+  const L = logs.length;
+  if (L === 0) return "0";
+  const last = logs[L - 1]!;
+  if (last.t === "preflop_action" || last.t === "postflop_action") {
+    return `${L}:${last.t}:p${last.player}:${last.action}:${last.amount ?? "x"}`;
+  }
+  if (last.t === "ia") {
+    return `${L}:ia:p${last.player}:${last.cost}`;
+  }
+  return `${L}:${last.t}`;
+}
+
+/** 액션 스트립 한 줄 — 콜/베트는 `>` 로 금액 표기 통일 */
+function formatBettingFlashLine(
+  m: Extract<GameMessage, { t: "preflop_action" } | { t: "postflop_action" }>,
+  name: string,
+  bbUnit: number,
+): string {
+  const amt = m.amount;
+  if (m.action === "체크(자동)") return "";
+  if (m.action === "체크") return `${name} · 체크`;
+  if (m.action === "콜") {
+    const tail = amt != null ? ` > ${chipsAsBbLabel(amt, bbUnit)}` : "";
+    return `${name} · 콜${tail}`;
+  }
+  if (m.action === "올인 콜") {
+    const tail = amt != null ? ` > ${chipsAsBbLabel(amt, bbUnit)}` : "";
+    return `${name} · 올인 콜${tail}`;
+  }
+  if (m.action === "레이즈") {
+    const tail =
+      amt != null ? ` > 총 ${chipsAsBbLabel(amt, bbUnit)}` : "";
+    return `${name} · 레이즈${tail}`;
+  }
+  if (m.action === "베트") {
+    const tail = amt != null ? ` > ${chipsAsBbLabel(amt, bbUnit)}` : "";
+    return `${name} · 베트${tail}`;
+  }
+  if (m.action === "올인") {
+    const tail = amt != null ? ` > 총 ${chipsAsBbLabel(amt, bbUnit)}` : "";
+    return `${name} · 올인${tail}`;
+  }
+  return `${name} · ${m.action}`;
+}
+
+function isAggressiveAction(
+  action: string,
+): action is "레이즈" | "베트" | "올인" | "올인 콜" {
+  return (
+    action === "레이즈" ||
+    action === "베트" ||
+    action === "올인" ||
+    action === "올인 콜"
+  );
+}
+
+type ActionStripState = {
+  id: number;
+  text: string;
+  who: "hero" | "opp";
+  agg: boolean;
+};
+
 export type PlayAreaPotBettingProps = {
   state: GameState;
   viewer: PlayerIndex;
+  playerNames: [string, string];
 };
 
-function EmBb({ n }: { n: string }) {
-  return (
-    <span className="font-bold tabular-nums text-amber-200">{n}</span>
-  );
-}
-
 /**
- * 뷰어(히어로) 기준 상대 액션 설명 + 내 콜/올인 안내.
- * `toAct === viewer`일 때만 상세 규칙 적용.
+ * 팟 + 마지막 베팅 액션 스트립(내 액션=에메랄드 / 상대=바이올렛·앰버).
+ * 새 핸드(`round_start`) 전까지 유지 — 플랍 오픈 등 비액션 로그는 스트립을 덮지 않음.
  */
-function opponentActionNarrative(
-  state: GameState,
-  viewer: PlayerIndex,
-): { primary: React.ReactNode; secondary: React.ReactNode } {
-  const bbUnit = resolveHandBlinds(state).bb;
-  const dead =
-    state.matchWinner != null ||
-    state.phase === "showdown" ||
-    state.phase === "hand_over" ||
-    state.phase === "hand_select";
-
-  if (dead) {
-    return {
-      primary: <span className="text-zinc-500">—</span>,
-      secondary: null,
-    };
-  }
-
-  if (state.toAct !== viewer) {
-    return {
-      primary: (
-        <span className="text-zinc-300">
-          지금은 <span className="font-semibold text-zinc-100">상대 차례</span>
-          입니다.
-        </span>
-      ),
-      secondary: (
-        <span className="text-zinc-500">상대 액션을 기다리세요.</span>
-      ),
-    };
-  }
-
-  const opp = other(viewer);
-  const facing = facingFor(viewer, state.betting);
-  const oppContrib = state.betting.contributed[opp]!;
-  const oppStack = state.chips[opp]!;
-  const myStack = state.chips[viewer]!;
-  const pay = effectiveCallPay(viewer, state);
-  const oppAllIn = oppStack <= 1e-9;
-  const callIsMyAllIn = facing > 1e-9 && pay > 1e-9 && Math.abs(pay - myStack) < 1e-6;
-
-  const zeroCall = (
-    <>
-      콜해야 하는 금액 <EmBb n="0" />
-    </>
-  );
-
-  /** 콜 액 표시 (항상 실제 지불 가능액) */
-  const callLineNormal = (
-    <>
-      콜해야 하는 금액 <EmBb n={chipsAsBbLabel(pay, bbUnit)} />
-    </>
-  );
-
-  const callLineAllIn = (
-    <>
-      콜하면 올인 (내 칩 <EmBb n={chipsAsBbLabel(pay, bbUnit)} />)
-    </>
-  );
-
-  const line2 =
-    facing <= 1e-9
-      ? zeroCall
-      : callIsMyAllIn
-        ? callLineAllIn
-        : callLineNormal;
-
-  // --- 프리플랍 ---
-  if (state.phase === "preflop" && state.preflopStage != null) {
-    if (state.preflopStage === "button_acts" && facing > 1e-9) {
-      return {
-        primary: (
-          <>
-            콜 — 플랫{" "}
-            <EmBb n={chipsAsBbLabel(facing, bbUnit)} />
-          </>
-        ),
-        secondary: callLineNormal,
-      };
-    }
-    if (state.preflopStage === "bb_option" && facing <= 1e-9) {
-      return {
-        primary: <span className="text-zinc-200">상대 콜로 맞춤</span>,
-        secondary: zeroCall,
-      };
-    }
-    if (state.preflopStage === "facing_raise" && facing > 1e-9) {
-      const line1 = oppAllIn ? (
-        <>
-          상대 올인 <EmBb n={chipsAsBbLabel(oppContrib, bbUnit)} />
-        </>
-      ) : state.preflopRaiseCount >= 2 ? (
-        <>
-          상대 레이즈 <EmBb n={chipsAsBbLabel(oppContrib, bbUnit)} />
-        </>
-      ) : (
-        <>
-          상대 베팅 <EmBb n={chipsAsBbLabel(oppContrib, bbUnit)} />
-        </>
-      );
-      return {
-        primary: line1,
-        secondary: line2,
-      };
-    }
-  }
-
-  // --- 포스트플랍 ---
-  if (
-    state.phase === "flop" ||
-    state.phase === "turn" ||
-    state.phase === "river"
-  ) {
-    if (facing <= 1e-9) {
-      if (state.betting.checksThisStreet >= 1) {
-        return {
-          primary: <span className="text-zinc-200">상대 체크</span>,
-          secondary: zeroCall,
-        };
-      }
-      return {
-        primary: (
-          <span className="text-zinc-200">아직 베팅이 없습니다</span>
-        ),
-        secondary: zeroCall,
-      };
-    }
-
-    const isFirstAggression = !state.betting.raiseDone;
-    const line1 = oppAllIn ? (
-      <>
-        상대 올인 <EmBb n={chipsAsBbLabel(oppContrib, bbUnit)} />
-      </>
-    ) : isFirstAggression ? (
-      <>
-        상대 베팅 <EmBb n={chipsAsBbLabel(oppContrib, bbUnit)} />
-      </>
-    ) : (
-      <>
-        상대 레이즈 <EmBb n={chipsAsBbLabel(oppContrib, bbUnit)} />
-      </>
-    );
-    return {
-      primary: line1,
-      secondary: line2,
-    };
-  }
-
-  return {
-    primary: <span className="text-zinc-400">진행 중</span>,
-    secondary: line2,
-  };
-}
-
-/**
- * 핵심 플레이 영역: 팟 + 상대 액션 기반 설명문
- */
-export function PlayAreaPotBetting({ state, viewer }: PlayAreaPotBettingProps) {
+export function PlayAreaPotBetting({
+  state,
+  viewer,
+  playerNames,
+}: PlayAreaPotBettingProps) {
   const snapRef = React.useRef({
     pot: state.pot,
     c0: state.chips[0],
     c1: state.chips[1],
   });
   const [potBumpKey, setPotBumpKey] = React.useState(0);
+  const [potAggroKey, setPotAggroKey] = React.useState(0);
   const firstTick = React.useRef(true);
 
   React.useEffect(() => {
@@ -230,54 +142,215 @@ export function PlayAreaPotBetting({ state, viewer }: PlayAreaPotBettingProps) {
     };
   }, [state.pot, state.chips[0], state.chips[1]]);
 
-  const { primary, secondary } = opponentActionNarrative(state, viewer);
+  const [strip, setStrip] = React.useState<ActionStripState | null>(null);
+  const stripIdRef = React.useRef(0);
+  const prevSigRef = React.useRef<string | null>(null);
+  const hydrateRef = React.useRef(true);
+  const stateRef = React.useRef(state);
+  React.useLayoutEffect(() => {
+    stateRef.current = state;
+  }, [state]);
+
+  const logsSig = React.useMemo(() => tailSignature(state.logs), [state.logs]);
+
+  React.useEffect(() => {
+    const s = stateRef.current;
+    const logs = s.logs;
+    const sig = tailSignature(logs);
+    if (hydrateRef.current) {
+      hydrateRef.current = false;
+      prevSigRef.current = sig;
+      return;
+    }
+    if (sig === prevSigRef.current) return;
+
+    const prevL =
+      prevSigRef.current != null
+        ? Number(prevSigRef.current.split(":")[0])
+        : 0;
+    const L = logs.length;
+    if (L < prevL) {
+      prevSigRef.current = sig;
+      setStrip(null);
+      return;
+    }
+
+    prevSigRef.current = sig;
+    const last = L > 0 ? logs[L - 1]! : null;
+    if (!last) return;
+
+    if (last.t === "round_start") {
+      setStrip(null);
+      return;
+    }
+
+    if (
+      last.t !== "preflop_action" &&
+      last.t !== "postflop_action" &&
+      last.t !== "ia"
+    ) {
+      return;
+    }
+
+    const bb = resolveHandBlinds(s).bb;
+    const me = viewer;
+    const opp = other(viewer);
+
+    if (last.t === "ia") {
+      const isHero = last.player === me;
+      const name = playerNames[last.player]!;
+      stripIdRef.current += 1;
+      if (isHero) playHeroIASound();
+      else playBettingIASound();
+      setStrip({
+        id: stripIdRef.current,
+        text: `${name} · IA (−${chipsAsBbLabel(last.cost, bb)} · 팟에서 차감)`,
+        who: isHero ? "hero" : "opp",
+        agg: true,
+      });
+      return;
+    }
+
+    const isHero = last.player === me;
+    const name = playerNames[last.player]!;
+    const text = formatBettingFlashLine(last, name, bb);
+    if (!text) return;
+
+    const agg = isAggressiveAction(last.action);
+
+    if (isHero) {
+      if (agg) {
+        playHeroRaiseSound();
+      } else if (last.action === "콜") {
+        playHeroCallSound();
+      } else if (last.action === "체크") {
+        playHeroCheckSound();
+      }
+    } else {
+      if (agg) {
+        playBettingRaiseSound();
+        setPotAggroKey((k) => k + 1);
+      } else if (last.action === "콜") {
+        playBettingCallSound();
+      } else if (last.action === "체크") {
+        playBettingCheckSound();
+      }
+    }
+
+    stripIdRef.current += 1;
+    setStrip({
+      id: stripIdRef.current,
+      text,
+      who: isHero ? "hero" : "opp",
+      agg,
+    });
+  }, [logsSig, viewer, playerNames]);
+
   const potBbUnit = resolveHandBlinds(state).bb;
 
+  const stripBoxClass =
+    strip == null
+      ? ""
+      : strip.who === "hero"
+        ? strip.agg
+          ? "border border-emerald-400/50 bg-gradient-to-r from-emerald-950/90 via-emerald-900/65 to-emerald-950/90 shadow-[0_0_18px_rgba(52,211,153,0.2)]"
+          : "border border-emerald-600/40 bg-emerald-950/35"
+        : strip.agg
+          ? "border border-amber-400/50 bg-gradient-to-r from-amber-950/85 via-amber-900/70 to-amber-950/85 shadow-[0_0_20px_rgba(251,191,36,0.18)]"
+          : "border border-violet-500/40 bg-violet-950/30";
+
+  const stripTextClass =
+    strip == null
+      ? ""
+      : strip.who === "hero"
+        ? strip.agg
+          ? "text-base text-emerald-50 sm:text-lg"
+          : "text-sm text-emerald-100/95 sm:text-base"
+        : strip.agg
+          ? "text-base text-amber-50 sm:text-lg"
+          : "text-sm text-violet-100 sm:text-base";
+
+  const stripAria =
+    strip == null
+      ? undefined
+      : strip.who === "hero"
+        ? `내 액션: ${strip.text}`
+        : `상대 액션: ${strip.text}`;
+
   return (
-    <div className="rounded-xl border border-amber-900/45 bg-gradient-to-b from-zinc-900/80 to-zinc-800/90 px-4 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] lg:border-amber-800/50 lg:py-4">
-      <div className="flex flex-col items-center gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-4 lg:items-center lg:justify-center lg:gap-10">
-        <div className="text-center sm:text-left lg:text-center">
-          <div
-            className="flex flex-wrap items-baseline justify-center gap-x-1.5 gap-y-0.5 sm:justify-start lg:justify-center"
-            aria-label={`팟: ${fmtChips(state.pot)}칩스 = ${potInBbCompact(state.pot, potBbUnit)}`}
+    <div className="rounded-xl border border-amber-900/45 bg-gradient-to-b from-zinc-900/80 to-zinc-800/90 px-3 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] sm:px-4 lg:border-amber-800/50">
+      <div
+        className="flex flex-wrap items-baseline justify-center gap-x-1.5 gap-y-0.5"
+        aria-label={`팟: ${fmtChips(state.pot)}칩 = ${potInBbCompact(state.pot, potBbUnit)}`}
+      >
+        <span className="text-xl font-bold uppercase leading-none tracking-wide text-amber-500/95 lg:text-2xl">
+          팟{":  "}
+        </span>
+        <span
+          key={potBumpKey}
+          className="inline-flex items-baseline gap-px text-xl font-bold leading-none lg:text-2xl"
+          style={
+            potBumpKey > 0
+              ? { animation: "holdem-pot-bump 0.36s ease-out 1" }
+              : undefined
+          }
+        >
+          <span
+            key={potAggroKey}
+            className="font-mono tabular-nums text-amber-100"
+            style={
+              potAggroKey > 0
+                ? {
+                    animation: "holdem-pot-aggro-color 0.55s ease-out 1",
+                  }
+                : undefined
+            }
           >
-            <span className="text-xl font-bold uppercase leading-none tracking-wide text-amber-500/95 lg:text-2xl">
-              팟{":  "}
-            </span>
-            <span
-              key={potBumpKey}
-              className="text-xl font-bold leading-none text-amber-100 lg:text-2xl"
-              style={
-                potBumpKey > 0
-                  ? { animation: "holdem-pot-bump 0.36s ease-out 1" }
-                  : undefined
-              }
+            {fmtChips(state.pot)}
+          </span>
+          <span className="font-sans font-bold text-amber-100/95">칩</span>
+        </span>
+        <span
+          className="select-none text-xl font-bold leading-none text-amber-200/55 lg:text-2xl"
+          aria-hidden
+        >
+          =
+        </span>
+        <span className="font-mono text-xl font-bold tabular-nums leading-none text-amber-200 lg:text-2xl">
+          {potInBbCompact(state.pot, potBbUnit)}
+        </span>
+      </div>
+
+      <div className="mt-3 min-h-[3rem] border-t border-zinc-700/55 pt-3">
+        {strip != null ? (
+          <div
+            key={strip.id}
+            className={[
+              "rounded-lg px-3 py-2.5 text-center",
+              "animate-[holdem-opponent-action-in_0.28s_cubic-bezier(0.22,1,0.36,1)_both]",
+              stripBoxClass,
+            ].join(" ")}
+            role="status"
+            aria-live="polite"
+            aria-label={stripAria}
+          >
+            <p
+              className={[
+                "font-semibold tabular-nums leading-snug",
+                stripTextClass,
+              ].join(" ")}
             >
-              <span className="font-mono tabular-nums">{fmtChips(state.pot)}</span>
-              <span className="font-sans font-bold text-amber-100/95">칩스</span>
-            </span>
-            <span
-              className="select-none text-xl font-bold leading-none text-amber-200/55 lg:text-2xl"
-              aria-hidden
-            >
-              =
-            </span>
-            <span className="font-mono text-xl font-bold tabular-nums leading-none text-amber-200 lg:text-2xl">
-              {potInBbCompact(state.pot, potBbUnit)}
-            </span>
+              {strip.text}
+            </p>
           </div>
-        </div>
-        <div className="min-w-0 flex-1 text-center sm:text-left lg:max-w-md lg:text-center">
-          <div className="text-[10px] font-bold uppercase tracking-wide text-zinc-500">
-            상대 액션
+        ) : (
+          <div
+            className="flex min-h-[2.75rem] items-center justify-center rounded-lg border border-dashed border-zinc-700/50 bg-zinc-900/25 text-[11px] text-zinc-500"
+            aria-hidden
+          >
+            베팅 액션이 여기 표시됩니다
           </div>
-          <p className="mt-1 text-sm font-medium leading-relaxed text-zinc-100">
-            {primary}
-          </p>
-          {secondary ? (
-            <p className="mt-1 text-sm leading-relaxed text-zinc-300">{secondary}</p>
-          ) : null}
-        </div>
+        )}
       </div>
     </div>
   );

@@ -11,8 +11,11 @@ export const BET_RAISE_UNIT = CHIPS_PER_BB;
 export const STARTING_CHIPS = 200;
 export const TOTAL_ROUNDS = 30;
 
-/** 프리플랍 팟 상한(bb) — 양측 합산 팟이 이 값을 넘지 않도록 제한 */
+/** 프리플랍 팟 상한(bb) — 양측 합산 팟이 이 값을 넘지 않도록 제한(유지) */
 export const PREFLOP_MAX_POT_BB = 15;
+
+/** 프리플랍·플랍·턴·리버 각각에서 추가 레이즈(또는 프리 올인 오픈) 가능 횟수 상한 — 3회째 레이즈 이후 상대는 콜/폴드만 */
+export const MAX_RAISES_PER_STREET = 3;
 
 /** 남은 스택이 이 BB 이하일 때 프리플랍 올인(전액 레이즈) 허용 */
 export const PREFLOP_SHORT_STACK_ALL_IN_MAX_BB = 15;
@@ -39,6 +42,11 @@ export const IA_RIVER_ACTION_EXTRA_SECONDS = 10;
 /** 판 종료(showdown / hand_over) 후 자동으로 다음 핸드(핸드 선택)까지 대기(초) */
 export const NEW_HAND_AUTO_SECONDS = 8;
 
-/** `runOutBoardToShowdown` 후 `lastActionNote` — UI 올인 쇼다운 연출 트리거 */
-export const ALL_IN_RUNOUT_LAST_NOTE =
-  "올인 — 남은 보드 전부 개시 후 쇼다운";
+/**
+ * 싱글플레이 AI가 액션을 내기 전 추가 대기(ms).
+ * 의사결정 +0.5s 정도로 체감 속도를 낮춤.
+ */
+export const SINGLE_PLAYER_AI_THINK_EXTRA_MS = 500;
+
+/** 올인 런아웃 직전 `GameState.lastActionNote` — UI 시네마 전용 마커 */
+export const ALL_IN_RUNOUT_LAST_NOTE = "올인 · 남은 보드 공개";

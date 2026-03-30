@@ -57,3 +57,42 @@ export function playShowdownResultChime() {
   window.setTimeout(() => beep(659.25, 0.09, "sine", 0.07), 75);
   window.setTimeout(() => beep(783.99, 0.1, "sine", 0.075), 160);
 }
+
+/** 상대 콜 — 낮은 단음 */
+export function playBettingCallSound() {
+  beep(493.88, 0.075, "sine", 0.052);
+}
+
+/** 상대 레이즈·베팅·공격적 액션 — 짧은 이중 상승 */
+export function playBettingRaiseSound() {
+  beep(369.99, 0.065, "triangle", 0.062);
+  window.setTimeout(() => beep(554.37, 0.085, "triangle", 0.07), 55);
+}
+
+/** 상대 체크 — 아주 짧게 */
+export function playBettingCheckSound() {
+  beep(440, 0.045, "sine", 0.038);
+}
+
+/** IA 사용 */
+export function playBettingIASound() {
+  beep(698.46, 0.085, "sine", 0.058);
+}
+
+/** 내 액션 — 살짝 낮은 볼륨으로 구분 */
+export function playHeroCallSound() {
+  beep(523.25, 0.07, "sine", 0.036);
+}
+
+export function playHeroRaiseSound() {
+  beep(415.3, 0.06, "triangle", 0.04);
+  window.setTimeout(() => beep(622.25, 0.08, "triangle", 0.042), 52);
+}
+
+export function playHeroCheckSound() {
+  beep(523.25, 0.04, "sine", 0.028);
+}
+
+export function playHeroIASound() {
+  beep(783.99, 0.08, "sine", 0.04);
+}

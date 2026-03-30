@@ -1,5 +1,6 @@
 import type { Card } from "./cards";
 import { rankToChar } from "./cards";
+import type { HoldemUiLocale } from "./holdemPrefs";
 
 /** 높을수록 강함. 비교는 [...kickers] 사전순 */
 export type HandValue = {
@@ -16,6 +17,12 @@ const RANK_FLUSH = 6;
 const RANK_FULL_HOUSE = 7;
 const RANK_QUADS = 8;
 const RANK_STRAIGHT_FLUSH = 9;
+
+/** 스트레이트=1, 플러시=2, 풀=3, 포카드=4, 스트플=5. 트립 이하는 0 (이펙트 없음). */
+export function madeHandFxTier(v: HandValue): number {
+  if (v.rank < RANK_STRAIGHT) return 0;
+  return v.rank - RANK_STRAIGHT + 1;
+}
 
 function sortRanksDesc(ranks: number[]): number[] {
   return [...ranks].sort((a, b) => b - a);
@@ -172,77 +179,95 @@ export function handValueLabel(v: HandValue): string {
   return names[v.rank] ?? "알 수 없음";
 }
 
-/** 쇼다운·UI용 — 핵심 랭크·첫 키커만 (예: 원페어 A (키커 Q)) */
-export function handValueSummaryKorean(v: HandValue): string {
+const rCh = rankToChar;
+
+/**
+ * UI·로그용 짧은 표기: 탑 랭크만 쓰거나 족보명만 (키커·전체 나열 없음).
+ * 예: `A 하이카드`, `투페어`, `Q 하이 플러시`
+ */
+export function handValueDisplayPatternKorean(v: HandValue): string {
   const k = v.kickers;
   switch (v.rank) {
     case RANK_HIGH_CARD:
-      return k.length >= 2
-        ? `하이카드 ${rankToChar(k[0]!)} (키커 ${rankToChar(k[1]!)})`
-        : `하이카드 ${rankToChar(k[0]!)}`;
+      return k[0] != null ? `${rCh(k[0])} 하이카드` : "하이카드";
     case RANK_PAIR:
-      return k.length >= 2
-        ? `원페어 ${rankToChar(k[0]!)} (키커 ${rankToChar(k[1]!)})`
-        : `원페어 ${rankToChar(k[0]!)}`;
+      return k[0] != null ? `${rCh(k[0])} 원페어` : "원페어";
     case RANK_TWO_PAIR:
-      return `투페어 ${rankToChar(k[0]!)} & ${rankToChar(k[1]!)} (키커 ${rankToChar(
-        k[2]!,
-      )})`;
+      return "투페어";
     case RANK_TRIPS:
-      return k.length >= 2
-        ? `트립스 ${rankToChar(k[0]!)} (키커 ${rankToChar(k[1]!)})`
-        : `트립스 ${rankToChar(k[0]!)}`;
+      return k[0] != null ? `${rCh(k[0])} 트립스` : "트립스";
     case RANK_STRAIGHT:
-      return `스트레이트 (탑 ${rankToChar(k[0]!)})`;
+      return k[0] != null ? `${rCh(k[0])} 스트레이트` : "스트레이트";
     case RANK_FLUSH:
-      return `플러시 (탑 ${rankToChar(k[0]!)})`;
+      return k[0] != null ? `${rCh(k[0])} 하이 플러시` : "플러시";
     case RANK_FULL_HOUSE:
-      return `풀하우스 ${rankToChar(k[0]!)} · ${rankToChar(k[1]!)}`;
+      return k[0] != null && k[1] != null
+        ? `${rCh(k[0])} ${rCh(k[1])} 풀하우스`
+        : "풀하우스";
     case RANK_QUADS:
-      return k.length >= 2
-        ? `포카드 ${rankToChar(k[0]!)} (키커 ${rankToChar(k[1]!)})`
-        : `포카드 ${rankToChar(k[0]!)}`;
+      return k[0] != null ? `${rCh(k[0])} 포카드` : "포카드";
     case RANK_STRAIGHT_FLUSH:
-      return `스트레이트 플러시 (탑 ${rankToChar(k[0]!)})`;
+      return k[0] != null ? `${rCh(k[0])} 스트레이트 플러시` : "스트레이트 플러시";
     default:
       return handValueLabel(v);
   }
 }
 
-/** 쇼다운 요약 한 줄 — 숫자·Kicker 중심 (예: 투페어 (9,8) · Kicker Q) */
-export function handValueShowdownConciseKorean(v: HandValue): string {
+/** 영어 UI용 (랭크 기호 T/J/Q/K/A 공통) */
+export function handValueDisplayPatternEnglish(v: HandValue): string {
   const k = v.kickers;
-  const rc = (r: number) => rankToChar(r);
   switch (v.rank) {
     case RANK_HIGH_CARD:
-      return k.length >= 2
-        ? `하이 (${rc(k[0]!)}) · Kicker ${rc(k[1]!)}`
-        : `하이 (${rc(k[0]!)})`;
+      return k[0] != null ? `${rCh(k[0])} high` : "High card";
     case RANK_PAIR:
-      return k.length >= 2
-        ? `원페어 (${rc(k[0]!)}) · Kicker ${rc(k[1]!)}`
-        : `원페어 (${rc(k[0]!)})`;
+      return k[0] != null ? `Pair of ${rCh(k[0])}` : "Pair";
     case RANK_TWO_PAIR:
-      return `투페어 (${rc(k[0]!)},${rc(k[1]!)}) · Kicker ${rc(k[2]!)}`;
+      return "Two pair";
     case RANK_TRIPS:
-      return k.length >= 2
-        ? `트립스 (${rc(k[0]!)}) · Kicker ${rc(k[1]!)}`
-        : `트립스 (${rc(k[0]!)})`;
+      return k[0] != null ? `Trips ${rCh(k[0])}` : "Trips";
     case RANK_STRAIGHT:
-      return `스트레이트 (${rc(k[0]!)})`;
-    case RANK_STRAIGHT_FLUSH:
-      return `SF (${rc(k[0]!)})`;
+      return k[0] != null ? `${rCh(k[0])}-high straight` : "Straight";
     case RANK_FLUSH:
-      return `플러시 · 탑 ${rc(k[0]!)}`;
+      return k[0] != null ? `${rCh(k[0])}-high flush` : "Flush";
     case RANK_FULL_HOUSE:
-      return `풀 하우스 (${rc(k[0]!)}/${rc(k[1]!)})`;
+      return k[0] != null && k[1] != null
+        ? `${rCh(k[0])} full of ${rCh(k[1])}`
+        : "Full house";
     case RANK_QUADS:
-      return k.length >= 2
-        ? `포카드 (${rc(k[0]!)}) · Kicker ${rc(k[1]!)}`
-        : `포카드 (${rc(k[0]!)})`;
+      return k[0] != null ? `Quads ${rCh(k[0])}` : "Quads";
+    case RANK_STRAIGHT_FLUSH:
+      return k[0] != null
+        ? `${rCh(k[0])}-high straight flush`
+        : "Straight flush";
     default:
-      return handValueSummaryKorean(v);
+      return handValueDisplayPatternKorean(v);
   }
+}
+
+export function handValueDisplayForLocale(
+  v: HandValue,
+  locale: HoldemUiLocale,
+): string {
+  return locale === "en"
+    ? handValueDisplayPatternEnglish(v)
+    : handValueDisplayPatternKorean(v);
+}
+
+/** 쇼다운·로그·UI 공통 — `handValueDisplayPatternKorean` */
+export function handValueSummaryKorean(v: HandValue): string {
+  return handValueDisplayPatternKorean(v);
+}
+
+/** 쇼다운 배너 — 동일 서식 */
+export function handValueShowdownConciseKorean(v: HandValue): string {
+  return handValueDisplayPatternKorean(v);
+}
+
+export function handValueShowdownConciseForLocale(
+  v: HandValue,
+  locale: HoldemUiLocale,
+): string {
+  return handValueDisplayForLocale(v, locale);
 }
 
 /** handValueSummaryKorean과 동일 (기존 import 호환) */
@@ -250,26 +275,9 @@ export function handValueDetailKorean(v: HandValue): string {
   return handValueSummaryKorean(v);
 }
 
-/**
- * UI 인라인 compact 표기 — "4원페어", "7스트레이트", "A플러시" 등
- * 공간이 좁은 카드 헤더용
- */
+/** 카드 헤더 옆 족보 — `handValueDisplayPatternKorean`과 동일 */
 export function compactHandLabel(v: HandValue): string {
-  const k = v.kickers;
-  const r0 = k[0] != null ? rankToChar(k[0]) : "";
-  const r1 = k[1] != null ? rankToChar(k[1]) : "";
-  switch (v.rank) {
-    case RANK_HIGH_CARD:      return `${r0}하이`;
-    case RANK_PAIR:           return `${r0}원페어`;
-    case RANK_TWO_PAIR:       return r1 ? `${r0}${r1}투페어` : `${r0}투페어`;
-    case RANK_TRIPS:          return `${r0}트립스`;
-    case RANK_STRAIGHT:       return `${r0}스트레이트`;
-    case RANK_FLUSH:          return `${r0}플러시`;
-    case RANK_FULL_HOUSE:     return `${r0}풀하우스`;
-    case RANK_QUADS:          return `${r0}포카드`;
-    case RANK_STRAIGHT_FLUSH: return `${r0}SF`;
-    default:                  return handValueLabel(v);
-  }
+  return handValueDisplayPatternKorean(v);
 }
 
 /** 현재 보드 기준 compact 족보 레이블. 없으면 "". */
@@ -277,12 +285,15 @@ export function currentCompactHandLabel(
   hole: [Card, Card],
   board: Card[],
   boardRevealed: number,
+  locale: HoldemUiLocale = "ko",
 ): string {
   const used = board.slice(0, boardRevealed);
   const all = [...hole, ...used];
   if (all.length < 2) return "";
-  if (used.length === 0) return compactHandLabel(bestHandFromHole2(hole));
-  return compactHandLabel(best5Of7(all));
+  if (used.length === 0) {
+    return handValueDisplayForLocale(bestHandFromHole2(hole), locale);
+  }
+  return handValueDisplayForLocale(best5Of7(all), locale);
 }
 
 /** winner vs loser 기준 한 줄 비교 (무승부면 null) */
@@ -363,14 +374,15 @@ export function currentMadeHandLabel(
   hole: [Card, Card],
   board: Card[],
   boardRevealed: number,
+  locale: HoldemUiLocale = "ko",
 ): string {
   const used = board.slice(0, boardRevealed);
   const all = [...hole, ...used];
   if (all.length < 2) return "";
   if (used.length === 0) {
-    return handValueLabel(bestHandFromHole2(hole));
+    return handValueDisplayForLocale(bestHandFromHole2(hole), locale);
   }
-  return handValueLabel(best5Of7(all));
+  return handValueDisplayForLocale(best5Of7(all), locale);
 }
 
 /** showdown: 승자 인덱스들 (동률이면 둘 다) */
