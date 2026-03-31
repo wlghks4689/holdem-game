@@ -13,7 +13,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "핸드 풀 홀덤",
+  title: "핸드 셀렉 홀덤",
   description: "핸드 풀 선택형 텍사스 홀덤",
 };
 

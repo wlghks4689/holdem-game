@@ -35,6 +35,7 @@ export async function GET(req: Request, ctx: Ctx) {
     stateVersion: blob.stateVersion,
     pause: normalizeRoomPause(blob.pause),
     guestJoined: blob.tokens[1] != null,
+    opponentLeft: (blob.disconnected ?? [false, false])[seat === 0 ? 1 : 0] === true,
     rematchAccepted: blob.rematchAccepted ?? [false, false],
   });
 }

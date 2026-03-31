@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { useRouter } from "next/navigation";
 import {
   HOLDEM_PREFS_CHANGED_EVENT,
   loadRoomNickname,
@@ -9,6 +10,7 @@ import { DEFAULT_HOLDEM_DISPLAY_NAMES } from "@/holdem/playerDisplayNames";
 import type { PlayerIndex } from "@/holdem/types";
 import { useHoldemOnlineGame } from "@/holdem/useHoldemOnlineGame";
 import { clearLastActiveRoom } from "@/holdem/roomCredentials";
+import { useHoldemI18n } from "@/holdem/i18n/HoldemLocaleProvider";
 import { HoldemPlayUI } from "./HoldemPlayUI";
 import { HighCardDrawOverlay } from "./components/HighCardDrawOverlay";
 
@@ -18,6 +20,9 @@ export function HoldemOnlinePage(props: {
   token: string;
 }) {
   const { roomId, mySeat, token } = props;
+  const { locale } = useHoldemI18n();
+  const isEn = locale === "en";
+  const router = useRouter();
   const {
     state,
     dispatch,
@@ -26,6 +31,7 @@ export function HoldemOnlinePage(props: {
     pause,
     sendPauseCmd,
     guestJoined,
+    opponentLeft,
     rematchAccepted,
     sendRematchCmd,
   } = useHoldemOnlineGame({ roomId, mySeat, token });
@@ -84,14 +90,65 @@ export function HoldemOnlinePage(props: {
     /* 온라인: 닉네임은 환경설정에서만 변경 */
   }, []);
 
+  const leaveRoom = React.useCallback(async () => {
+    try {
+      await fetch(`/api/room/${roomId}/leave`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ seat: mySeat, token }),
+        keepalive: true,
+      });
+    } catch {
+      // ignore leave failures
+    }
+  }, [mySeat, roomId, token]);
+
+  const [cancelingLobby, setCancelingLobby] = React.useState(false);
+
+  const onCancelLobby = React.useCallback(async () => {
+    setCancelingLobby(true);
+    await leaveRoom();
+    clearLastActiveRoom();
+    router.replace("/holdem");
+  }, [leaveRoom, router]);
+
+  const [opponentLeftCountdown, setOpponentLeftCountdown] = React.useState<number | null>(null);
+  React.useEffect(() => {
+    if (state == null) return;
+    if (!opponentLeft || state.phase === "lobby") {
+      setOpponentLeftCountdown(null);
+      return;
+    }
+    setOpponentLeftCountdown(5);
+    const iv = window.setInterval(() => {
+      setOpponentLeftCountdown((v) => (v == null ? null : Math.max(0, v - 1)));
+    }, 1000);
+    const to = window.setTimeout(() => {
+      clearLastActiveRoom();
+      router.replace("/holdem");
+    }, 5000);
+    return () => {
+      window.clearInterval(iv);
+      window.clearTimeout(to);
+    };
+  }, [opponentLeft, router, state]);
+
   const rematchLabel = React.useMemo(() => {
     if (state?.matchWinner == null) return null;
     const meAccepted = rematchAccepted[mySeat];
     const oppAccepted = rematchAccepted[mySeat === 0 ? 1 : 0];
-    if (meAccepted && oppAccepted) return "양측 수락 완료 · 재시작 중";
-    if (meAccepted) return "재경기 수락 완료 · 상대 응답 대기 중";
-    return "재경기 버튼을 누르면 상대에게 수락 요청이 전송됩니다";
-  }, [mySeat, rematchAccepted, state?.matchWinner]);
+    if (meAccepted && oppAccepted) {
+      return isEn ? "Both accepted · restarting" : "양측 수락 완료 · 재시작 중";
+    }
+    if (meAccepted) {
+      return isEn
+        ? "Rematch accepted · waiting for opponent"
+        : "재경기 수락 완료 · 상대 응답 대기 중";
+    }
+    return isEn
+      ? "Press Rematch to send a request"
+      : "재경기 버튼을 누르면 상대에게 수락 요청이 전송됩니다";
+  }, [isEn, mySeat, rematchAccepted, state?.matchWinner]);
 
   if (loadError && state == null) {
     return (
@@ -112,6 +169,21 @@ export function HoldemOnlinePage(props: {
     return (
       <div className="flex min-h-dvh items-center justify-center bg-zinc-900 text-zinc-400">
         방 상태 불러오는 중…
+      </div>
+    );
+  }
+
+  if (opponentLeft && state.phase !== "lobby") {
+    return (
+      <div className="flex min-h-dvh flex-col items-center justify-center gap-3 bg-zinc-900 px-4 text-center text-zinc-100">
+        <p className="text-lg font-semibold">
+          {isEn ? "Opponent left the room" : "상대방이 방을 나갔습니다"}
+        </p>
+        <p className="text-sm text-zinc-400">
+          {isEn
+            ? `Returning to Home in ${opponentLeftCountdown ?? 5}s.`
+            : `${opponentLeftCountdown != null ? `${opponentLeftCountdown}초` : "5초"} 후 홈으로 이동합니다.`}
+        </p>
       </div>
     );
   }
@@ -246,6 +318,20 @@ export function HoldemOnlinePage(props: {
         {loadError ? (
           <p className="text-xs text-amber-300">{loadError}</p>
         ) : null}
+
+        {/* 방 취소 / 나가기 버튼 */}
+        <button
+          type="button"
+          disabled={cancelingLobby}
+          onClick={() => void onCancelLobby()}
+          className="w-full max-w-xs rounded-2xl border border-zinc-700/70 bg-zinc-800/40 py-3 text-sm font-semibold text-zinc-400 transition hover:border-rose-600/50 hover:bg-rose-950/25 hover:text-rose-300 disabled:cursor-wait disabled:opacity-50"
+        >
+          {cancelingLobby
+            ? (isEn ? "Leaving…" : "나가는 중…")
+            : isHost
+              ? (isEn ? "Cancel room" : "방 취소")
+              : (isEn ? "Leave room" : "방 나가기")}
+        </button>
       </div>
     );
   }
@@ -279,6 +365,12 @@ export function HoldemOnlinePage(props: {
         mySeat={mySeat}
         playMode="online"
         onlineMeta={{ roomId }}
+        onGoHome={() => {
+          void leaveRoom().finally(() => {
+            clearLastActiveRoom();
+            router.push("/holdem");
+          });
+        }}
         onMatchRematch={() =>
           void sendRematchCmd(rematchAccepted[mySeat] ? "cancel" : "accept")
         }

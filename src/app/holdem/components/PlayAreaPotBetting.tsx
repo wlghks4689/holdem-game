@@ -13,6 +13,7 @@ import {
   playHeroIASound,
   playHeroRaiseSound,
 } from "../showdownCinemaSounds";
+import { useHoldemI18n } from "@/holdem/i18n/HoldemLocaleProvider";
 import type { GameMessage, GameState, PlayerIndex } from "@/holdem/types";
 
 function fmtChips(v: number): string {
@@ -50,34 +51,40 @@ function formatBettingFlashLine(
   m: Extract<GameMessage, { t: "preflop_action" } | { t: "postflop_action" }>,
   name: string,
   bbUnit: number,
+  isEn: boolean,
 ): string {
   const amt = m.amount;
+  const act = (ko: string, en: string) => (isEn ? en : ko);
   if (m.action === "체크(자동)") return "";
-  if (m.action === "체크") return `${name} · 체크`;
+  if (m.action === "체크") return `${name} · ${act("체크", "Check")}`;
   if (m.action === "콜") {
     const tail =
       amt != null ? `${FLASH_ARROW}${chipsAsBbLabel(amt, bbUnit)}` : "";
-    return `${name} · 콜${tail}`;
+    return `${name} · ${act("콜", "Call")}${tail}`;
   }
   if (m.action === "올인 콜") {
     const tail =
       amt != null ? `${FLASH_ARROW}${chipsAsBbLabel(amt, bbUnit)}` : "";
-    return `${name} · 올인 콜${tail}`;
+    return `${name} · ${act("올인 콜", "All-in Call")}${tail}`;
   }
   if (m.action === "레이즈") {
     const tail =
-      amt != null ? `${FLASH_ARROW}총 ${chipsAsBbLabel(amt, bbUnit)}` : "";
-    return `${name} · 레이즈${tail}`;
+      amt != null
+        ? `${FLASH_ARROW}${isEn ? "total " : "총 "}${chipsAsBbLabel(amt, bbUnit)}`
+        : "";
+    return `${name} · ${act("레이즈", "Raise")}${tail}`;
   }
   if (m.action === "베트") {
     const tail =
       amt != null ? `${FLASH_ARROW}${chipsAsBbLabel(amt, bbUnit)}` : "";
-    return `${name} · 베팅${tail}`;
+    return `${name} · ${act("베팅", "Bet")}${tail}`;
   }
   if (m.action === "올인") {
     const tail =
-      amt != null ? `${FLASH_ARROW}총 ${chipsAsBbLabel(amt, bbUnit)}` : "";
-    return `${name} · 올인${tail}`;
+      amt != null
+        ? `${FLASH_ARROW}${isEn ? "total " : "총 "}${chipsAsBbLabel(amt, bbUnit)}`
+        : "";
+    return `${name} · ${act("올인", "All-in")}${tail}`;
   }
   return `${name} · ${m.action}`;
 }
@@ -115,6 +122,8 @@ export function PlayAreaPotBetting({
   viewer,
   playerNames,
 }: PlayAreaPotBettingProps) {
+  const { locale } = useHoldemI18n();
+  const isEn = locale === "en";
   const snapRef = React.useRef({
     pot: state.pot,
     c0: state.chips[0],
@@ -210,7 +219,9 @@ export function PlayAreaPotBetting({
       else playBettingIASound();
       setStrip({
         id: stripIdRef.current,
-        text: `${name} · IA (−${chipsAsBbLabel(last.cost, bb)} · 스택에서 차감)`,
+        text: isEn
+          ? `${name} · IA (−${chipsAsBbLabel(last.cost, bb)} · from stack)`
+          : `${name} · IA (−${chipsAsBbLabel(last.cost, bb)} · 스택에서 차감)`,
         who: isHero ? "hero" : "opp",
         agg: true,
       });
@@ -219,7 +230,7 @@ export function PlayAreaPotBetting({
 
     const isHero = last.player === me;
     const name = playerNames[last.player]!;
-    const text = formatBettingFlashLine(last, name, bb);
+    const text = formatBettingFlashLine(last, name, bb, isEn);
     if (!text) return;
 
     const agg = isAggressiveAction(last.action);
@@ -250,7 +261,7 @@ export function PlayAreaPotBetting({
       who: isHero ? "hero" : "opp",
       agg,
     });
-  }, [logsSig, viewer, playerNames]);
+  }, [logsSig, viewer, playerNames, isEn]);
 
   const potBbUnit = resolveHandBlinds(state).bb;
   const allInSeats = ([0, 1] as PlayerIndex[]).filter(
@@ -300,10 +311,14 @@ export function PlayAreaPotBetting({
     <div className="rounded-xl border border-amber-900/45 bg-gradient-to-b from-zinc-900/80 to-zinc-800/90 px-3 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] sm:px-4 lg:border-amber-800/50">
       <div
         className="flex flex-wrap items-baseline justify-center gap-x-1.5 gap-y-0.5"
-        aria-label={`팟: ${fmtChips(state.pot)}칩 = ${potInBbCompact(state.pot, potBbUnit)}`}
+        aria-label={
+          isEn
+            ? `Pot: ${fmtChips(state.pot)} chips = ${potInBbCompact(state.pot, potBbUnit)}`
+            : `팟: ${fmtChips(state.pot)}칩 = ${potInBbCompact(state.pot, potBbUnit)}`
+        }
       >
         <span className="text-xl font-bold uppercase leading-none tracking-wide text-amber-500/95 lg:text-2xl">
-          팟{":  "}
+          {isEn ? "POT:  " : "팟:  "}
         </span>
         <span
           key={potBumpKey}
@@ -327,7 +342,9 @@ export function PlayAreaPotBetting({
           >
             {fmtChips(state.pot)}
           </span>
-          <span className="font-sans font-bold text-amber-100/95">칩</span>
+          <span className="font-sans font-bold text-amber-100/95">
+            {isEn ? "chips" : "칩"}
+          </span>
         </span>
         <span
           className="select-none text-xl font-bold leading-none text-amber-200/55 lg:text-2xl"
@@ -374,7 +391,7 @@ export function PlayAreaPotBetting({
             className="flex min-h-[2.75rem] items-center justify-center rounded-lg border border-dashed border-zinc-700/50 bg-zinc-900/25 text-[11px] text-zinc-500"
             aria-hidden
           >
-            베팅 액션이 여기 표시됩니다
+            {isEn ? "Betting actions appear here" : "베팅 액션이 여기 표시됩니다"}
           </div>
         )}
       </div>

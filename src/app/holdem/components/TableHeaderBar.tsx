@@ -18,6 +18,7 @@ import {
   HU_DEALER_SB_LABEL,
   headsUpPositionLabel,
 } from "@/holdem/headsUpLabels";
+import { useHoldemI18n } from "@/holdem/i18n/HoldemLocaleProvider";
 import type { GameState, PlayerIndex } from "@/holdem/types";
 import { useHoldemMotionMode } from "../HoldemMotionRuntime";
 import { useTurnPulse } from "../hooks/useTurnPulse";
@@ -54,6 +55,8 @@ function flashMagnitude(f: [number, number] | null): boolean {
 }
 
 export function TableHeaderBar({ state, playerNames }: TableHeaderBarProps) {
+  const { locale } = useHoldemI18n();
+  const isEn = locale === "en";
   const motionMode = useHoldemMotionMode();
   const subtleMotion = motionMode === "subtle";
   const turnPulse = useTurnPulse(state.toAct, {
@@ -92,6 +95,8 @@ export function TableHeaderBar({ state, playerNames }: TableHeaderBarProps) {
   const btnName = playerNames[state.button]!;
   const bbSeat: PlayerIndex = state.button === 0 ? 1 : 0;
   const bbName = playerNames[bbSeat]!;
+  const dealerLabel = isEn ? "Dealer · SB" : HU_DEALER_SB_LABEL;
+  const bbLabel = HU_BB_LABEL;
   const hb = resolveHandBlinds(state);
   const blindLine = formatBlindTriple({
     smallBlind: hb.sb,
@@ -101,10 +106,14 @@ export function TableHeaderBar({ state, playerNames }: TableHeaderBarProps) {
   const nextR = nextBlindTierStartRound(state.roundNumber);
   const nextBlindHint =
     nextR != null
-      ? `${nextR}R부터 ${formatBlindTriple(getBlindLevel(nextR))}`
-      : "이후 상향 없음 (최종 티어)";
+      ? isEn
+        ? `from R${nextR}: ${formatBlindTriple(getBlindLevel(nextR))}`
+        : `${nextR}R부터 ${formatBlindTriple(getBlindLevel(nextR))}`
+      : isEn
+        ? "No further increase (final tier)"
+        : "이후 상향 없음 (최종 티어)";
 
-  const blindTooltip = `${debugBlindLine(state.roundNumber, hb)}\n다음: ${nextBlindHint}\nIA 누적: ${fmtChips(iaRemovedTotal)}칩`;
+  const blindTooltip = `${debugBlindLine(state.roundNumber, hb)}\n${isEn ? "Next" : "다음"}: ${nextBlindHint}\n${isEn ? "IA total" : "IA 누적"}: ${fmtChips(iaRemovedTotal)}${isEn ? " chips" : "칩"}`;
 
   return (
     <>
@@ -119,7 +128,7 @@ export function TableHeaderBar({ state, playerNames }: TableHeaderBarProps) {
             style={{ animation: "holdem-blind-up 1.2s ease-out forwards" }}
           >
             <p className="text-center text-2xl font-black uppercase tracking-[0.18em] text-amber-300 drop-shadow-[0_2px_8px_rgba(0,0,0,0.75)] sm:text-3xl">
-              블라인드 UP
+              {isEn ? "BLINDS UP" : "블라인드 UP"}
             </p>
           </div>
         </div>
@@ -131,7 +140,7 @@ export function TableHeaderBar({ state, playerNames }: TableHeaderBarProps) {
           className={`shrink-0 text-zinc-100 ${headerMetaMono}`}
           title={debugBlindLine(state.roundNumber, hb)}
         >
-          라운드 {state.roundNumber}
+          {isEn ? "ROUND" : "라운드"} {state.roundNumber}
           <span className="font-semibold text-zinc-400"> / {TOTAL_ROUNDS}</span>
         </span>
         <span className="hidden shrink-0 text-zinc-600 sm:inline" aria-hidden>
@@ -142,7 +151,9 @@ export function TableHeaderBar({ state, playerNames }: TableHeaderBarProps) {
           title={blindTooltip}
         >
           <span className={`text-amber-100 ${headerMetaMono}`}>
-            <span className="font-sans font-semibold text-white">현재 블라인드{":  "}</span>
+            <span className="font-sans font-semibold text-white">
+              {isEn ? "BLINDS:  " : "현재 블라인드:  "}
+            </span>
             {blindLine}
           </span>
         </span>
@@ -151,9 +162,14 @@ export function TableHeaderBar({ state, playerNames }: TableHeaderBarProps) {
         </span>
         <span
           className={`hidden shrink-0 text-zinc-100 sm:inline ${headerMetaMono}`}
-          title="매치 시작부터 IA로 팟에서 빠져 나간 칩 누적(칩 단위)"
+          title={
+            isEn
+              ? "Total chips removed by IA since match start"
+              : "매치 시작부터 IA로 팟에서 빠져 나간 칩 누적(칩 단위)"
+          }
         >
-          IA 누적 {fmtChips(iaRemovedTotal)}칩
+          {isEn ? "IA total" : "IA 누적"} {fmtChips(iaRemovedTotal)}
+          {isEn ? " chips" : "칩"}
         </span>
         <span className="hidden shrink-0 text-zinc-600 lg:inline" aria-hidden>
           ·
@@ -162,10 +178,10 @@ export function TableHeaderBar({ state, playerNames }: TableHeaderBarProps) {
           className="hidden min-w-0 shrink text-[10px] text-zinc-400 md:inline md:text-[11px]"
           title={HEADS_UP_RULES_BLURB}
         >
-          {HU_DEALER_SB_LABEL}{" "}
+          {isEn ? dealerLabel : HU_DEALER_SB_LABEL}{" "}
           <span className="font-medium text-zinc-200">{btnName}</span>
           <span className="mx-0.5 text-zinc-600">·</span>
-          {HU_BB_LABEL}{" "}
+          {bbLabel}{" "}
           <span className="font-medium text-zinc-200">{bbName}</span>
         </span>
       </div>
@@ -181,7 +197,10 @@ export function TableHeaderBar({ state, playerNames }: TableHeaderBarProps) {
             bettingUi && state.toAct === p;
           const dimOpponentTurn = bettingUi && state.toAct !== p;
           const label = playerNames[p]!;
-          const blindTag = headsUpPositionLabel(state, p);
+          const blindTagRaw = headsUpPositionLabel(state, p);
+          const blindTag = isEn && blindTagRaw === HU_DEALER_SB_LABEL
+            ? "Dealer · SB"
+            : blindTagRaw;
           const flashDelta = state.potAwardFlash?.[p] ?? 0;
           const showPotFlash =
             gainVisible &&
@@ -228,7 +247,11 @@ export function TableHeaderBar({ state, playerNames }: TableHeaderBarProps) {
               <div className="mt-1 flex min-h-[1.5rem] items-center justify-between gap-2">
                 <div
                   className="flex min-w-0 shrink flex-wrap items-baseline gap-x-1.5 gap-y-0"
-                  title={`BB 1단위 = ${fmtChips(hb.bb)}칩 · 라운드 ${state.roundNumber}`}
+                  title={
+                    isEn
+                      ? `1 BB = ${fmtChips(hb.bb)} chips · round ${state.roundNumber}`
+                      : `BB 1단위 = ${fmtChips(hb.bb)}칩 · 라운드 ${state.roundNumber}`
+                  }
                 >
                   <span
                     className="font-mono text-zinc-100"
@@ -252,7 +275,7 @@ export function TableHeaderBar({ state, playerNames }: TableHeaderBarProps) {
                 <div className="flex shrink-0 flex-col items-end gap-1">
                   {acting ? (
                     <span className="rounded-md bg-emerald-700/40 px-2 py-0.5 text-[10px] font-bold text-emerald-100">
-                      행동 중
+                      {isEn ? "ACTING" : "행동 중"}
                     </span>
                   ) : null}
                   {showPotFlash ? (

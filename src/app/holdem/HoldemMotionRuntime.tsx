@@ -26,9 +26,7 @@ export function HoldemMotionRuntime({
     typeof window !== "undefined" ? computeHoldemMotionMode() : "normal",
   );
   const [dbg, setDbg] = React.useState(() =>
-    typeof window !== "undefined" &&
-    process.env.NODE_ENV === "development" &&
-    loadMotionDebugEnabled(),
+    false,
   );
 
   React.useLayoutEffect(() => {

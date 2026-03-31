@@ -3,11 +3,12 @@ import { NextResponse } from "next/server";
 import { createRoomInitialGameState } from "@/holdem/gameReducer";
 import {
   isRoomPersistenceConfigured,
+  lobbyAdd,
   roomSet,
   type RoomBlob,
 } from "@/server/roomStore";
 
-export async function POST() {
+export async function POST(req: Request) {
   if (!isRoomPersistenceConfigured()) {
     return NextResponse.json(
       {
@@ -18,6 +19,18 @@ export async function POST() {
     );
   }
 
+  let isPublic = false;
+  let hostNickname = "";
+  try {
+    const body = (await req.json()) as { public?: boolean; hostNickname?: string };
+    if (body.public === true) isPublic = true;
+    if (typeof body.hostNickname === "string") {
+      hostNickname = body.hostNickname.trim().slice(0, 24);
+    }
+  } catch {
+    // body 없는 기존 호출 허용 (비공개 방)
+  }
+
   const roomId = randomBytes(4).toString("hex");
   const token0 = randomBytes(24).toString("hex");
   const blob: RoomBlob = {
@@ -25,8 +38,15 @@ export async function POST() {
     stateVersion: 0,
     tokens: [token0, null],
     rematchAccepted: [false, false],
+    disconnected: [false, false],
+    ...(isPublic && {
+      public: true,
+      hostNickname: hostNickname || "Player 1",
+      createdAt: Date.now(),
+    }),
   };
   await roomSet(roomId, blob);
+  if (isPublic) await lobbyAdd(roomId);
 
   return NextResponse.json({
     roomId,

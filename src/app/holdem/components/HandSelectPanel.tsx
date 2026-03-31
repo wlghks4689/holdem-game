@@ -8,6 +8,7 @@ import {
   templateLabel,
 } from "@/holdem/handPool";
 import { HU_BB_LABEL, HU_DEALER_SB_LABEL } from "@/holdem/headsUpLabels";
+import { useHoldemI18n } from "@/holdem/i18n/HoldemLocaleProvider";
 import type {
   GameState,
   HandPoolTemplate,
@@ -31,6 +32,24 @@ const CATEGORY_BLURB: Record<OpponentHandCategory, string> = {
   미들파켓: "세트 마이닝, 중간 강도 정면 싸움",
   로우파켓: "숨은 세트, 상대 상위 보드에 유리",
   "커넥터 수딧": "드로우 잠재력 높음, 변동성 큼",
+};
+
+const CATEGORY_LABEL_EN: Record<OpponentHandCategory, string> = {
+  "하이파켓": "High Pairs",
+  "Ax 오프수트": "Ax Offsuit",
+  "브로드웨이 수딧": "Broadway Suited",
+  "미들파켓": "Middle Pairs",
+  "로우파켓": "Low Pairs",
+  "커넥터 수딧": "Suited Connectors",
+};
+
+const CATEGORY_BLURB_EN: Record<OpponentHandCategory, string> = {
+  "하이파켓": "Premium pairs, strong postflop pressure",
+  "Ax 오프수트": "Top-kicker structure, clear endgame lines",
+  "브로드웨이 수딧": "Nut potential on connected boards",
+  "미들파켓": "Set mining and medium-strength fights",
+  "로우파켓": "Hidden sets with board leverage",
+  "커넥터 수딧": "High draw potential, higher variance",
 };
 
 function kindLabelKo(t: HandPoolTemplate): string {
@@ -74,6 +93,8 @@ function HandPickerColumn({
   compact,
   onSelect,
 }: ColumnProps) {
+  const { locale } = useHoldemI18n();
+  const isEn = locale === "en";
   const phase = state.handSelectPhase;
   const [pick, setPick] = React.useState<string | null>(null);
 
@@ -129,11 +150,11 @@ function HandPickerColumn({
         <span className="font-normal text-violet-200/90">({posLabel})</span>
         {pending != null ? (
           <span className="ml-auto rounded-full bg-emerald-600/35 px-2 py-px text-[10px] font-bold text-emerald-100">
-            확정됨
+            {isEn ? "LOCKED" : "확정됨"}
           </span>
         ) : (
           <span className="ml-auto rounded-full bg-amber-600/30 px-2 py-px text-[10px] font-bold text-amber-100">
-            선택 중
+            {isEn ? "PICKING" : "선택 중"}
           </span>
         )}
       </h3>
@@ -157,11 +178,11 @@ function HandPickerColumn({
                 ].join(" ")}
               >
                 <h4 className="text-[10px] font-bold uppercase tracking-wide text-zinc-100">
-                  {cat}
+                  {isEn ? CATEGORY_LABEL_EN[cat] : cat}
                 </h4>
                 {!compact ? (
                   <p className="mt-0.5 text-[11px] leading-snug text-zinc-400">
-                    {CATEGORY_BLURB[cat]}
+                    {isEn ? CATEGORY_BLURB_EN[cat] : CATEGORY_BLURB[cat]}
                   </p>
                 ) : null}
               </div>
@@ -176,7 +197,11 @@ function HandPickerColumn({
                       type="button"
                       disabled={dead}
                       onClick={() => onHandClick(t.id)}
-                      title={`${templateLabel(t)} · 잔여 ×${left}`}
+                      title={
+                        isEn
+                          ? `${templateLabel(t)} · remaining ×${left}`
+                          : `${templateLabel(t)} · 잔여 ×${left}`
+                      }
                       className={[
                         "group relative flex flex-col items-center justify-center rounded-md border px-0.5 py-1 text-center transition-all",
                         btnMinH,
@@ -222,24 +247,39 @@ function HandPickerColumn({
       >
         <div>
           <div className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400">
-            현재 선택
+            {isEn ? "Current Pick" : "현재 선택"}
           </div>
           {tpl ? (
             <div className="mt-1 space-y-0.5 text-xs">
               <p className="text-zinc-50">
-                <span className="text-zinc-400">핸드 · </span>
+                <span className="text-zinc-400">{isEn ? "Hand · " : "핸드 · "}</span>
                 <span className="font-mono font-semibold text-amber-100">
                   {templateLabel(tpl)}
                 </span>
-                <span className="text-zinc-400"> ({kindLabelKo(tpl)})</span>
+                <span className="text-zinc-400">
+                  {" "}
+                  (
+                  {isEn
+                    ? tpl.kind === "pair"
+                      ? "pair"
+                      : tpl.kind === "suited"
+                        ? "suited"
+                        : "offsuit"
+                    : kindLabelKo(tpl)}
+                  )
+                </span>
               </p>
               <p className="text-[11px] text-zinc-300">
-                <span className="text-zinc-500">카테고리 · </span>
-                {categoryForPick}
+                <span className="text-zinc-500">{isEn ? "Category · " : "카테고리 · "}</span>
+                {categoryForPick != null && isEn
+                  ? CATEGORY_LABEL_EN[categoryForPick]
+                  : categoryForPick}
               </p>
             </div>
           ) : (
-            <p className="mt-1 text-[11px] text-zinc-400">위에서 핸드를 고르세요.</p>
+            <p className="mt-1 text-[11px] text-zinc-400">
+              {isEn ? "Choose a hand above." : "위에서 핸드를 고르세요."}
+            </p>
           )}
         </div>
 
@@ -254,12 +294,13 @@ function HandPickerColumn({
               : "cursor-not-allowed bg-zinc-700 text-zinc-400",
           ].join(" ")}
         >
-          이 핸드로 확정
+          {isEn ? "Lock this hand" : "이 핸드로 확정"}
         </button>
         {pending != null ? (
           <p className="text-[10px] leading-snug text-zinc-500">
-            확정 후에도 상대가 끝나기 전까지는 다른 핸드로 골라 다시 확정할 수
-            있어요.
+            {isEn
+              ? "Until your opponent finishes, you can still choose another hand and lock again."
+              : "확정 후에도 상대가 끝나기 전까지는 다른 핸드로 골라 다시 확정할 수 있어요."}
           </p>
         ) : null}
       </div>
@@ -273,6 +314,8 @@ export function HandSelectPanel({
   mySeat,
   onSelect,
 }: HandSelectPanelProps) {
+  const { locale } = useHoldemI18n();
+  const isEn = locale === "en";
   const phase = state.handSelectPhase;
   if (phase === "done") return null;
 
@@ -295,14 +338,15 @@ export function HandSelectPanel({
   return (
     <div className="rounded-xl border border-violet-600/45 bg-violet-900/22 p-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] sm:p-3">
       <h3 className="mb-2 text-sm font-semibold text-violet-50">
-        핸드 선택{" "}
+        {isEn ? "Hand Select" : "핸드 선택"}{" "}
         <span className="font-normal text-violet-200/90">
-          — 둘 다 동시에 고른 뒤 각자 확정
+          {isEn ? "— pick simultaneously, then lock individually" : "— 둘 다 동시에 고른 뒤 각자 확정"}
         </span>
       </h3>
       <p className="mb-3 text-[11px] leading-snug text-zinc-400">
-        차례를 기다리지 않아도 됩니다. 한쪽만 먼저 확정하면 다른 쪽 확정 시
-        바로 이어집니다.
+        {isEn
+          ? "No turn wait needed. If one side locks first, play continues as soon as the other side locks."
+          : "차례를 기다리지 않아도 됩니다. 한쪽만 먼저 확정하면 다른 쪽 확정 시 바로 이어집니다."}
       </p>
       <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
         <HandPickerColumn
@@ -321,8 +365,9 @@ export function HandSelectPanel({
         />
       </div>
       <p className="mt-3 rounded-md border border-zinc-600/70 bg-zinc-800/45 px-2.5 py-2 text-[10px] leading-snug text-zinc-400">
-        페어·수딧·오프는 문양 없이 고릅니다. 같은 핸드여도 52장에 겹치지 않게
-        문양이 무작위로 배정됩니다.
+        {isEn
+          ? "Pair/suited/offsuit are selected without suits. Suits are assigned randomly to avoid card collisions in the 52-card deck."
+          : "페어·수딧·오프는 문양 없이 고릅니다. 같은 핸드여도 52장에 겹치지 않게 문양이 무작위로 배정됩니다."}
       </p>
     </div>
   );

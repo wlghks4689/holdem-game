@@ -33,6 +33,7 @@ import { actionTimerLimitMs } from "@/holdem/actionTimer";
 import { resolveHandBlinds } from "@/holdem/blindLevels";
 import { chipsAsBbLabel } from "@/holdem/formatBb";
 import { headsUpPositionLabel } from "@/holdem/headsUpLabels";
+import { useHoldemI18n } from "@/holdem/i18n/HoldemLocaleProvider";
 import type { GameAction, GameState, PlayerIndex } from "@/holdem/types";
 
 // ─── types ────────────────────────────────────────────────────────────────────
@@ -53,10 +54,12 @@ function ActionTimerChip({
   secondsLeft,
   isHandSelect,
   limitSeconds,
+  isEn = false,
 }: {
   secondsLeft: number;
   isHandSelect: boolean;
   limitSeconds?: number;
+  isEn?: boolean;
 }) {
   const limitForTitle =
     limitSeconds ?? (isHandSelect ? HAND_SELECT_TIMER_SECONDS : ACTION_TIMER_SECONDS);
@@ -71,11 +74,15 @@ function ActionTimerChip({
       style={{ fontSize: "calc(0.75rem * 1.3)" }}
       title={
         isHandSelect
-          ? `${HAND_SELECT_TIMER_SECONDS}초 안에 미확정 좌석은 풀에서 가능한 첫 핸드로 자동 제출됩니다.`
-          : `${limitForTitle}초 안에 액션이 없으면 자동 체크(맞출 베팅이 없을 때) 또는 폴드됩니다.`
+          ? isEn
+            ? `Unconfirmed seats auto-submit in ${HAND_SELECT_TIMER_SECONDS}s.`
+            : `${HAND_SELECT_TIMER_SECONDS}초 안에 미확정 좌석은 풀에서 가능한 첫 핸드로 자동 제출됩니다.`
+          : isEn
+            ? `No action in ${limitForTitle}s triggers auto-check/fold by state.`
+            : `${limitForTitle}초 안에 액션이 없으면 자동 체크(맞출 베팅이 없을 때) 또는 폴드됩니다.`
       }
     >
-      남은 시간 {secondsLeft}s
+      {isEn ? "Time left" : "남은 시간"} {secondsLeft}s
     </div>
   );
 }
@@ -275,7 +282,10 @@ export function ActionPanel({
   mySeat,
   actionTimerSecondsLeft = null,
 }: ActionPanelProps) {
-  const pl = (p: PlayerIndex) => playerNames[p] ?? `플레이어 ${p + 1}`;
+  const { locale } = useHoldemI18n();
+  const isEn = locale === "en";
+  const pl = (p: PlayerIndex) =>
+    playerNames[p] ?? `${isEn ? "Player" : "플레이어"} ${p + 1}`;
   const p = state.toAct;
 
   // ── 슬라이더 값 상태 (string draft → number로 변경) ─────────────────────
@@ -435,9 +445,11 @@ export function ActionPanel({
   if (state.matchWinner != null) {
     return (
       <div className="rounded-xl border border-emerald-600/50 bg-emerald-900/25 p-4 text-center">
-        <p className="text-lg font-bold text-emerald-200">매치 종료</p>
+        <p className="text-lg font-bold text-emerald-200">
+          {isEn ? "Match over" : "매치 종료"}
+        </p>
         <p className="mt-1 text-sm text-zinc-200">
-          승자:{" "}
+          {isEn ? "Winner:" : "승자:"}{" "}
           <span className="font-mono text-emerald-100">{pl(state.matchWinner)}</span>
         </p>
       </div>
@@ -447,21 +459,26 @@ export function ActionPanel({
   if (phase === "lobby") {
     return (
       <div className="rounded-xl border border-zinc-700/60 bg-zinc-800/40 p-3 text-center text-sm text-zinc-500">
-        게임 시작 대기 중…
+        {isEn ? "Waiting for game start…" : "게임 시작 대기 중…"}
       </div>
     );
   }
 
   if (phase === "hand_select") {
     return (
-      <div className="rounded-xl border border-amber-500/40 bg-amber-950/20 p-2.5 text-sm text-amber-50/95">
+      <div className="rounded-xl border border-amber-500/40 bg-amber-950/20 p-2 text-sm text-amber-50/95">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <p className="min-w-0 flex-1 text-[13px] leading-snug">
-            핸드 풀에서 <strong className="text-amber-100">동시에</strong> 고를 수
-            있습니다. 상단에서 확정하면 프리플랍으로 넘어갑니다.
+            {isEn
+              ? "Pick your hand and lock it in before the timer ends."
+              : "제한 시간 내 핸드를 선택하고 확정하세요."}
           </p>
           {actionTimerSecondsLeft != null ? (
-            <ActionTimerChip secondsLeft={actionTimerSecondsLeft} isHandSelect />
+            <ActionTimerChip
+              secondsLeft={actionTimerSecondsLeft}
+              isHandSelect
+              isEn={isEn}
+            />
           ) : null}
         </div>
       </div>
@@ -470,19 +487,29 @@ export function ActionPanel({
 
   if (phase === "showdown" || phase === "hand_over") {
     const w =
-      state.winner != null ? `이번 판 승자: ${pl(state.winner)}` : "이번 판 종료";
+      state.winner != null
+        ? isEn
+          ? `Hand winner: ${pl(state.winner)}`
+          : `이번 판 승자: ${pl(state.winner)}`
+        : isEn
+          ? "Hand finished"
+          : "이번 판 종료";
     const foldEnd = state.handEndMode === "fold";
     return (
-      <div className="space-y-2 rounded-xl border border-zinc-600/90 bg-zinc-700/55 p-3">
+      <div className="space-y-1.5 rounded-xl border border-zinc-600/90 bg-zinc-700/55 p-2.5">
         <p className="text-sm font-medium text-zinc-100">{w}</p>
         {phase === "showdown" ? (
           <p className="text-[11px] text-zinc-400">
-            족보 비교는 상단 쇼다운 박스를 참고하세요.
+            {isEn
+              ? "See the showdown panel above for hand comparison."
+              : "족보 비교는 상단 쇼다운 박스를 참고하세요."}
           </p>
         ) : null}
         {foldEnd ? (
           <p className="text-[11px] text-zinc-400">
-            폴드 종료 — 상대 홀 카드는 공개되지 않았습니다.
+            {isEn
+              ? "Fold end — opponent hole cards stayed hidden."
+              : "폴드 종료 — 상대 홀 카드는 공개되지 않았습니다."}
           </p>
         ) : null}
         <div className="flex flex-col gap-2 sm:flex-row sm:items-stretch sm:gap-3">
@@ -495,14 +522,14 @@ export function ActionPanel({
               void dispatch({ type: "NEW_HAND" });
             }}
           >
-            다음 핸드
+            {isEn ? "Next hand" : "다음 핸드"}
           </button>
           <div
             className="flex flex-col items-center justify-center gap-0.5 rounded-lg border border-zinc-600/80 bg-zinc-800/50 px-3 py-2 text-center sm:min-w-[6.5rem]"
             title={`${NEW_HAND_AUTO_SECONDS}초 후 자동으로 다음 라운드(핸드 선택)가 시작됩니다.`}
           >
             <span className="text-[9px] font-medium uppercase tracking-wide text-zinc-500">
-              자동 시작
+              {isEn ? "AUTO START" : "자동 시작"}
             </span>
             <span className="font-mono text-base font-semibold tabular-nums text-emerald-300">
               {nextHandAutoLeft != null ? `${nextHandAutoLeft}s` : "…"}
@@ -520,17 +547,28 @@ export function ActionPanel({
       <div className="rounded-xl border border-zinc-600/60 bg-zinc-900/45 p-2.5 opacity-[0.72] shadow-inner">
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-zinc-700/50 pb-2">
           <p className="text-sm font-medium text-zinc-300">
-            지금은 <span className="text-amber-100/90">{pl(p)}</span> 차례
+            {isEn ? (
+              <>
+                Waiting for <span className="text-amber-100/90">{pl(p)}</span>
+              </>
+            ) : (
+              <>
+                지금은 <span className="text-amber-100/90">{pl(p)}</span> 차례
+              </>
+            )}
           </p>
           {actionTimerSecondsLeft != null ? (
             <ActionTimerChip
               secondsLeft={actionTimerSecondsLeft}
               isHandSelect={false}
               limitSeconds={streetActionLimitSec}
+              isEn={isEn}
             />
           ) : null}
         </div>
-        <p className="mt-2 text-center text-[11px] text-zinc-500">상대 액션 대기 중</p>
+        <p className="mt-2 text-center text-[11px] text-zinc-500">
+          {isEn ? "Waiting for opponent action" : "상대 액션 대기 중"}
+        </p>
       </div>
     );
   }
@@ -562,7 +600,6 @@ export function ActionPanel({
     !isAllIn;
 
   // ── 프리플랍 ──────────────────────────────────────────────────────────────
-  const preRaiseCap = preflop ? preflopMaxRaiseTargetForActor(state) : 0;
   const preflopRange = preflop ? preflopRaiseSliderRange(state) : null;
   const showPreflopRaise = preflopRange != null;
   const isBbToAct = preflop && p !== state.button;
@@ -647,12 +684,6 @@ export function ActionPanel({
   }
 
   const posShort = headsUpPositionLabel(state, p);
-  const preflopBbOptionLimpHint =
-    state.preflopStage === "bb_option" &&
-    isBbToAct &&
-    facing <= 1e-9 &&
-    state.preflopRaiseCount < 1;
-
   // ── 프리플랍 레이즈 슬라이더 블록 ─────────────────────────────────────────
   const preflopRaiseBlock =
     showPreflopRaise && preflopRange != null && !hideReraiseStreet ? (
@@ -695,7 +726,7 @@ export function ActionPanel({
   return (
     <div
       className={[
-        "space-y-2.5 rounded-xl border-2 bg-zinc-700/55 p-2.5 transition-[box-shadow] duration-300",
+        "space-y-2 rounded-xl border-2 bg-zinc-700/55 p-2 transition-[box-shadow] duration-300",
         mySeat != null
           ? "border-emerald-500/55 shadow-[0_0_28px_rgba(52,211,153,0.22)] ring-1 ring-emerald-400/35"
           : "border-emerald-400/50 shadow-[0_0_32px_rgba(52,211,153,0.28)] ring-1 ring-emerald-400/40",
@@ -703,18 +734,19 @@ export function ActionPanel({
       style={{ animation: "holdem-active-turn-glow 2.4s ease-in-out infinite" }}
     >
       {/* ── 헤더 ── */}
-      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border-b border-zinc-600/55 pb-1.5">
+      <div className="flex flex-wrap items-center justify-between gap-x-2.5 gap-y-1 border-b border-zinc-600/55 pb-1">
         <p className="min-w-0 flex-1 text-sm font-semibold text-zinc-50">
           <span className="mr-0.5" aria-hidden>
             👉
           </span>
-          {pl(p)} 액션 ({posShort})
+          {isEn ? `${pl(p)} action` : `${pl(p)} 액션`} ({posShort})
         </p>
         {actionTimerSecondsLeft != null ? (
           <ActionTimerChip
             secondsLeft={actionTimerSecondsLeft}
             isHandSelect={false}
             limitSeconds={streetActionLimitSec}
+            isEn={isEn}
           />
         ) : null}
       </div>
@@ -728,10 +760,20 @@ export function ActionPanel({
         </p>
       ) : facing > 0 && streetCapped ? (
         <p className="rounded-md border border-sky-500/40 bg-sky-950/25 px-2 py-1.5 text-[11px] text-sky-100/95">
-          <span className="font-semibold">레이즈 캡</span> — 이번 스트리트에서
-          레이즈가 허용 횟수에 도달했습니다.{" "}
-          <span className="font-semibold">콜</span> 또는{" "}
-          <span className="font-semibold">폴드</span>만 가능합니다.
+          {isEn ? (
+            <>
+              <span className="font-semibold">Raise cap</span> — raise limit reached this street.{" "}
+              <span className="font-semibold">Call</span> or{" "}
+              <span className="font-semibold">Fold</span> only.
+            </>
+          ) : (
+            <>
+              <span className="font-semibold">레이즈 캡</span> — 이번 스트리트에서
+              레이즈가 허용 횟수에 도달했습니다.{" "}
+              <span className="font-semibold">콜</span> 또는{" "}
+              <span className="font-semibold">폴드</span>만 가능합니다.
+            </>
+          )}
         </p>
       ) : null}
 
@@ -745,29 +787,27 @@ export function ActionPanel({
             onClick={() => void dispatch({ type: "USE_IA" })}
           >
             <span className="font-semibold text-indigo-50">IA</span>
-            <span className="text-[10px] font-normal text-indigo-200/90">비용</span>
+            <span className="text-[10px] font-normal text-indigo-200/90">
+              {isEn ? "Cost" : "비용"}
+            </span>
             <span className="text-sm font-extrabold tabular-nums tracking-tight text-amber-200">
               −{chipsAsBbLabel(iaCost, bbUnit)}
             </span>
           </button>
           <span className="text-[10px] text-indigo-200/80">
-            내 스택 차감 · 카테고리만 공개 · 사용 시 {IA_RIVER_ACTION_EXTRA_SECONDS}s 추가
+            {isEn
+              ? `Deduct from your stack · reveal category only · +${IA_RIVER_ACTION_EXTRA_SECONDS}s`
+              : `내 스택 차감 · 카테고리만 공개 · 사용 시 ${IA_RIVER_ACTION_EXTRA_SECONDS}s 추가`}
           </span>
         </div>
       ) : null}
 
       {/* ══════════════════ PREFLOP ══════════════════ */}
       {preflop ? (
-        <div className="space-y-2">
+        <div className="space-y-1.5">
           {/* button_acts: 딜러(SB) 첫 액션 */}
           {state.preflopStage === "button_acts" && p === state.button ? (
             <>
-              <p className="text-[10px] text-zinc-400">
-                딜러·SB — BB 총액까지 맞추기 (+{chipsAsBbLabel(facing, bbUnit)}).
-                <span className="block text-zinc-500">
-                  첫 프리플랍 액션 — 콜·레이즈만 가능 (폴드 없음).
-                </span>
-              </p>
               {preflopRaiseBlock}
               <div className="flex flex-wrap gap-2">
                 {facing > 0 && callPay > 0 ? (
@@ -799,14 +839,6 @@ export function ActionPanel({
           {/* bb_option: BB의 체크/레이즈 */}
           {state.preflopStage === "bb_option" && isBbToAct ? (
             <>
-              <p className="text-[10px] text-zinc-400">
-                BB 오픈 상한 {chipsAsBbLabel(preRaiseCap, bbUnit)}
-                {preflopBbOptionLimpHint ? (
-                  <span className="block text-zinc-500">
-                    상대 콜(림프) — 이 구간에서는 폴드할 수 없습니다.
-                  </span>
-                ) : null}
-              </p>
               {preflopRaiseBlock}
               <div className="flex flex-wrap gap-2">
                 {facing === 0 && !blockVoluntaryOpen ? (
@@ -836,12 +868,6 @@ export function ActionPanel({
           {/* facing_raise: BB — 리레이즈·콜·폴드 */}
           {state.preflopStage === "facing_raise" && isBbToAct ? (
             <>
-              <p className="text-[10px] text-zinc-400">
-                BB — 딜러·SB 오픈에 응답 · 상한{" "}
-                <span className="font-mono text-zinc-300">
-                  {chipsAsBbLabel(preRaiseCap, bbUnit)}
-                </span>
-              </p>
               {preflopRaiseBlock}
               <div className="flex flex-wrap gap-2">
                 {facing > 0 && callPay > 0 ? (
@@ -883,12 +909,6 @@ export function ActionPanel({
           {/* facing_raise: 딜러(SB) — 4-bet+·콜·폴드 */}
           {state.preflopStage === "facing_raise" && p === state.button ? (
             <>
-              <p className="text-[10px] text-zinc-400">
-                딜러·SB — 상대 레이즈에 응답 · 추가 레이즈 상한{" "}
-                <span className="font-mono text-zinc-300">
-                  {chipsAsBbLabel(preRaiseCap, bbUnit)}
-                </span>
-              </p>
               {preflopRaiseBlock}
               <div className="flex flex-wrap gap-2">
                 {facing > 0 && callPay > 0 ? (

@@ -32,6 +32,22 @@ export type MessageKey =
   | "home.dismiss"
   | "home.rejoin"
   | "home.creatingRoom"
+  | "home.createPrivate"
+  | "home.createPrivateDesc"
+  | "home.createPublic"
+  | "home.createPublicDesc"
+  | "home.browseRooms"
+  | "home.browseRoomsDesc"
+  | "rooms.title"
+  | "rooms.empty"
+  | "rooms.join"
+  | "rooms.back"
+  | "rooms.refresh"
+  | "rooms.hostLabel"
+  | "rooms.waiting"
+  | "rooms.joiningRoom"
+  | "rooms.joinError"
+  | "rooms.createdAgo"
   | "common.player"
   | "hole.myCards"
   | "hole.opponent"
@@ -72,16 +88,15 @@ const KO: Record<MessageKey, string> = {
     "영어 선택 시 주요 화면·버튼·족보 이름이 영어로 표시됩니다. 일부 메시지·로그는 아직 한국어일 수 있습니다.",
   "settings.sound": "사운드 효과",
   "settings.soundHint": "(준비 중 — 옵션만 저장됩니다)",
-  "home.title": "핸드 풀 홀덤",
+  "home.title": "핸드 셀렉 홀덤",
   "home.subtitle": "헤즈업 · 핸드 셀렉 · 리미트 홀덤",
   "home.settings": "환경 설정",
   "home.guide": "게임 설명",
   "home.guideDesc":
     "처음 하는 분도 30초면 이해할 수 있는 플레이 흐름 안내입니다.",
   "home.feedback": "의견 보내기",
-  "home.multiplayTitle": "멀티플레이 — 방 만들기",
-  "home.multiplayDesc":
-    "상대에게 링크만 보내면 됩니다. 방 코드는 필요 없어요.",
+  "home.multiplayTitle": "멀티플레이",
+  "home.multiplayDesc": "방 만들기, 방 참여, 비공개 방 선택 가능",
   "home.singleTitle": "싱글플레이",
   "home.singleDesc": "AI 상대와 1:1 · Easy / Normal / Hard 난이도 선택.",
   "home.settingsDesc": "닉네임, 메이드 연출, 언어, 사운드.",
@@ -93,6 +108,22 @@ const KO: Record<MessageKey, string> = {
   "home.dismiss": "무시",
   "home.rejoin": "돌아가기",
   "home.creatingRoom": "방 준비 중…",
+  "home.createPrivate": "비공개 방 만들기",
+  "home.createPrivateDesc": "초대 링크로만 입장 가능한 1:1 방을 만듭니다.",
+  "home.createPublic": "공개 방 만들기",
+  "home.createPublicDesc": "누구나 목록에서 찾아 입장할 수 있는 방을 만듭니다.",
+  "home.browseRooms": "공개 방 참여",
+  "home.browseRoomsDesc": "현재 대기 중인 공개 방 목록에서 골라 입장합니다.",
+  "rooms.title": "공개 방 목록",
+  "rooms.empty": "현재 대기 중인 공개 방이 없습니다.",
+  "rooms.join": "참여",
+  "rooms.back": "← 뒤로",
+  "rooms.refresh": "새로고침",
+  "rooms.hostLabel": "호스트",
+  "rooms.waiting": "대기 중",
+  "rooms.joiningRoom": "입장 중…",
+  "rooms.joinError": "방에 입장할 수 없습니다.",
+  "rooms.createdAgo": "전",
   "common.player": "플레이어",
   "hole.myCards": "내 카드",
   "hole.opponent": "상대",
@@ -134,15 +165,14 @@ const EN: Record<MessageKey, string> = {
     "English translates major UI, buttons, and hand names. Some logs or edge strings may stay in Korean until fully localized.",
   "settings.sound": "Sound effects",
   "settings.soundHint": "(coming soon — preference is saved)",
-  "home.title": "Hand-pool Hold’em",
+  "home.title": "Hand Select Hold’em",
   "home.subtitle": "Heads-up · hand select · limit hold’em",
   "home.settings": "Settings",
   "home.guide": "How to play",
   "home.guideDesc": "A quick walkthrough of how a hand flows.",
   "home.feedback": "Send feedback",
-  "home.multiplayTitle": "Multiplayer — create room",
-  "home.multiplayDesc":
-    "Send your opponent the link. No room code needed.",
+  "home.multiplayTitle": "Multiplayer",
+  "home.multiplayDesc": "Create, join, or set up a private room",
   "home.singleTitle": "Single-player",
   "home.singleDesc": "1v1 vs AI · Easy / Normal / Hard.",
   "home.settingsDesc": "Nickname, made-hand FX, language, sound.",
@@ -153,6 +183,22 @@ const EN: Record<MessageKey, string> = {
   "home.dismiss": "Dismiss",
   "home.rejoin": "Rejoin",
   "home.creatingRoom": "Preparing room…",
+  "home.createPrivate": "Create Private Room",
+  "home.createPrivateDesc": "Invite-only room — share the link with your opponent.",
+  "home.createPublic": "Create Public Room",
+  "home.createPublicDesc": "Open room that anyone can find and join from the list.",
+  "home.browseRooms": "Browse Rooms",
+  "home.browseRoomsDesc": "Find and join a public room that's waiting for players.",
+  "rooms.title": "Public Rooms",
+  "rooms.empty": "No public rooms available right now.",
+  "rooms.join": "Join",
+  "rooms.back": "← Back",
+  "rooms.refresh": "Refresh",
+  "rooms.hostLabel": "Host",
+  "rooms.waiting": "Waiting",
+  "rooms.joiningRoom": "Joining…",
+  "rooms.joinError": "Could not join the room.",
+  "rooms.createdAgo": "ago",
   "common.player": "Player",
   "hole.myCards": "Hero",
   "hole.opponent": "Villain",

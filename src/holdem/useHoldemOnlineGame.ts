@@ -32,6 +32,7 @@ export function useHoldemOnlineGame(opts: {
   });
   const [loadError, setLoadError] = React.useState<string | null>(null);
   const [guestJoined, setGuestJoined] = React.useState(false);
+  const [opponentLeft, setOpponentLeft] = React.useState(false);
   const [rematchAccepted, setRematchAccepted] = React.useState<[boolean, boolean]>([
     false,
     false,
@@ -54,6 +55,7 @@ export function useHoldemOnlineGame(opts: {
       stateVersion?: number;
       pause?: unknown;
       guestJoined?: boolean;
+      opponentLeft?: boolean;
       rematchAccepted?: [boolean, boolean];
     };
     if (!r.ok) {
@@ -70,6 +72,11 @@ export function useHoldemOnlineGame(opts: {
     }
     if (typeof j.guestJoined === "boolean") {
       setGuestJoined(j.guestJoined);
+    }
+    if (typeof j.opponentLeft === "boolean") {
+      setOpponentLeft(j.opponentLeft);
+    } else {
+      setOpponentLeft(false);
     }
     if (Array.isArray(j.rematchAccepted) && j.rematchAccepted.length === 2) {
       setRematchAccepted([Boolean(j.rematchAccepted[0]), Boolean(j.rematchAccepted[1])]);
@@ -257,6 +264,7 @@ export function useHoldemOnlineGame(opts: {
     pause,
     sendPauseCmd,
     guestJoined,
+    opponentLeft,
     rematchAccepted,
     sendRematchCmd,
   };

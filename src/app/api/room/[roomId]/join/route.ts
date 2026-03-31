@@ -2,6 +2,7 @@ import { randomBytes } from "crypto";
 import { NextResponse } from "next/server";
 import {
   assertValidRoomId,
+  lobbyRemove,
   roomGet,
   roomSet,
 } from "@/server/roomStore";
@@ -27,7 +28,10 @@ export async function POST(_req: Request, ctx: Ctx) {
 
   const token1 = randomBytes(24).toString("hex");
   blob.tokens[1] = token1;
+  blob.disconnected = [false, false];
   await roomSet(roomId, blob);
+  // 게스트 입장 완료 → 공개 방 목록에서 제거
+  if (blob.public) await lobbyRemove(roomId);
 
   return NextResponse.json({
     seat: 1 as const,

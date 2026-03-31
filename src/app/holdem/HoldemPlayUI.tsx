@@ -8,7 +8,7 @@ import type { GameAction, GameState, PlayerIndex, SelectedHand } from "@/holdem/
 import { HEADS_UP_RULES_BLURB } from "@/holdem/headsUpLabels";
 import { DEFAULT_HOLDEM_DISPLAY_NAMES } from "@/holdem/playerDisplayNames";
 import { useHoldemI18n } from "@/holdem/i18n/HoldemLocaleProvider";
-import { headsUpPositionLabel } from "@/holdem/headsUpLabels";
+import { HU_DEALER_SB_LABEL, headsUpPositionLabel } from "@/holdem/headsUpLabels";
 import { AllInShowdownCinemaOverlay } from "./components/AllInShowdownCinemaOverlay";
 import { AllInBanner } from "./components/AllInBanner";
 import { ActionPanel } from "./components/ActionPanel";
@@ -57,6 +57,8 @@ export type HoldemPlayUIProps = {
   onMatchRematch?: () => void;
   /** 매치 종료 모달 내 재경기 상태 라벨(온라인 동기화 표시) */
   matchRematchLabel?: string | null;
+  /** 상단 홈 이동 버튼 커스텀 동작 */
+  onGoHome?: () => void | Promise<void>;
 };
 
 export function HoldemPlayUI({
@@ -75,8 +77,10 @@ export function HoldemPlayUI({
   onlinePause,
   onMatchRematch,
   matchRematchLabel,
+  onGoHome,
 }: HoldemPlayUIProps) {
-  const { t } = useHoldemI18n();
+  const { t, locale } = useHoldemI18n();
+  const isEn = locale === "en";
 
   const showdownCinema = useAllInShowdownCinema(state);
   const winnerCinematicPulse =
@@ -144,16 +148,26 @@ export function HoldemPlayUI({
   const pauseMainLabel =
     localPause != null
       ? localPause.paused
-        ? "재개"
-        : "퍼즈"
+        ? isEn
+          ? "Resume"
+          : "재개"
+        : isEn
+          ? "Pause"
+          : "퍼즈"
       : onlinePause == null
         ? ""
         : onlinePause.pause.kind === "paused"
-          ? "재개"
+          ? isEn
+            ? "Resume"
+            : "재개"
           : onlinePause.pause.kind === "pending" &&
               onlinePause.pause.from === onlinePause.mySeat
-            ? "요청 취소"
-            : "퍼즈";
+            ? isEn
+              ? "Cancel request"
+              : "요청 취소"
+            : isEn
+              ? "Pause"
+              : "퍼즈";
 
   const [endMenuOpen, setEndMenuOpen] = React.useState(false);
   const endMenuDelayArmedRef = React.useRef<string | null>(null);
@@ -206,13 +220,15 @@ export function HoldemPlayUI({
               <div
                 className="w-full rounded-lg border border-amber-500/55 bg-amber-950/95 px-3 py-2.5 text-left shadow-lg ring-1 ring-amber-400/25"
                 role="dialog"
-                aria-label="퍼즈 요청"
+                aria-label={isEn ? "Pause request" : "퍼즈 요청"}
               >
                 <p className="text-xs font-semibold leading-snug text-amber-50">
-                  상대가 퍼즈를 요청하였습니다
+                  {isEn ? "Opponent requested pause" : "상대가 퍼즈를 요청하였습니다"}
                 </p>
                 <p className="mt-1 text-[10px] text-amber-200/80">
-                  수락 시 게임이 멈추고, 거절 시 그대로 진행됩니다.
+                  {isEn
+                    ? "Accept to pause game, reject to continue."
+                    : "수락 시 게임이 멈추고, 거절 시 그대로 진행됩니다."}
                 </p>
                 <div className="mt-2.5 flex flex-wrap justify-end gap-2">
                   <button
@@ -220,14 +236,14 @@ export function HoldemPlayUI({
                     onClick={() => onlinePause.onAccept()}
                     className="rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-500"
                   >
-                    수락
+                    {isEn ? "Accept" : "수락"}
                   </button>
                   <button
                     type="button"
                     onClick={() => onlinePause.onReject()}
                     className="rounded-md border border-zinc-500 bg-zinc-800 px-3 py-1.5 text-xs font-semibold text-zinc-100 hover:bg-zinc-700"
                   >
-                    거절
+                    {isEn ? "Reject" : "거절"}
                   </button>
                 </div>
               </div>
@@ -236,7 +252,7 @@ export function HoldemPlayUI({
             onlinePause.pause.kind === "pending" &&
             onlinePause.pause.from === onlinePause.mySeat ? (
               <p className="rounded-md border border-zinc-600 bg-zinc-900/90 px-2 py-1 text-[10px] text-zinc-300">
-                상대의 응답을 기다리는 중…
+                {isEn ? "Waiting for opponent response…" : "상대의 응답을 기다리는 중…"}
               </p>
             ) : null}
             <button
@@ -254,12 +270,22 @@ export function HoldemPlayUI({
               {pauseMainLabel}
             </button>
             {playMode === "online" || playMode === "single" ? (
-              <Link
-                href="/holdem"
-                className="rounded-lg border border-zinc-600/80 bg-zinc-800/80 px-3 py-2 text-xs font-semibold text-zinc-300 shadow-md hover:bg-zinc-700/80"
-              >
-                홈으로
-              </Link>
+              onGoHome ? (
+                <button
+                  type="button"
+                  onClick={() => void onGoHome()}
+                  className="rounded-lg border border-zinc-600/80 bg-zinc-800/80 px-3 py-2 text-xs font-semibold text-zinc-300 shadow-md hover:bg-zinc-700/80"
+                >
+                  {isEn ? "Home" : "홈으로"}
+                </button>
+              ) : (
+                <Link
+                  href="/holdem"
+                  className="rounded-lg border border-zinc-600/80 bg-zinc-800/80 px-3 py-2 text-xs font-semibold text-zinc-300 shadow-md hover:bg-zinc-700/80"
+                >
+                  {isEn ? "Home" : "홈으로"}
+                </Link>
+              )
             ) : null}
           </div>
         ) : null}
@@ -271,19 +297,26 @@ export function HoldemPlayUI({
             {playMode === "local" ? (
               <p
                 className="text-[11px] text-zinc-400 sm:text-xs"
-                title={`${HEADS_UP_RULES_BLURB} · 표시 이름은 이 기기에 저장됩니다`}
+                title={
+                  isEn
+                    ? "Heads-up hold'em: dealer is SB, opponent is BB. Dealer button alternates each hand."
+                    : `${HEADS_UP_RULES_BLURB} · 표시 이름은 이 기기에 저장됩니다`
+                }
               >
                 <span className="sm:hidden">
-                  {TOTAL_ROUNDS}R · {STARTING_CHIPS}칩 · 1bb=1칩
+                  {isEn
+                    ? `${TOTAL_ROUNDS}R · ${STARTING_CHIPS} chips · 1bb=1 chip`
+                    : `${TOTAL_ROUNDS}R · ${STARTING_CHIPS}칩 · 1bb=1칩`}
                 </span>
                 <span className="hidden sm:inline">
-                  {TOTAL_ROUNDS}라운드 · 시작 {STARTING_CHIPS}칩 (1bb=1칩) ·{" "}
-                  {HEADS_UP_RULES_BLURB} · 이름 로컬 저장
+                  {isEn
+                    ? `${TOTAL_ROUNDS} rounds · start ${STARTING_CHIPS} chips (1bb=1 chip) · Heads-up hold'em: dealer is SB, opponent is BB. Dealer button alternates each hand. · names saved locally`
+                    : `${TOTAL_ROUNDS}라운드 · 시작 ${STARTING_CHIPS}칩 (1bb=1칩) · ${HEADS_UP_RULES_BLURB} · 이름 로컬 저장`}
                 </span>
               </p>
             ) : playMode === "single" ? (
               <p className="text-xs text-zinc-400">
-                싱글플레이 · AI{" "}
+                {isEn ? "Single-player · AI " : "싱글플레이 · AI "}
                 <span className={
                   singleDifficulty === "hard" ? "font-semibold text-rose-400" :
                   singleDifficulty === "normal" ? "font-semibold text-amber-400" :
@@ -299,7 +332,7 @@ export function HoldemPlayUI({
               <>
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="px-1 text-[10px] font-medium uppercase text-zinc-400">
-                    보기 관점
+                  {isEn ? "View" : "보기 관점"}
                   </span>
                   {([0, 1] as PlayerIndex[]).map((p) => (
                     <button
@@ -320,7 +353,7 @@ export function HoldemPlayUI({
                 </div>
                 <div className="flex flex-wrap items-end gap-2 border-t border-zinc-600/60 pt-2">
                   <label className="flex min-w-[7rem] flex-1 flex-col gap-0.5 text-[10px] text-zinc-400">
-                    첫 플레이어 표시 이름
+                    {isEn ? "Player 1 display name" : "첫 플레이어 표시 이름"}
                     <input
                       type="text"
                       value={playerNames[0]!}
@@ -331,7 +364,7 @@ export function HoldemPlayUI({
                     />
                   </label>
                   <label className="flex min-w-[7rem] flex-1 flex-col gap-0.5 text-[10px] text-zinc-400">
-                    두 번째 플레이어 표시 이름
+                    {isEn ? "Player 2 display name" : "두 번째 플레이어 표시 이름"}
                     <input
                       type="text"
                       value={playerNames[1]!}
@@ -346,7 +379,7 @@ export function HoldemPlayUI({
             ) : (
               <div className="px-1 py-0.5 text-xs text-zinc-200">
                 <span className="text-[10px] font-medium uppercase text-zinc-400">
-                  내 좌석 ·{" "}
+                  {isEn ? "My seat · " : "내 좌석 · "}
                 </span>
                 {mySeat != null ? (
                   <span className="font-semibold">{playerNames[mySeat]}</span>
@@ -567,7 +600,7 @@ export function HoldemPlayUI({
             </div>
             <div className="min-w-0 lg:pt-6">
               <p className="mb-2 text-center text-[10px] font-bold uppercase tracking-[0.18em] text-zinc-500 lg:text-left">
-                액션
+                {isEn ? "Action" : "액션"}
               </p>
               <ActionPanel
                 state={state}
@@ -590,9 +623,11 @@ export function HoldemPlayUI({
         {state.matchWinner != null && endMenuOpen ? (
           <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 p-4 backdrop-blur-[2px]">
             <div className="w-full max-w-sm rounded-2xl border border-zinc-600/70 bg-zinc-900/95 p-4 shadow-2xl">
-              <p className="text-center text-lg font-extrabold text-zinc-50">게임 종료</p>
+              <p className="text-center text-lg font-extrabold text-zinc-50">
+                {isEn ? "Game Over" : "게임 종료"}
+              </p>
               <p className="mt-1 text-center text-xs text-zinc-400">
-                다음 동작을 선택하세요.
+                {isEn ? "Choose your next action." : "다음 동작을 선택하세요."}
               </p>
               {matchRematchLabel ? (
                 <p className="mt-2 text-center text-[11px] font-semibold text-emerald-300">
@@ -605,21 +640,25 @@ export function HoldemPlayUI({
                   onClick={handleRematch}
                   className="rounded-lg border border-emerald-400/70 bg-emerald-700/50 px-3 py-2 text-sm font-bold text-emerald-50 hover:bg-emerald-600/55"
                 >
-                  재경기
+                  {isEn ? "Rematch" : "재경기"}
                 </button>
                 <Link
                   href="/holdem"
                   className="rounded-lg border border-sky-400/60 bg-sky-800/40 px-3 py-2 text-center text-sm font-bold text-sky-50 hover:bg-sky-700/45"
                 >
-                  홈으로
+                  {isEn ? "Home" : "홈으로"}
                 </Link>
                 <button
                   type="button"
                   onClick={handleExitGame}
                   className="rounded-lg border border-rose-500/60 bg-rose-900/45 px-3 py-2 text-sm font-bold text-rose-100 hover:bg-rose-800/50"
-                  title="브라우저 정책에 따라 탭이 닫히지 않을 수 있습니다."
+                  title={
+                    isEn
+                      ? "Browser policy may prevent closing this tab."
+                      : "브라우저 정책에 따라 탭이 닫히지 않을 수 있습니다."
+                  }
                 >
-                  게임 종료
+                  {isEn ? "Exit" : "게임 종료"}
                 </button>
               </div>
             </div>
@@ -651,6 +690,8 @@ function OpponentCompactBanner({
   viewer: PlayerIndex;
   oppName: string;
 }) {
+  const { locale } = useHoldemI18n();
+  const isEn = locale === "en";
   const opp = other(viewer);
   const bettingLive =
     state.phase === "preflop" ||
@@ -661,7 +702,8 @@ function OpponentCompactBanner({
   const selecting = state.phase === "hand_select";
   const isHandPickChoosing = selecting && state.handPickPending[opp] == null && state.holes[opp] == null;
   const isHandPickSubmitted = selecting && state.handPickPending[opp] != null && state.holes[opp] == null;
-  const posLabel = headsUpPositionLabel(state, opp);
+  const posLabelRaw = headsUpPositionLabel(state, opp);
+  const posLabel = isEn && posLabelRaw === HU_DEALER_SB_LABEL ? "Dealer · SB" : posLabelRaw;
 
   return (
     <div
@@ -694,15 +736,15 @@ function OpponentCompactBanner({
       <div className="ml-auto">
         {isToAct ? (
           <span className="rounded-full bg-emerald-600/30 px-2 py-0.5 text-[9px] font-bold text-emerald-200">
-            액션 턴
+            {isEn ? "To act" : "액션 턴"}
           </span>
         ) : isHandPickChoosing ? (
           <span className="rounded-full bg-amber-600/30 px-2 py-0.5 text-[9px] font-bold text-amber-200">
-            핸드 선택
+            {isEn ? "Hand select" : "핸드 선택"}
           </span>
         ) : isHandPickSubmitted ? (
           <span className="rounded-full bg-emerald-700/30 px-2 py-0.5 text-[9px] font-bold text-emerald-100">
-            확정됨
+            {isEn ? "Locked" : "확정됨"}
           </span>
         ) : null}
       </div>

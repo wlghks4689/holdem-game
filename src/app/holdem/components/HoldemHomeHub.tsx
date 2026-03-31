@@ -4,6 +4,7 @@ import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useHoldemI18n } from "@/holdem/i18n/HoldemLocaleProvider";
+import { loadRoomNickname } from "@/holdem/holdemPrefs";
 import {
   saveRoomAuth,
   loadLastActiveRoom,
@@ -15,10 +16,14 @@ import {
 const cardClass =
   "flex flex-col gap-2 rounded-2xl border border-zinc-600/80 bg-zinc-800/60 p-5 shadow-lg transition hover:border-sky-500/50 hover:bg-zinc-800/90 active:scale-[0.99]";
 
+const subCardClass =
+  "flex flex-col gap-1.5 rounded-xl border p-4 text-left transition active:scale-[0.98]";
+
 export function HoldemHomeHub() {
-  const { t } = useHoldemI18n();
+  const { t, locale, setLocale } = useHoldemI18n();
   const router = useRouter();
-  const [creating, setCreating] = React.useState(false);
+  const [multiOpen, setMultiOpen] = React.useState(false);
+  const [creating, setCreating] = React.useState<"private" | "public" | null>(null);
   const [err, setErr] = React.useState<string | null>(null);
   const [lastRoom, setLastRoom] = React.useState<LastActiveRoom | null>(null);
 
@@ -27,16 +32,23 @@ export function HoldemHomeHub() {
     if (info && loadRoomAuth(info.roomId)) {
       setLastRoom(info);
     } else if (info) {
-      // 방 인증 토큰이 없으면 마지막 방 기록도 지운다
       clearLastActiveRoom();
     }
   }, []);
 
-  const onCreateRoom = async () => {
-    setCreating(true);
+  const onCreateRoom = async (isPublic: boolean) => {
+    setCreating(isPublic ? "public" : "private");
     setErr(null);
     try {
-      const r = await fetch("/api/room/create", { method: "POST" });
+      const nick = loadRoomNickname();
+      const body = isPublic
+        ? { public: true, hostNickname: nick || "Player 1" }
+        : {};
+      const r = await fetch("/api/room/create", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
       const j = (await r.json().catch(() => ({}))) as {
         error?: string;
         hint?: string;
@@ -45,8 +57,8 @@ export function HoldemHomeHub() {
         token?: string;
       };
       if (!r.ok) {
-        setErr(j.hint ?? j.error ?? "방을 만들 수 없습니다.");
-        setCreating(false);
+        setErr(j.hint ?? j.error ?? (locale === "en" ? "Could not create room." : "방을 만들 수 없습니다."));
+        setCreating(null);
         return;
       }
       if (j.roomId && typeof j.token === "string" && j.seat === 0) {
@@ -54,17 +66,45 @@ export function HoldemHomeHub() {
         router.push(`/holdem/room/${j.roomId}`);
         return;
       }
-      setErr("서버 응답이 올바르지 않습니다.");
+      setErr(locale === "en" ? "Unexpected server response." : "서버 응답이 올바르지 않습니다.");
     } catch {
-      setErr("네트워크 오류가 났습니다.");
+      setErr(locale === "en" ? "Network error." : "네트워크 오류가 났습니다.");
     }
-    setCreating(false);
+    setCreating(null);
   };
 
   return (
     <div className="min-h-dvh bg-gradient-to-b from-zinc-900 via-zinc-900 to-zinc-950 text-zinc-50">
       <div className="mx-auto max-w-lg px-4 py-10 pb-20 sm:max-w-xl md:max-w-2xl lg:max-w-4xl lg:px-8 lg:py-14">
         <header className="mb-10 text-center lg:mb-12">
+          <div className="mb-3 flex items-center justify-center gap-2">
+            <button
+              type="button"
+              onClick={() => setLocale("ko")}
+              className={[
+                "rounded-md border px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide transition",
+                locale === "ko"
+                  ? "border-emerald-400/75 bg-emerald-700/45 text-emerald-100"
+                  : "border-zinc-600/70 bg-zinc-800/60 text-zinc-300 hover:bg-zinc-700/60",
+              ].join(" ")}
+              aria-label="Switch to Korean"
+            >
+              KR
+            </button>
+            <button
+              type="button"
+              onClick={() => setLocale("en")}
+              className={[
+                "rounded-md border px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide transition",
+                locale === "en"
+                  ? "border-emerald-400/75 bg-emerald-700/45 text-emerald-100"
+                  : "border-zinc-600/70 bg-zinc-800/60 text-zinc-300 hover:bg-zinc-700/60",
+              ].join(" ")}
+              aria-label="Switch to English"
+            >
+              EN
+            </button>
+          </div>
           <h1 className="text-2xl font-bold tracking-tight text-zinc-50 lg:text-3xl">
             {t("home.title")}
           </h1>
@@ -81,7 +121,7 @@ export function HoldemHomeHub() {
                   {t("home.activeMatchTitle")}
                 </p>
                 <p className="mt-0.5 font-mono text-xs text-zinc-400">
-                  방 {lastRoom.roomId} ·{" "}
+                  {locale === "en" ? "Room" : "방"} {lastRoom.roomId} ·{" "}
                   {lastRoom.seat === 0
                     ? t("home.activeMatchSeatHost")
                     : t("home.activeMatchSeatGuest")}
@@ -111,28 +151,98 @@ export function HoldemHomeHub() {
         ) : null}
 
         <div className="grid gap-4 sm:grid-cols-2">
-          <button
-            type="button"
-            disabled={creating}
-            onClick={() => void onCreateRoom()}
+          {/* ── 멀티플레이 카드 (확장형 서브메뉴) ── */}
+          <div
             className={[
-              cardClass,
-              "text-left disabled:opacity-60",
-              "border-sky-600/60 bg-sky-950/30",
+              "rounded-2xl border shadow-lg transition",
+              multiOpen
+                ? "border-sky-500/60 bg-sky-950/40"
+                : "border-sky-600/60 bg-sky-950/30 hover:border-sky-500/50 hover:bg-zinc-800/90",
             ].join(" ")}
           >
-            <span className="text-lg font-semibold text-sky-100">
-              {t("home.multiplayTitle")}
-            </span>
-            <span className="text-xs leading-relaxed text-zinc-400">
-              {t("home.multiplayDesc")}
-            </span>
-            {creating ? (
-              <span className="text-xs text-sky-300">
-                {t("home.creatingRoom")}
+            {/* 헤더 토글 */}
+            <button
+              type="button"
+              onClick={() => setMultiOpen((v) => !v)}
+              className="flex w-full items-center justify-between gap-2 p-5 text-left"
+            >
+              <div className="flex flex-col gap-1">
+                <span className="text-lg font-semibold text-sky-100">
+                  {t("home.multiplayTitle")}
+                </span>
+                {!multiOpen && (
+                  <span className="text-xs leading-relaxed text-zinc-400">
+                    {t("home.multiplayDesc")}
+                  </span>
+                )}
+              </div>
+              <span
+                className={[
+                  "shrink-0 text-sky-400 transition-transform duration-200",
+                  multiOpen ? "rotate-180" : "",
+                ].join(" ")}
+              >
+                ▼
               </span>
-            ) : null}
-          </button>
+            </button>
+
+            {/* 서브메뉴 */}
+            {multiOpen && (
+              <div className="flex flex-col gap-2 px-4 pb-4">
+                {/* 비공개 방 만들기 */}
+                <button
+                  type="button"
+                  disabled={creating !== null}
+                  onClick={() => void onCreateRoom(false)}
+                  className={[
+                    subCardClass,
+                    "border-zinc-600/70 bg-zinc-800/60 hover:border-zinc-500/80 hover:bg-zinc-700/60 disabled:opacity-60",
+                  ].join(" ")}
+                >
+                  <span className="text-sm font-semibold text-zinc-100">
+                    {creating === "private" ? t("home.creatingRoom") : t("home.createPrivate")}
+                  </span>
+                  <span className="text-xs text-zinc-400">
+                    {t("home.createPrivateDesc")}
+                  </span>
+                </button>
+
+                {/* 공개 방 만들기 */}
+                <button
+                  type="button"
+                  disabled={creating !== null}
+                  onClick={() => void onCreateRoom(true)}
+                  className={[
+                    subCardClass,
+                    "border-emerald-700/60 bg-emerald-950/30 hover:border-emerald-500/70 hover:bg-emerald-900/30 disabled:opacity-60",
+                  ].join(" ")}
+                >
+                  <span className="text-sm font-semibold text-emerald-100">
+                    {creating === "public" ? t("home.creatingRoom") : t("home.createPublic")}
+                  </span>
+                  <span className="text-xs text-zinc-400">
+                    {t("home.createPublicDesc")}
+                  </span>
+                </button>
+
+                {/* 공개 방 참여 */}
+                <Link
+                  href="/holdem/rooms"
+                  className={[
+                    subCardClass,
+                    "border-violet-700/60 bg-violet-950/30 hover:border-violet-500/70 hover:bg-violet-900/30",
+                  ].join(" ")}
+                >
+                  <span className="text-sm font-semibold text-violet-100">
+                    {t("home.browseRooms")}
+                  </span>
+                  <span className="text-xs text-zinc-400">
+                    {t("home.browseRoomsDesc")}
+                  </span>
+                </Link>
+              </div>
+            )}
+          </div>
 
           <Link href="/holdem/guide" className={cardClass}>
             <span className="text-lg font-semibold text-zinc-100">
