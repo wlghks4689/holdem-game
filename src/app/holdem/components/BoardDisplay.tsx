@@ -251,7 +251,6 @@ export function BoardDisplay({
                   className={[
                     showdown ? "drop-shadow-sm" : "drop-shadow-md",
                     hasEnterDeal ? "opacity-0" : "opacity-100",
-                    "transition-opacity duration-150",
                   ].join(" ")}
                 />
                 {!cinematicFlip

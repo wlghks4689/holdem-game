@@ -112,10 +112,12 @@ export function HoldemOnlinePage(props: {
     router.replace("/holdem");
   }, [leaveRoom, router]);
 
+  // state 전체가 아닌 파생 boolean만 의존성으로 사용 — 폴링마다 state 참조가 바뀌어도 타이머가 리셋되지 않음
+  const opponentLeftActive = opponentLeft && state != null && state.phase !== "lobby";
+
   const [opponentLeftCountdown, setOpponentLeftCountdown] = React.useState<number | null>(null);
   React.useEffect(() => {
-    if (state == null) return;
-    if (!opponentLeft || state.phase === "lobby") {
+    if (!opponentLeftActive) {
       setOpponentLeftCountdown(null);
       return;
     }
@@ -131,7 +133,7 @@ export function HoldemOnlinePage(props: {
       window.clearInterval(iv);
       window.clearTimeout(to);
     };
-  }, [opponentLeft, router, state]);
+  }, [opponentLeftActive, router]);
 
   const rematchLabel = React.useMemo(() => {
     if (state?.matchWinner == null) return null;
@@ -173,7 +175,7 @@ export function HoldemOnlinePage(props: {
     );
   }
 
-  if (opponentLeft && state.phase !== "lobby") {
+  if (opponentLeftActive) {
     return (
       <div className="flex min-h-dvh flex-col items-center justify-center gap-3 bg-zinc-900 px-4 text-center text-zinc-100">
         <p className="text-lg font-semibold">
