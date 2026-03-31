@@ -20,6 +20,7 @@ import { HoleCards } from "./components/HoleCards";
 import { IaBanner } from "./components/IaBanner";
 import { PlayAreaPotBetting } from "./components/PlayAreaPotBetting";
 import { TableHeaderBar } from "./components/TableHeaderBar";
+import { rabbitHuntInfo, viewerMayUseRabbit } from "@/holdem/rabbitHunt";
 import { useAllInShowdownCinema } from "./hooks/useAllInShowdownCinema";
 
 const other = (p: PlayerIndex): PlayerIndex => (p === 0 ? 1 : 0);
@@ -52,6 +53,10 @@ export type HoldemPlayUIProps = {
     onReject: () => void;
     onResume: () => void;
   };
+  /** 매치 종료 후 재경기 요청(온라인은 양측 수락 기반, 로컬/싱글은 즉시 재시작) */
+  onMatchRematch?: () => void;
+  /** 매치 종료 모달 내 재경기 상태 라벨(온라인 동기화 표시) */
+  matchRematchLabel?: string | null;
 };
 
 export function HoldemPlayUI({
@@ -68,12 +73,16 @@ export function HoldemPlayUI({
   onlineMeta,
   localPause,
   onlinePause,
+  onMatchRematch,
+  matchRematchLabel,
 }: HoldemPlayUIProps) {
   const { t } = useHoldemI18n();
 
   const showdownCinema = useAllInShowdownCinema(state);
   const winnerCinematicPulse =
-    showdownCinema.active && showdownCinema.phase === "result";
+    showdownCinema.active && showdownCinema.phase === "showdown-resolve";
+  const showdownFxArmed =
+    !showdownCinema.active || showdownCinema.phase === "showdown-resolve";
 
   const showResultBannerSlot =
     state.phase === "showdown" ||
@@ -88,6 +97,26 @@ export function HoldemPlayUI({
           board: state.board,
         }
       : null;
+
+  const [rabbitBoardOpen, setRabbitBoardOpen] = React.useState(false);
+  const rhInfo = rabbitHuntInfo(state);
+  const rabbitBoardUi =
+    rhInfo.ok && viewerMayUseRabbit(viewer, mySeat, rhInfo.folder)
+      ? {
+          active: true,
+          open: rabbitBoardOpen,
+          onToggle: () => setRabbitBoardOpen((v) => !v),
+          revealedAtFold: rhInfo.revealedAtFold as 3 | 4,
+        }
+      : null;
+
+  React.useEffect(() => {
+    if (!rhInfo.ok) setRabbitBoardOpen(false);
+  }, [rhInfo.ok, state.roundNumber]);
+
+  React.useEffect(() => {
+    if (state.phase === "hand_select") setRabbitBoardOpen(false);
+  }, [state.phase, state.roundNumber]);
 
   const effectivePaused =
     localPause?.paused === true ||
@@ -125,6 +154,46 @@ export function HoldemPlayUI({
               onlinePause.pause.from === onlinePause.mySeat
             ? "요청 취소"
             : "퍼즈";
+
+  const [endMenuOpen, setEndMenuOpen] = React.useState(false);
+  const endMenuDelayArmedRef = React.useRef<string | null>(null);
+  React.useEffect(() => {
+    if (state.matchWinner == null) {
+      setEndMenuOpen(false);
+      endMenuDelayArmedRef.current = null;
+      return;
+    }
+    const resultSettled =
+      state.phase === "hand_over" ||
+      (state.phase === "showdown" &&
+        (!showdownCinema.active || showdownCinema.phase === "showdown-resolve"));
+    if (!resultSettled) return;
+    const armKey = `${state.roundNumber}-${state.matchWinner}`;
+    if (endMenuDelayArmedRef.current === armKey) return;
+    endMenuDelayArmedRef.current = armKey;
+    const t = window.setTimeout(() => setEndMenuOpen(true), 15000);
+    return () => window.clearTimeout(t);
+  }, [
+    state.matchWinner,
+    state.phase,
+    state.roundNumber,
+    showdownCinema.active,
+    showdownCinema.phase,
+  ]);
+
+  const handleRematch = React.useCallback(() => {
+    if (onMatchRematch) {
+      onMatchRematch();
+      return;
+    }
+    void dispatch({ type: "RESET_MATCH" });
+  }, [dispatch, onMatchRematch]);
+
+  const handleExitGame = React.useCallback(() => {
+    if (typeof window === "undefined") return;
+    window.close();
+    window.location.replace("about:blank");
+  }, []);
 
   return (
     <div className="min-h-dvh bg-gradient-to-b from-zinc-800 via-zinc-800 to-zinc-900 text-zinc-50">
@@ -301,7 +370,12 @@ export function HoldemPlayUI({
             "lg:bg-gradient-to-b lg:from-zinc-800 lg:via-zinc-800/95 lg:to-zinc-900/90",
             "lg:p-6 lg:shadow-[0_0_80px_rgba(0,0,0,0.45)]",
             showdownCinema.blockingInput ? "pointer-events-none select-none" : "",
+            showdownCinema.active ? "holdem-cinema-active" : "",
+            showdownCinema.phase === "allin-lock" ? "holdem-allin-lock" : "",
+            showdownCinema.phase === "showdown-reveal" ? "holdem-showdown-reveal" : "",
+            showdownCinema.phase === "showdown-resolve" ? "holdem-showdown-resolve" : "",
           ].join(" ")}
+          data-allin-cinema-phase={showdownCinema.active ? showdownCinema.phase : "off"}
           aria-label="플레이 영역"
         >
           {effectivePaused ? (
@@ -313,20 +387,35 @@ export function HoldemPlayUI({
           ) : null}
           {/* 상대 카드 — 쇼다운·핸드오버: 전체 공개, 평시: compact 한 줄 배너 */}
           {state.phase === "showdown" || state.phase === "hand_over" ? (
-            <div className="hidden space-y-2 lg:block">
+            <div
+              className={[
+                "hidden space-y-2 lg:block",
+                showdownCinema.active && showdownCinema.phase !== "showdown-resolve"
+                  ? "opacity-55"
+                  : "",
+              ].join(" ")}
+            >
               <HoleCards
                 state={state}
                 viewer={viewer}
                 playerNames={playerNames}
                 seatFilter="opponent"
                 cinematicWinnerPulse={winnerCinematicPulse}
+                showdownFxArmed={showdownFxArmed}
               />
               <div className="pt-1">
                 <IaBanner state={state} viewer={viewer} playerNames={playerNames} />
               </div>
             </div>
           ) : (
-            <div className="hidden lg:block">
+            <div
+              className={[
+                "hidden lg:block",
+                showdownCinema.active && showdownCinema.phase !== "showdown-resolve"
+                  ? "opacity-55"
+                  : "",
+              ].join(" ")}
+            >
               <OpponentCompactBanner
                 state={state}
                 viewer={viewer}
@@ -339,6 +428,13 @@ export function HoldemPlayUI({
           )}
 
           <AllInBanner state={state} />
+          {showdownCinema.active &&
+          (showdownCinema.phase === "allin-lock" ||
+            showdownCinema.phase === "showdown-reveal") ? (
+            <div className="pointer-events-none absolute left-1/2 top-2 z-30 -translate-x-1/2 rounded-full border border-rose-300/70 bg-rose-900/70 px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-rose-50 shadow-[0_0_20px_rgba(244,63,94,0.3)]">
+              ALL-IN
+            </div>
+          ) : null}
           {showResultBannerSlot ? (
             <HandResultBanner
               state={state}
@@ -361,12 +457,20 @@ export function HoldemPlayUI({
               state={state}
               visualRevealedOverride={showdownCinema.visualRevealed}
               streetLabelOverride={showdownCinema.boardStreetLabelKo}
-              cinematicFlip={showdownCinema.active}
+              cinematicFlip={showdownCinema.active && showdownCinema.phase === "showdown-reveal"}
               cinemaStreetPulse={showdownCinema.streetPulse}
+              rabbitHunt={rabbitBoardUi}
             />
           </div>
 
-          <div className="mx-auto w-full max-w-3xl lg:max-w-2xl">
+          <div
+            className={[
+              "mx-auto w-full max-w-3xl lg:max-w-2xl",
+              showdownCinema.active && showdownCinema.phase !== "showdown-resolve"
+                ? "opacity-85"
+                : "",
+            ].join(" ")}
+          >
             <PlayAreaPotBetting
               state={state}
               viewer={viewer}
@@ -374,7 +478,14 @@ export function HoldemPlayUI({
             />
           </div>
 
-          <div className="mx-auto max-w-lg lg:max-w-xl">
+          <div
+            className={[
+              "mx-auto max-w-lg lg:max-w-xl",
+              showdownCinema.active && showdownCinema.phase !== "showdown-resolve"
+                ? "opacity-55"
+                : "",
+            ].join(" ")}
+          >
             <HandSelectPanel
               state={state}
               playerNames={playerNames}
@@ -385,7 +496,14 @@ export function HoldemPlayUI({
             />
           </div>
 
-          <div className="space-y-3 lg:hidden">
+          <div
+            className={[
+              "space-y-3 lg:hidden",
+              showdownCinema.active && showdownCinema.phase !== "showdown-resolve"
+                ? "opacity-60"
+                : "",
+            ].join(" ")}
+          >
             <ActionPanel
               state={state}
               dispatch={(a) => void dispatch(a)}
@@ -396,15 +514,13 @@ export function HoldemPlayUI({
             {/* 모바일 상대 카드 — 쇼다운에서만 전체 표시 */}
             {state.phase === "showdown" || state.phase === "hand_over" ? (
               <div className="rounded-xl border border-zinc-600/90 bg-zinc-700/40 p-3">
-                <div className="mb-2 text-xs font-medium uppercase text-zinc-400">
-                  홀 카드
-                </div>
                 <HoleCards
                   state={state}
                   viewer={viewer}
                   playerNames={playerNames}
                   seatFilter="both"
                   cinematicWinnerPulse={winnerCinematicPulse}
+                  showdownFxArmed={showdownFxArmed}
                 />
               </div>
             ) : (
@@ -421,6 +537,7 @@ export function HoldemPlayUI({
                     playerNames={playerNames}
                     seatFilter="hero"
                     cinematicWinnerPulse={winnerCinematicPulse}
+                    showdownFxArmed={showdownFxArmed}
                   />
                 </div>
               </>
@@ -428,7 +545,14 @@ export function HoldemPlayUI({
             <IaBanner state={state} viewer={viewer} playerNames={playerNames} />
           </div>
 
-          <div className="mt-2 hidden gap-8 lg:mt-8 lg:grid lg:grid-cols-2 lg:items-start lg:gap-10">
+          <div
+            className={[
+              "mt-2 hidden gap-8 lg:mt-8 lg:grid lg:grid-cols-2 lg:items-start lg:gap-10",
+              showdownCinema.active && showdownCinema.phase !== "showdown-resolve"
+                ? "opacity-60"
+                : "",
+            ].join(" ")}
+          >
             <div className="min-w-0">
               <div className="rounded-xl border border-emerald-900/35 bg-zinc-900/30 p-3 lg:p-4">
                 <HoleCards
@@ -437,6 +561,7 @@ export function HoldemPlayUI({
                   playerNames={playerNames}
                   seatFilter="hero"
                   cinematicWinnerPulse={winnerCinematicPulse}
+                  showdownFxArmed={showdownFxArmed}
                 />
               </div>
             </div>
@@ -460,6 +585,45 @@ export function HoldemPlayUI({
             phase={showdownCinema.phase}
             onSkip={showdownCinema.skip}
           />
+        ) : null}
+
+        {state.matchWinner != null && endMenuOpen ? (
+          <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 p-4 backdrop-blur-[2px]">
+            <div className="w-full max-w-sm rounded-2xl border border-zinc-600/70 bg-zinc-900/95 p-4 shadow-2xl">
+              <p className="text-center text-lg font-extrabold text-zinc-50">게임 종료</p>
+              <p className="mt-1 text-center text-xs text-zinc-400">
+                다음 동작을 선택하세요.
+              </p>
+              {matchRematchLabel ? (
+                <p className="mt-2 text-center text-[11px] font-semibold text-emerald-300">
+                  {matchRematchLabel}
+                </p>
+              ) : null}
+              <div className="mt-4 grid gap-2">
+                <button
+                  type="button"
+                  onClick={handleRematch}
+                  className="rounded-lg border border-emerald-400/70 bg-emerald-700/50 px-3 py-2 text-sm font-bold text-emerald-50 hover:bg-emerald-600/55"
+                >
+                  재경기
+                </button>
+                <Link
+                  href="/holdem"
+                  className="rounded-lg border border-sky-400/60 bg-sky-800/40 px-3 py-2 text-center text-sm font-bold text-sky-50 hover:bg-sky-700/45"
+                >
+                  홈으로
+                </Link>
+                <button
+                  type="button"
+                  onClick={handleExitGame}
+                  className="rounded-lg border border-rose-500/60 bg-rose-900/45 px-3 py-2 text-sm font-bold text-rose-100 hover:bg-rose-800/50"
+                  title="브라우저 정책에 따라 탭이 닫히지 않을 수 있습니다."
+                >
+                  게임 종료
+                </button>
+              </div>
+            </div>
+          </div>
         ) : null}
 
 

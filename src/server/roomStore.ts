@@ -5,10 +5,14 @@ import type { GameState, PlayerIndex } from "@/holdem/types";
 
 export type RoomBlob = {
   state: GameState;
+  /** optimistic concurrency version (etag surrogate) */
+  stateVersion: number;
   /** P0 방장 토큰, P1 참가 후 발급 */
   tokens: [string, string | null];
   /** 멀티플레이 퍼즈(구버전 방은 없을 수 있음) */
   pause?: RoomPauseState;
+  /** 매치 종료 후 재경기 수락 상태 */
+  rematchAccepted?: [boolean, boolean];
 };
 
 const key = (roomId: string) => `holdem:room:${roomId}`;
@@ -105,7 +109,16 @@ export async function roomGet(roomId: string): Promise<RoomBlob | null> {
   }
   if (raw == null) return null;
   try {
-    return JSON.parse(raw) as RoomBlob;
+    const parsed = JSON.parse(raw) as RoomBlob & { stateVersion?: number };
+    return {
+      ...parsed,
+      stateVersion: Number.isFinite(parsed.stateVersion) ? parsed.stateVersion! : 0,
+      rematchAccepted:
+        Array.isArray(parsed.rematchAccepted) &&
+        parsed.rematchAccepted.length === 2
+          ? [Boolean(parsed.rematchAccepted[0]), Boolean(parsed.rematchAccepted[1])]
+          : [false, false],
+    };
   } catch {
     return null;
   }

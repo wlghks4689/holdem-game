@@ -210,7 +210,7 @@ export function PlayAreaPotBetting({
       else playBettingIASound();
       setStrip({
         id: stripIdRef.current,
-        text: `${name} · IA (−${chipsAsBbLabel(last.cost, bb)} · 팟에서 차감)`,
+        text: `${name} · IA (−${chipsAsBbLabel(last.cost, bb)} · 스택에서 차감)`,
         who: isHero ? "hero" : "opp",
         agg: true,
       });
@@ -253,6 +253,19 @@ export function PlayAreaPotBetting({
   }, [logsSig, viewer, playerNames]);
 
   const potBbUnit = resolveHandBlinds(state).bb;
+  const allInSeats = ([0, 1] as PlayerIndex[]).filter(
+    (p) => state.chips[p]! <= 1e-9,
+  );
+  const liveStreet =
+    state.phase === "preflop" ||
+    state.phase === "flop" ||
+    state.phase === "turn" ||
+    state.phase === "river";
+  const showAllInUnderPot = state.isAllIn && liveStreet && allInSeats.length > 0;
+  const allInText =
+    allInSeats.length === 1
+      ? `${playerNames[allInSeats[0]!]!} ALL-IN`
+      : `${playerNames[allInSeats[0]!]!} / ${playerNames[allInSeats[1]!]!} ALL-IN`;
 
   const stripBoxClass =
     strip == null
@@ -326,6 +339,13 @@ export function PlayAreaPotBetting({
           {potInBbCompact(state.pot, potBbUnit)}
         </span>
       </div>
+      {showAllInUnderPot ? (
+        <div className="mt-1.5 flex justify-center">
+          <span className="rounded-full border border-rose-300/75 bg-rose-900/70 px-3 py-1 text-[11px] font-extrabold uppercase tracking-[0.14em] text-rose-50 shadow-[0_0_16px_rgba(244,63,94,0.34)] animate-pulse">
+            {allInText}
+          </span>
+        </div>
+      ) : null}
 
       <div className="mt-3 min-h-[3rem] border-t border-zinc-700/55 pt-3">
         {strip != null ? (

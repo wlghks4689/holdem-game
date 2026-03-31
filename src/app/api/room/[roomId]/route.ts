@@ -32,7 +32,9 @@ export async function GET(req: Request, ctx: Ctx) {
 
   return NextResponse.json({
     state: sanitizeGameStateForSeat(blob.state, seat),
+    stateVersion: blob.stateVersion,
     pause: normalizeRoomPause(blob.pause),
     guestJoined: blob.tokens[1] != null,
+    rematchAccepted: blob.rematchAccepted ?? [false, false],
   });
 }

@@ -31,6 +31,34 @@ const MADE_FX_CARD_RING: Record<number, string> = {
   5: "ring-2 ring-yellow-300/90 shadow-[0_0_32px_rgba(253,224,71,0.5)]",
 };
 
+/** 내 턴 패널 — 메이드 티어가 있으면 메이드 연출 색으로 에메랄드 대체 */
+const MADE_TURN_PANEL: Record<number, string> = {
+  1: "border-amber-400/70 bg-amber-950/32 shadow-[0_0_30px_rgba(251,191,36,0.38)] ring-2 ring-amber-400/55 z-[2]",
+  2: "border-sky-400/70 bg-sky-950/28 shadow-[0_0_30px_rgba(14,165,233,0.38)] ring-2 ring-sky-400/55 z-[2]",
+  3: "border-violet-400/70 bg-violet-950/30 shadow-[0_0_30px_rgba(167,139,250,0.4)] ring-2 ring-violet-400/50 z-[2]",
+  4: "border-amber-300/70 bg-amber-950/28 shadow-[0_0_32px_rgba(252,211,77,0.38)] ring-2 ring-amber-300/55 z-[2]",
+  5: "border-yellow-300/70 bg-yellow-950/22 shadow-[0_0_32px_rgba(253,224,71,0.4)] ring-2 ring-yellow-300/55 z-[2]",
+};
+
+const MADE_TURN_ACTION_BADGE: Record<number, string> = {
+  1: "rounded-full bg-amber-600/38 px-2 py-0.5 text-[9px] font-bold text-amber-100",
+  2: "rounded-full bg-sky-600/38 px-2 py-0.5 text-[9px] font-bold text-sky-100",
+  3: "rounded-full bg-violet-600/38 px-2 py-0.5 text-[9px] font-bold text-violet-100",
+  4: "rounded-full bg-amber-500/38 px-2 py-0.5 text-[9px] font-bold text-amber-50",
+  5: "rounded-full bg-yellow-500/35 px-2 py-0.5 text-[9px] font-bold text-yellow-50",
+};
+
+function turnPulseAnimation(madeTier: number | null, subtle: boolean): string {
+  if (madeTier != null && madeTier >= 1 && madeTier <= 5) {
+    return subtle
+      ? `holdem-turn-ring-t${madeTier}-subtle 0.24s ease-out 1`
+      : `holdem-turn-ring-t${madeTier} 0.32s ease-out 1`;
+  }
+  return subtle
+    ? "holdem-turn-ring-subtle 0.24s ease-out 1"
+    : "holdem-turn-ring 0.32s ease-out 1";
+}
+
 function useMadeHandFxEnabled(): boolean {
   const [on, setOn] = React.useState(() =>
     typeof window !== "undefined" ? loadMadeHandFxEnabled() : true,
@@ -52,6 +80,8 @@ export type HoleCardsProps = {
   seatFilter?: "both" | "opponent" | "hero";
   /** 올인 쇼다운 연출 마지막: 승자 패널 펄스 */
   cinematicWinnerPulse?: boolean;
+  /** 쇼다운 승패 강조를 활성화할지(시네마 resolve 단계에서만 true) */
+  showdownFxArmed?: boolean;
 };
 
 function showdownCompare(state: GameState): number | null {
@@ -70,6 +100,7 @@ export function HoleCards({
   playerNames,
   seatFilter = "both",
   cinematicWinnerPulse = false,
+  showdownFxArmed = true,
 }: HoleCardsProps) {
   const { t, locale } = useHoldemI18n();
   const motionMode = useHoldemMotionMode();
@@ -154,13 +185,22 @@ export function HoleCards({
           dimForNonTurn && !(isMe && madeFxTier > 0);
 
         const winnerShowdown =
+          showdownFxArmed &&
           showdownReveal &&
           sdCmp != null &&
           sdCmp !== 0 &&
           ((sdCmp > 0 && p === 0) || (sdCmp < 0 && p === 1));
-        const tieShowdown = showdownReveal && sdCmp === 0;
+        const tieShowdown = showdownFxArmed && showdownReveal && sdCmp === 0;
         const loserShowdown =
-          showdownReveal && sdCmp !== 0 && !winnerShowdown && !tieShowdown;
+          showdownFxArmed && showdownReveal && sdCmp !== 0 && !winnerShowdown && !tieShowdown;
+
+        const heroMadeTurnGlow =
+          isMe &&
+          madeHandFxOn &&
+          madeFxTier >= 1 &&
+          madeFxTier <= 5 &&
+          isToAct &&
+          !loserShowdown;
 
         /** 승자 패널만 은은한 글로우 1곳 */
         const showdownFrame =
@@ -175,8 +215,9 @@ export function HoleCards({
         let toneFrame = "";
         if (!loserShowdown) {
           if (isToAct) {
-            toneFrame =
-              "border-emerald-400/70 bg-emerald-900/35 shadow-[0_0_30px_rgba(52,211,153,0.38)] ring-2 ring-emerald-400/50 z-[2]";
+            toneFrame = heroMadeTurnGlow
+              ? MADE_TURN_PANEL[madeFxTier]!
+              : "border-emerald-400/70 bg-emerald-900/35 shadow-[0_0_30px_rgba(52,211,153,0.38)] ring-2 ring-emerald-400/50 z-[2]";
           } else if (isHandPickChoosing) {
             toneFrame =
               "border-amber-400/60 bg-amber-950/28 shadow-[0_0_26px_rgba(251,191,36,0.28)] ring-2 ring-amber-400/40 z-[1]";
@@ -205,9 +246,10 @@ export function HoleCards({
         const frameStyle: CSSProperties | undefined =
           isToAct && turnPulse
             ? {
-                animation: subtleMotion
-                  ? "holdem-turn-ring-subtle 0.24s ease-out 1"
-                  : "holdem-turn-ring 0.32s ease-out 1",
+                animation: turnPulseAnimation(
+                  heroMadeTurnGlow ? madeFxTier : null,
+                  subtleMotion,
+                ),
               }
             : isHandPickChoosing
               ? {
@@ -261,7 +303,13 @@ export function HoleCards({
               )}
               <div className="ml-auto flex items-center gap-1.5">
                 {isToAct ? (
-                  <span className="rounded-full bg-emerald-600/30 px-2 py-0.5 text-[9px] font-bold text-emerald-200">
+                  <span
+                    className={
+                      heroMadeTurnGlow
+                        ? MADE_TURN_ACTION_BADGE[madeFxTier]!
+                        : "rounded-full bg-emerald-600/30 px-2 py-0.5 text-[9px] font-bold text-emerald-200"
+                    }
+                  >
                     {t("hole.actionTurn")}
                   </span>
                 ) : isHandPickChoosing ? (

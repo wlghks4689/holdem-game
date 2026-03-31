@@ -45,6 +45,12 @@ export function playShowdownDealChirp() {
   window.setTimeout(() => beep(660, 0.05, "triangle", 0.045), 45);
 }
 
+/** 커뮤니티 카드가 보드에 깔릴 때: 짧은 사사삭 느낌 */
+export function playBoardDealSoft() {
+  beep(410, 0.045, "triangle", 0.038);
+  window.setTimeout(() => beep(330, 0.04, "triangle", 0.032), 38);
+}
+
 /** 리버 직전 긴장 */
 export function playShowdownRiverTension() {
   beep(220, 0.12, "sine", 0.07);

@@ -1,7 +1,6 @@
 "use client";
 
 import * as React from "react";
-import { ALL_IN_RUNOUT_LAST_NOTE } from "@/holdem/constants";
 import type { GameState } from "@/holdem/types";
 import {
   playShowdownDealChirp,
@@ -11,17 +10,14 @@ import {
 
 export type AllInCinemaPhase =
   | "off"
-  | "intro"
-  | "flop"
-  | "turn"
-  | "river"
-  | "result";
+  | "allin-lock"
+  | "showdown-reveal"
+  | "showdown-resolve";
 
-const DELAY_INTRO = 580;
-const DELAY_AFTER_FLOP = 720;
-const DELAY_AFTER_TURN = 720;
-const DELAY_AFTER_RIVER = 640;
-const DELAY_BEFORE_RESULT = 680;
+// 올인 연출 타이밍 (ms) — 기존 대비 약 2배로 여유롭게
+const DELAY_LOCK = 1100;             // allin-lock 단계 유지 시간
+const DELAY_BETWEEN_REVEAL = 900;    // 각 보드 카드 공개 간격
+const DELAY_AFTER_LAST_REVEAL = 380; // 마지막 공개 후 결과까지 정지 시간
 
 function runoutStartRev(state: GameState): number {
   const v = state.runoutUiStartRevealed;
@@ -33,16 +29,8 @@ function buildRunoutTargets(startRev: number): number[] {
   const targets: number[] = [];
   let r = Math.min(5, Math.max(0, startRev));
   while (r < 5) {
-    if (r < 3) {
-      targets.push(3);
-      r = 3;
-    } else if (r < 4) {
-      targets.push(4);
-      r = 4;
-    } else {
-      targets.push(5);
-      r = 5;
-    }
+    r += 1;
+    targets.push(r);
   }
   return targets;
 }
@@ -57,10 +45,12 @@ function computeCinemaMeta(state: GameState): CinemaMeta {
   if (state.phase !== "showdown" || state.handEndMode !== "showdown") {
     return { runKey: null, startRev: 0, targets: [] };
   }
-  if (state.lastActionNote !== ALL_IN_RUNOUT_LAST_NOTE) {
+  const startRev = runoutStartRev(state);
+  // 올인 콜 런아웃에서만 runoutUiStartRevealed가 0~4로 기록된다.
+  // (일반 쇼다운은 null 또는 5로 간주되어 시네마 비활성)
+  if (state.runoutUiStartRevealed == null || startRev >= 5) {
     return { runKey: null, startRev: 0, targets: [] };
   }
-  const startRev = runoutStartRev(state);
   const targets = buildRunoutTargets(startRev);
   if (targets.length === 0) {
     return { runKey: null, startRev, targets: [] };
@@ -76,7 +66,6 @@ export function useAllInShowdownCinema(state: GameState) {
     [
       state.phase,
       state.handEndMode,
-      state.lastActionNote,
       state.logs,
       state.runoutUiStartRevealed,
     ],
@@ -101,7 +90,7 @@ export function useAllInShowdownCinema(state: GameState) {
     skippedRef.current = true;
     clearTimers();
     setVisualRevealed(5);
-    setPhase("result");
+    setPhase("showdown-resolve");
     setShowHandResult(true);
     playShowdownResultChime();
   }, [clearTimers]);
@@ -109,11 +98,12 @@ export function useAllInShowdownCinema(state: GameState) {
   React.useLayoutEffect(() => {
     if (runKey == null) {
       setPhase("off");
+      setVisualRevealed(0);
       setShowHandResult(true);
       return;
     }
     skippedRef.current = false;
-    setPhase("intro");
+    setPhase("allin-lock");
     setVisualRevealed(startRev);
     setShowHandResult(false);
   }, [runKey, startRev]);
@@ -136,58 +126,49 @@ export function useAllInShowdownCinema(state: GameState) {
       timersRef.current.push(id);
     };
 
-    let t = DELAY_INTRO;
+    let t = DELAY_LOCK;
     for (const tgt of targets) {
       sched(() => {
         if (tgt === 5) playShowdownRiverTension();
-        setPhase(tgt <= 3 ? "flop" : tgt === 4 ? "turn" : "river");
+        setPhase("showdown-reveal");
         setVisualRevealed(tgt);
         playShowdownDealChirp();
       }, t);
-      t +=
-        tgt === 5
-          ? DELAY_AFTER_RIVER
-          : tgt === 4
-            ? DELAY_AFTER_TURN
-            : DELAY_AFTER_FLOP;
+      t += DELAY_BETWEEN_REVEAL;
     }
 
     sched(() => {
       playShowdownResultChime();
-      setPhase("result");
+      setPhase("showdown-resolve");
       setShowHandResult(true);
-    }, t + DELAY_BEFORE_RESULT);
+    }, t + DELAY_AFTER_LAST_REVEAL);
 
     return clearTimers;
   }, [runKey, targetsKey, clearTimers]);
 
   const active = runKey != null;
-  const blocking = active && phase !== "result" && phase !== "off";
+  const blocking = active && phase !== "showdown-resolve" && phase !== "off";
 
   const boardStreetLabelKo = React.useMemo(() => {
     if (!active) return null;
     switch (phase) {
-      case "intro":
-        return "올인 쇼다운";
-      case "flop":
-        return "플랍";
-      case "turn":
-        return "턴";
-      case "river":
-        return "리버";
-      case "result":
+      case "allin-lock":
+        return "ALL-IN";
+      case "showdown-reveal":
+        return visualRevealed <= 3 ? "플랍" : visualRevealed === 4 ? "턴" : "리버";
+      case "showdown-resolve":
         return "쇼다운";
       default:
         return null;
     }
-  }, [active, phase]);
+  }, [active, phase, visualRevealed]);
 
   const streetPulse: "flop" | "turn" | "river" | null =
-    phase === "flop"
+    phase === "showdown-reveal" && visualRevealed <= 3
       ? "flop"
-      : phase === "turn"
+      : phase === "showdown-reveal" && visualRevealed === 4
         ? "turn"
-        : phase === "river"
+        : phase === "showdown-reveal" && visualRevealed === 5
           ? "river"
           : null;
 

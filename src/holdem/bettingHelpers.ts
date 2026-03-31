@@ -12,6 +12,16 @@ import { resolveHandBlinds } from "./blindLevels";
 import type { BettingRoundMeta, GameMessage, GameState, PlayerIndex } from "./types";
 
 /**
+ * 헤즈업에서 한쪽이라도 남은 스택이 1BB 이하이면, 자발 베팅 최소 단위를 1BB가 아니라
+ * 칩 최소단위까지 허용(상대 스택만 맞출 수 있는 올인·얇은 베팅).
+ */
+export function headsUpSubBbVoluntaryEnabled(s: GameState): boolean {
+  const bb = resolveHandBlinds(s).bb;
+  if (bb < 1e-9) return false;
+  return Math.min(s.chips[0]!, s.chips[1]!) <= bb + 1e-9;
+}
+
+/**
  * `logs`의 IA 메시지 합(팟에서 제거된 칩).
  * 로그는 tail이 잘릴 수 있어 누적 표시에는 `GameState.iaPotRemovalTotal`을 쓰는 것이 맞다.
  */
@@ -47,11 +57,21 @@ export function roundUpToHalfChip(n: number): number {
   return Math.ceil(n / SMALLEST_CHIP - 1e-9) * SMALLEST_CHIP;
 }
 
-/** 자발 베트/레이즈: 최소 1BB(해당 핸드의 bb), 칩은 0.5 단위 */
-export function isVoluntaryBetMultiple(n: number, bbUnit: number): boolean {
+/** 자발 베트/레이즈 칩 정렬: 0.1 단위. `allowSubBb`이면 최소 1BB 대신 최소 칩 단위 */
+export function isVoluntaryBetAmount(
+  n: number,
+  bbUnit: number,
+  allowSubBb: boolean,
+): boolean {
   if (bbUnit < 1e-9) return false;
-  if (n < bbUnit - 1e-9) return false;
-  return Math.abs(roundHalfChip(n) - n) < 1e-6;
+  if (Math.abs(roundHalfChip(n) - n) >= 1e-6) return false;
+  const floor = allowSubBb ? SMALLEST_CHIP : bbUnit;
+  return n >= floor - 1e-9;
+}
+
+/** 자발 베트/레이즈: 최소 1BB(해당 핸드의 bb), 칩은 0.1 단위 */
+export function isVoluntaryBetMultiple(n: number, bbUnit: number): boolean {
+  return isVoluntaryBetAmount(n, bbUnit, false);
 }
 
 /**
@@ -113,10 +133,14 @@ export function maxMatchedContributionPreflop(s: GameState): number {
 /**
  * 프리플랍: 현재 스트리트 레벨을 **엄격히 넘는** 가장 작은 유효한 총 기여액.
  */
-export function preflopSmallestRaiseTotalAboveLevel(level: number, bbUnit: number): number {
+export function preflopSmallestRaiseTotalAboveLevel(
+  level: number,
+  bbUnit: number,
+  allowSubBb = false,
+): number {
   let t = roundHalfChip(level + SMALLEST_CHIP);
   for (let i = 0; i < 400; i++) {
-    if (t > level + 1e-9 && isVoluntaryBetMultiple(t, bbUnit)) {
+    if (t > level + 1e-9 && isVoluntaryBetAmount(t, bbUnit, allowSubBb)) {
       return t;
     }
     t = roundHalfChip(t + SMALLEST_CHIP);
@@ -134,18 +158,20 @@ export function preflopMinTotalRaiseForActor(s: GameState): number {
   const p = s.toAct!;
   const cur = s.betting.contributed[p]!;
   const facing = roundHalfChip(level - cur);
-  let minT =
-    facing > 1e-9
-      ? pokerMinRaiseTotalToLevel(level, cur)
-      : preflopSmallestRaiseTotalAboveLevel(level, bbUnit);
+  // 프리플랍 최소 레이즈 기준은 항상 표준(최소 BB 단위)으로 유지한다.
+  // 특히 SB limp 이후 BB 옵션(facing=0)에서 총 2bb 미만(예: 1.1bb) 레이즈가 열리지 않도록 고정.
+  const allowSub = facing > 1e-9 ? headsUpSubBbVoluntaryEnabled(s) : false;
+  let minT = facing > 1e-9
+    ? pokerMinRaiseTotalToLevel(level, cur)
+    : roundHalfChip(level + bbUnit);
   if (minT <= level + 1e-9) {
-    minT = preflopSmallestRaiseTotalAboveLevel(level, bbUnit);
+    minT = preflopSmallestRaiseTotalAboveLevel(level, bbUnit, allowSub);
   }
   while (minT <= cur + 1e-9) {
-    minT = preflopSmallestRaiseTotalAboveLevel(minT, bbUnit);
+    minT = preflopSmallestRaiseTotalAboveLevel(minT, bbUnit, allowSub);
   }
-  if (!isVoluntaryBetMultiple(minT, bbUnit)) {
-    minT = preflopSmallestRaiseTotalAboveLevel(minT - SMALLEST_CHIP, bbUnit);
+  if (!isVoluntaryBetAmount(minT, bbUnit, allowSub)) {
+    minT = preflopSmallestRaiseTotalAboveLevel(minT - SMALLEST_CHIP, bbUnit, allowSub);
   }
   return minT;
 }
@@ -180,29 +206,49 @@ export function canActorPreflopRaise(s: GameState): boolean {
   return s.preflopStage === "bb_option" || s.preflopStage === "facing_raise";
 }
 
-export function preflopHasLegalRaise(s: GameState): boolean {
-  if (!canActorPreflopRaise(s)) return false;
-  if (streetRaiseCapReached(s.betting)) return false;
-  const minT = preflopMinTotalRaiseForActor(s);
+/** 프리플랍 레이즈 슬라이더 (표준 구간 또는 숏스택 시 올인 레이즈 한 점만) */
+export function preflopRaiseSliderRange(s: GameState): { min: number; max: number } | null {
+  if (!canActorPreflopRaise(s)) return null;
+  if (streetRaiseCapReached(s.betting)) return null;
+  const level = levelFromContributions(s.betting);
   const maxT = preflopMaxRaiseTargetForActor(s);
-  return minT <= maxT + 1e-9;
+  if (maxT <= level + 1e-9) return null;
+  const p = s.toAct!;
+  const cur = s.betting.contributed[p]!;
+  const minT = preflopMinTotalRaiseForActor(s);
+  if (minT <= maxT + 1e-9) {
+    const addMin = roundHalfChip(minT - cur);
+    if (addMin > s.chips[p]! + 1e-9) return null;
+    return { min: minT, max: maxT };
+  }
+  if (!headsUpSubBbVoluntaryEnabled(s)) return null;
+  const addJam = roundHalfChip(maxT - cur);
+  if (addJam <= 1e-9 || addJam > s.chips[p]! + 1e-9) return null;
+  const bbUnit = resolveHandBlinds(s).bb;
+  if (!isVoluntaryBetAmount(maxT, bbUnit, true)) return null;
+  return { min: maxT, max: maxT };
+}
+
+export function preflopHasLegalRaise(s: GameState): boolean {
+  return preflopRaiseSliderRange(s) != null;
 }
 
 export function isLegalPreflopRaiseTarget(s: GameState, targetRaw: number): boolean {
   if (!canActorPreflopRaise(s)) return false;
   if (streetRaiseCapReached(s.betting)) return false;
+  const range = preflopRaiseSliderRange(s);
+  if (range == null) return false;
   const bbUnit = resolveHandBlinds(s).bb;
   const p = s.toAct!;
   const target = roundHalfChip(targetRaw);
   const cur = s.betting.contributed[p]!;
   const add = target - cur;
   const level = levelFromContributions(s.betting);
-  const minT = preflopMinTotalRaiseForActor(s);
-  const maxT = preflopMaxRaiseTargetForActor(s);
+  const allowSub = headsUpSubBbVoluntaryEnabled(s);
   if (add <= 0 || add > s.chips[p]!) return false;
   if (target <= level) return false;
-  if (!isVoluntaryBetMultiple(target, bbUnit)) return false;
-  return target >= minT && target <= maxT;
+  if (!isVoluntaryBetAmount(target, bbUnit, allowSub)) return false;
+  return target >= range.min - 1e-9 && target <= range.max + 1e-9;
 }
 
 /** 액션 시점 남은 스택을 현재 BB로 나눈 값 (프리플랍 숏스택 올인 처리용) */
@@ -251,6 +297,16 @@ export function iaCostFromPot(pot: number, bbUnit: number): number {
 export function iaAppliedCostFromPot(pot: number, bbUnit: number): number {
   const raw = iaCostFromPot(pot, bbUnit);
   return roundHalfChip(Math.min(raw, pot));
+}
+
+/** IA 적용 시 실제 지불액(플레이어 스택 차감): 팟 기반 산식 비용을 스택 한도로 클램프 */
+export function iaAppliedCostFromStack(
+  pot: number,
+  stack: number,
+  bbUnit: number,
+): number {
+  const raw = iaCostFromPot(pot, bbUnit);
+  return roundHalfChip(Math.min(raw, Math.max(0, stack)));
 }
 
 export function totalIaDeductedFromPotThisHand(logs: readonly GameMessage[]): number {
@@ -324,6 +380,23 @@ export function postflopRaiseTargetCappedByOpponent(s: GameState): number {
     s.chips[p]!,
   );
   return roundHalfChip(Math.min(ruleAndStack, maxMatchedTotalForPlayer(s, opp)));
+}
+
+/**
+ * 포스트플랍 레이즈 목표 총액 하한: 표준 `level+facing` 또는 숏스택 모드에서
+ * 상대 스택 캡만 맞는 올인 레이즈액(`cap`).
+ */
+export function postflopMinRaiseTargetForActor(s: GameState): number {
+  const lv = levelFromContributions(s.betting);
+  const p = s.toAct;
+  if (p == null) return Infinity;
+  const f = facingFor(p, s.betting);
+  const cap = postflopRaiseTargetCappedByOpponent(s);
+  const standard = postflopMinRaiseToLevelChips(lv, f);
+  if (!headsUpSubBbVoluntaryEnabled(s)) return standard;
+  if (standard <= cap + 1e-9) return standard;
+  if (cap > lv + 1e-9) return roundHalfChip(cap);
+  return standard;
 }
 
 /** 오픈 베트: 규칙·내 스택뿐 아니라 상대가 이번 액션에서 맞을 수 있는 칩(통상 남은 스택)을 넘지 않음 */

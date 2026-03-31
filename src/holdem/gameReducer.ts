@@ -3,17 +3,17 @@ import {
   bettingMatched,
   canActorPreflopRaise,
   facingFor,
-  iaAppliedCostFromPot,
+  iaAppliedCostFromStack,
   totalIaChipsRemovedFromLogs,
   levelFromContributions,
   postflopMaxOpenBetForActor,
   postflopRaiseTargetCappedByOpponent,
   canPreflopShortStackAllInShove,
+  headsUpSubBbVoluntaryEnabled,
+  isLegalPreflopRaiseTarget,
+  isVoluntaryBetAmount,
   preflopMaxPotChips,
-  preflopMaxRaiseTargetForActor,
-  preflopMinTotalRaiseForActor,
-  isVoluntaryBetMultiple,
-  postflopMinRaiseToLevelChips,
+  postflopMinRaiseTargetForActor,
   roundHalfChip,
   splitPotTwoWayChopChips,
 } from "./bettingHelpers";
@@ -31,6 +31,7 @@ import { compareHandValue, best5Of7, handValueSummaryKorean } from "./pokerEval"
 import {
   ALL_IN_RUNOUT_LAST_NOTE,
   MAX_RAISES_PER_STREET,
+  SMALLEST_CHIP,
   STARTING_CHIPS,
   TOTAL_ROUNDS,
 } from "./constants";
@@ -221,16 +222,16 @@ function applyCallPayment(s: GameState, p: PlayerIndex): {
   const pay = roundHalfChip(Math.min(f, stackBefore));
   const q = other(p);
   s.chips[p]! -= pay;
-  s.pot += pay;
-  s.betting.contributed[p]! += pay;
+  s.pot = roundHalfChip(s.pot + pay);
+  s.betting.contributed[p]! = roundHalfChip(s.betting.contributed[p]! + pay);
 
   const cp = s.betting.contributed[p]!;
   const cq = s.betting.contributed[q]!;
   if (cq > cp) {
     const excess = roundHalfChip(cq - cp);
     s.betting.contributed[q]! = cp;
-    s.chips[q]! += excess;
-    s.pot -= excess;
+    s.chips[q]! = roundHalfChip(s.chips[q]! + excess);
+    s.pot = roundHalfChip(s.pot - excess);
   }
   s.betting.currentLevel = Math.max(
     s.betting.contributed[0]!,
@@ -298,8 +299,8 @@ function normalizeUncalledBlindExcess(s: GameState): void {
   const excess = roundHalfChip(hi - lo);
   if (excess <= 1e-9) return;
   s.betting.contributed[hiIdx]! = lo;
-  s.chips[hiIdx]! += excess;
-  s.pot -= excess;
+  s.chips[hiIdx]! = roundHalfChip(s.chips[hiIdx]! + excess);
+  s.pot = roundHalfChip(s.pot - excess);
   s.betting.currentLevel = lo;
 }
 
@@ -497,6 +498,10 @@ export function holdemReducer(
   action: GameAction,
   random: () => number = rng(),
 ): GameState {
+  if (action.type === "RESET_MATCH") {
+    const seeded = createInitialGameState();
+    return holdemReducer(seeded, { type: "START_GAME" }, random);
+  }
   const s: GameState = structuredClone(state);
   ensureHandBlinds(s);
   s.isAllIn = s.isAllIn ?? false;
@@ -631,16 +636,8 @@ export function holdemReducer(
 
       const target = roundHalfChip(action.toLevelChips);
       const cur = s.betting.contributed[p]!;
-      const add = target - cur;
-      if (add <= 0 || add > s.chips[p]!) return state;
-      const level = levelFromContributions(s.betting);
-      if (target <= level) return state;
-
-      const minT = preflopMinTotalRaiseForActor(s);
-      const maxT = preflopMaxRaiseTargetForActor(s);
-      const bbUnit = resolveHandBlinds(s).bb;
-      if (!isVoluntaryBetMultiple(target, bbUnit)) return state;
-      if (target < minT || target > maxT) return state;
+      const add = roundHalfChip(target - cur);
+      if (!isLegalPreflopRaiseTarget(s, target)) return state;
 
       const potAfter = roundHalfChip(s.pot + add);
       if (potAfter > preflopMaxPotChips(s) + 1e-9) return state;
@@ -722,17 +719,19 @@ export function holdemReducer(
       const amt = roundHalfChip(action.amount);
       const maxB = postflopMaxOpenBetForActor(s);
       const bbUnit = resolveHandBlinds(s).bb;
+      const relaxedOpen = headsUpSubBbVoluntaryEnabled(s);
+      const minOpen = relaxedOpen ? SMALLEST_CHIP : bbUnit;
       if (
-        amt < bbUnit ||
+        amt < minOpen - 1e-9 ||
         amt > maxB + 1e-9 ||
-        !isVoluntaryBetMultiple(amt, bbUnit)
+        !isVoluntaryBetAmount(amt, bbUnit, relaxedOpen)
       ) {
         return state;
       }
       s.chips[p]! -= amt;
-      s.pot += amt;
-      s.betting.contributed[p]! += amt;
-      s.betting.currentLevel = s.betting.contributed[p]!;
+      s.pot = roundHalfChip(s.pot + amt);
+      s.betting.contributed[p]! = roundHalfChip(s.betting.contributed[p]! + amt);
+      s.betting.currentLevel = roundHalfChip(s.betting.contributed[p]!);
       s.betting.raiseDone = false;
       s.betting.checksThisStreet = 0;
       const allInBet = s.chips[p]! <= 1e-9;
@@ -773,21 +772,21 @@ export function holdemReducer(
       const f = facingFor(p, s.betting);
       if (f <= 0) return state;
       const target = roundHalfChip(action.toLevelChips);
-      const lv = levelFromContributions(s.betting);
       const cap = postflopRaiseTargetCappedByOpponent(s);
-      const minTarget = postflopMinRaiseToLevelChips(lv, f);
+      const minTarget = postflopMinRaiseTargetForActor(s);
       const bbUnitPost = resolveHandBlinds(s).bb;
+      const relaxedRaise = headsUpSubBbVoluntaryEnabled(s);
       if (
-        !isVoluntaryBetMultiple(target, bbUnitPost) ||
+        !isVoluntaryBetAmount(target, bbUnitPost, relaxedRaise) ||
         target > cap + 1e-9 ||
-        target < minTarget
+        target + 1e-9 < minTarget
       ) {
         return state;
       }
       const add = target - s.betting.contributed[p]!;
       if (add > s.chips[p]!) return state;
       s.chips[p]! -= add;
-      s.pot += add;
+      s.pot = roundHalfChip(s.pot + add);
       s.betting.contributed[p]! = target;
       s.betting.currentLevel = target;
       s.betting.raiseDone = false;
@@ -808,9 +807,13 @@ export function holdemReducer(
       if (s.phase !== "river" || s.toAct == null) return state;
       const p = s.toAct;
       if (s.iaUsed[p]) return state;
-      const cost = iaAppliedCostFromPot(s.pot, resolveHandBlinds(s).bb);
+      const cost = iaAppliedCostFromStack(
+        s.pot,
+        s.chips[p]!,
+        resolveHandBlinds(s).bb,
+      );
       if (cost <= 1e-9) return state;
-      s.pot = roundHalfChip(s.pot - cost);
+      s.chips[p]! = roundHalfChip(s.chips[p]! - cost);
       s.iaPotRemovalTotal = roundHalfChip(s.iaPotRemovalTotal + cost);
       s.iaUsed[p] = true;
       const opp = other(p);

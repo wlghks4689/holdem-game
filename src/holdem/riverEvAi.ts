@@ -7,11 +7,12 @@ import type { Card } from "./cards";
 import {
   effectiveCallPay,
   facingFor,
-  iaAppliedCostFromPot,
-  isVoluntaryBetMultiple,
+  headsUpSubBbVoluntaryEnabled,
+  iaAppliedCostFromStack,
+  isVoluntaryBetAmount,
   levelFromContributions,
   postflopMaxOpenBetForActor,
-  postflopMinRaiseToLevelChips,
+  postflopMinRaiseTargetForActor,
   postflopRaiseTargetCappedByOpponent,
   roundHalfChip,
   streetRaiseCapReached,
@@ -129,12 +130,17 @@ function withVirtualPot(s: GameState, pot: number): GameState {
   return { ...s, pot: roundHalfChip(pot) };
 }
 
-function snapRaiseTargets(minT: number, maxT: number, bb: number): number[] {
+function snapRaiseTargets(
+  minT: number,
+  maxT: number,
+  bb: number,
+  allowSubBb: boolean,
+): number[] {
   const s = new Set<number>();
   const add = (x: number) => {
     const r = roundHalfChip(x);
     if (r + CHIP_EPS < minT || r > maxT + CHIP_EPS) return;
-    if (!isVoluntaryBetMultiple(r, bb)) return;
+    if (!isVoluntaryBetAmount(r, bb, allowSubBb)) return;
     s.add(r);
   };
   add(minT);
@@ -150,15 +156,18 @@ function snapRaiseTargets(minT: number, maxT: number, bb: number): number[] {
 function openBetCandidates(statePot: GameState): number[] {
   const bb = resolveHandBlinds(statePot).bb;
   const maxB = postflopMaxOpenBetForActor(statePot);
-  if (maxB + CHIP_EPS < bb) return [];
+  const allowSub = headsUpSubBbVoluntaryEnabled(statePot);
+  const minB = allowSub ? SMALLEST_CHIP : bb;
+  if (maxB + CHIP_EPS < minB) return [];
   const pot = statePot.pot;
   const s = new Set<number>();
   const add = (x: number) => {
     const r = roundHalfChip(x);
-    if (r + CHIP_EPS < bb || r > maxB + CHIP_EPS) return;
-    if (!isVoluntaryBetMultiple(r, bb)) return;
+    if (r + CHIP_EPS < minB || r > maxB + CHIP_EPS) return;
+    if (!isVoluntaryBetAmount(r, bb, allowSub)) return;
     s.add(r);
   };
+  add(minB);
   add(bb);
   add(maxB);
   add(roundHalfChip(pot * 0.33));
@@ -173,12 +182,12 @@ function isLegalPostflopRaiseTo(state: GameState, targetRaw: number): boolean {
   if (streetRaiseCapReached(state.betting)) return false;
   const f = facingFor(p, state.betting);
   if (f <= 1e-9) return false;
-  const lv = levelFromContributions(state.betting);
   const cap = postflopRaiseTargetCappedByOpponent(state);
-  const minTarget = postflopMinRaiseToLevelChips(lv, f);
+  const minTarget = postflopMinRaiseTargetForActor(state);
   const bbUnit = resolveHandBlinds(state).bb;
   const target = roundHalfChip(targetRaw);
-  if (!isVoluntaryBetMultiple(target, bbUnit)) return false;
+  const allowSub = headsUpSubBbVoluntaryEnabled(state);
+  if (!isVoluntaryBetAmount(target, bbUnit, allowSub)) return false;
   if (target > cap + CHIP_EPS || target + CHIP_EPS < minTarget) return false;
   const add = target - state.betting.contributed[p]!;
   if (add <= 1e-9 || add > state.chips[p]! + CHIP_EPS) return false;
@@ -249,11 +258,11 @@ export function pickBestRiverEvAction(
     }
 
     if (!state.isAllIn && !streetRaiseCapReached(state.betting)) {
-      const level = levelFromContributions(state.betting);
-      const minR = postflopMinRaiseToLevelChips(level, facing);
+      const minR = postflopMinRaiseTargetForActor(sPot);
       const maxR = postflopRaiseTargetCappedByOpponent(sPot);
+      const subBb = headsUpSubBbVoluntaryEnabled(sPot);
       if (minR <= maxR + CHIP_EPS) {
-        for (const T of snapRaiseTargets(minR, maxR, bb)) {
+        for (const T of snapRaiseTargets(minR, maxR, bb, subBb)) {
           if (!isLegalPostflopRaiseTo(sPot, T)) continue;
           const out = raisePotOutcome(state, aiSeat, potEff, T);
           if (!out.ok) continue;
@@ -287,13 +296,13 @@ export function pickBestRiverEvAction(
 }
 
 /**
- * HARD 리버: IA 기대이익 vs 비용(팟 차감) 비교.
+ * HARD 리버: IA 기대이익 vs 비용(내 스택 차감) 비교.
  */
 export function shouldAIUseIAHardEv(state: GameState, aiSeat: PlayerIndex): boolean {
   if (state.phase !== "river" || state.isAllIn) return false;
   const bb = resolveHandBlinds(state).bb;
   const P = state.pot;
-  const C = iaAppliedCostFromPot(P, bb);
+  const C = iaAppliedCostFromStack(P, state.chips[aiSeat]!, bb);
   if (C <= CHIP_EPS || P <= C + CHIP_EPS) return false;
 
   const hero = state.holes[aiSeat]?.hole;

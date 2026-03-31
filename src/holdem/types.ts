@@ -171,5 +171,7 @@ export type GameAction =
   | { type: "FOLD" }
   | { type: "USE_IA" }
   | { type: "NEW_HAND" }
+  /** 매치 종료 후 같은 방/세션에서 재경기 시작(초기화 + 코인토스) */
+  | { type: "RESET_MATCH" }
   /** 멀티플레이 로비: 호스트(시트 0)가 누르는 게임 시작. 하이카드 드로우 후 hand_select로 전환 */
   | { type: "START_GAME" };

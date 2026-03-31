@@ -5,7 +5,7 @@ import {
 } from "./constants";
 import { facingFor } from "./bettingHelpers";
 import { ALL_HAND_TEMPLATES, normalizeHandPoolRemaining } from "./handPool";
-import type { GameAction, GameState, PlayerIndex } from "./types";
+import type { GameAction, GameState } from "./types";
 
 export { ACTION_TIMER_SECONDS, HAND_SELECT_TIMER_SECONDS };
 
@@ -110,7 +110,8 @@ export function computeTimeoutAction(state: GameState): GameAction | null {
       return { type: "PREFLOP_CHECK" };
     }
     if (facing > 0) {
-      return { type: "PREFLOP_CALL" };
+      // button_acts is the only preflop branch where fold is disallowed.
+      return st === "button_acts" ? { type: "PREFLOP_CALL" } : { type: "FOLD" };
     }
     return null;
   }
@@ -119,7 +120,7 @@ export function computeTimeoutAction(state: GameState): GameAction | null {
     if (facing === 0) {
       return { type: "POSTFLOP_CHECK" };
     }
-    return { type: "POSTFLOP_CALL" };
+    return { type: "FOLD" };
   }
 
   return null;

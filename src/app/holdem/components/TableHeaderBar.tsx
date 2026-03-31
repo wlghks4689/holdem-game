@@ -170,7 +170,7 @@ export function TableHeaderBar({ state, playerNames }: TableHeaderBarProps) {
         </span>
       </div>
 
-      <div className="grid gap-1.5 sm:grid-cols-2 sm:gap-2">
+      <div className="grid grid-cols-2 gap-1.5 sm:gap-2">
         {([0, 1] as PlayerIndex[]).map((p) => {
           const bettingUi =
             state.matchWinner == null &&
@@ -232,7 +232,7 @@ export function TableHeaderBar({ state, playerNames }: TableHeaderBarProps) {
                 >
                   <span
                     className="font-mono text-zinc-100"
-                    style={{ fontSize: "calc(1rem * 1.4)" }}
+                    style={{ fontSize: "calc(1rem * 1.2)" }}
                   >
                     {fmtChips(state.chips[p]!)}
                     <span

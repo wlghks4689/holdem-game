@@ -15,7 +15,7 @@ import {
   type Difficulty,
 } from "./aiPlayer";
 import { shouldAIUseIAHardEv } from "./riverEvAi";
-import { iaAppliedCostFromPot } from "./bettingHelpers";
+import { iaAppliedCostFromStack } from "./bettingHelpers";
 import { resolveHandBlinds } from "./blindLevels";
 import { SINGLE_PLAYER_AI_THINK_EXTRA_MS } from "./constants";
 import { createInitialGameState, holdemReducer } from "./gameReducer";
@@ -170,12 +170,13 @@ export function useHoldemSinglePlayer({
 
       // 리버에서 IA 사용 여부 먼저 결정
       const bb = resolveHandBlinds(cur).bb;
-      const iaCost = iaAppliedCostFromPot(cur.pot, bb);
+      const iaCost = iaAppliedCostFromStack(cur.pot, cur.chips[aiSeat]!, bb);
       const canIA =
         cur.phase === "river" &&
         !cur.iaUsed[aiSeat] &&
         iaCost > 1e-9 &&
         cur.pot > 0 &&
+        cur.chips[aiSeat]! >= iaCost - 1e-9 &&
         !cur.isAllIn;
 
       if (canIA) {

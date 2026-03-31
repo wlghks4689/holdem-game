@@ -26,6 +26,8 @@ export function HoldemOnlinePage(props: {
     pause,
     sendPauseCmd,
     guestJoined,
+    rematchAccepted,
+    sendRematchCmd,
   } = useHoldemOnlineGame({ roomId, mySeat, token });
 
   /* 매치가 끝나면 재접속 기록 삭제 (다음 게임에서 묵은 배너가 뜨지 않도록) */
@@ -35,14 +37,17 @@ export function HoldemOnlinePage(props: {
     }
   }, [state?.matchWinner]);
 
-  /* 하이카드 드로우 오버레이: highCardDraw가 세팅된 직후 한 번 표시 */
+  /* 하이카드 드로우 오버레이: 매치 시작(하이카드 결정) 1회 표시 */
   const [showDrawOverlay, setShowDrawOverlay] = React.useState(false);
-  const prevPhaseRef = React.useRef<string | null>(null);
+  const shownDrawKeyRef = React.useRef<string | null>(null);
   React.useEffect(() => {
     if (state == null) return;
-    const wasLobby = prevPhaseRef.current === "lobby";
-    prevPhaseRef.current = state.phase;
-    if (wasLobby && state.phase === "hand_select" && state.highCardDraw != null) {
+    if (state.highCardDraw == null) return;
+    if (state.phase === "lobby") return;
+    const d = state.highCardDraw;
+    const drawKey = `${d.ranks[0]}-${d.ranks[1]}-${d.winnerSeat}`;
+    if (shownDrawKeyRef.current !== drawKey) {
+      shownDrawKeyRef.current = drawKey;
       setShowDrawOverlay(true);
     }
   }, [state]);
@@ -78,6 +83,15 @@ export function HoldemOnlinePage(props: {
   const updateName = React.useCallback((_p: PlayerIndex, _raw: string) => {
     /* 온라인: 닉네임은 환경설정에서만 변경 */
   }, []);
+
+  const rematchLabel = React.useMemo(() => {
+    if (state?.matchWinner == null) return null;
+    const meAccepted = rematchAccepted[mySeat];
+    const oppAccepted = rematchAccepted[mySeat === 0 ? 1 : 0];
+    if (meAccepted && oppAccepted) return "양측 수락 완료 · 재시작 중";
+    if (meAccepted) return "재경기 수락 완료 · 상대 응답 대기 중";
+    return "재경기 버튼을 누르면 상대에게 수락 요청이 전송됩니다";
+  }, [mySeat, rematchAccepted, state?.matchWinner]);
 
   if (loadError && state == null) {
     return (
@@ -265,6 +279,10 @@ export function HoldemOnlinePage(props: {
         mySeat={mySeat}
         playMode="online"
         onlineMeta={{ roomId }}
+        onMatchRematch={() =>
+          void sendRematchCmd(rematchAccepted[mySeat] ? "cancel" : "accept")
+        }
+        matchRematchLabel={rematchLabel}
         onlinePause={{
           pause,
           mySeat,

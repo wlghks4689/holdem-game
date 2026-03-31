@@ -18,6 +18,7 @@ export type OnlinePauseCmd =
   | "accept"
   | "reject"
   | "resume";
+export type OnlineRematchCmd = "accept" | "cancel";
 
 export function useHoldemOnlineGame(opts: {
   roomId: string;
@@ -31,6 +32,11 @@ export function useHoldemOnlineGame(opts: {
   });
   const [loadError, setLoadError] = React.useState<string | null>(null);
   const [guestJoined, setGuestJoined] = React.useState(false);
+  const [rematchAccepted, setRematchAccepted] = React.useState<[boolean, boolean]>([
+    false,
+    false,
+  ]);
+  const stateVersionRef = React.useRef(0);
 
   const stateRef = React.useRef<GameState | null>(null);
   React.useLayoutEffect(() => {
@@ -45,8 +51,10 @@ export function useHoldemOnlineGame(opts: {
     const j = (await r.json().catch(() => ({}))) as {
       error?: string;
       state?: GameState;
+      stateVersion?: number;
       pause?: unknown;
       guestJoined?: boolean;
+      rematchAccepted?: [boolean, boolean];
     };
     if (!r.ok) {
       setLoadError(j.error ?? r.statusText);
@@ -56,9 +64,17 @@ export function useHoldemOnlineGame(opts: {
       setLoadError(null);
       setState(j.state);
       setPause(normalizeRoomPause(j.pause));
+      if (typeof j.stateVersion === "number" && Number.isFinite(j.stateVersion)) {
+        stateVersionRef.current = j.stateVersion;
+      }
     }
     if (typeof j.guestJoined === "boolean") {
       setGuestJoined(j.guestJoined);
+    }
+    if (Array.isArray(j.rematchAccepted) && j.rematchAccepted.length === 2) {
+      setRematchAccepted([Boolean(j.rematchAccepted[0]), Boolean(j.rematchAccepted[1])]);
+    } else {
+      setRematchAccepted([false, false]);
     }
   }, [roomId, mySeat, token]);
 
@@ -70,16 +86,34 @@ export function useHoldemOnlineGame(opts: {
 
   const dispatch = React.useCallback(
     async (action: GameAction) => {
-      const r = await fetch(`/api/room/${roomId}/action`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ seat: mySeat, token, action }),
-      });
-      const j = (await r.json().catch(() => ({}))) as {
+      const send = async (version: number) =>
+        fetch(`/api/room/${roomId}/action`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ seat: mySeat, token, action, stateVersion: version }),
+        });
+      let r = await send(stateVersionRef.current);
+      let j = (await r.json().catch(() => ({}))) as {
         error?: string;
         state?: GameState;
+        stateVersion?: number;
         pause?: unknown;
       };
+      if (r.status === 409) {
+        if (j.state) {
+          setState(j.state);
+        }
+        if (typeof j.stateVersion === "number" && Number.isFinite(j.stateVersion)) {
+          stateVersionRef.current = j.stateVersion;
+          r = await send(j.stateVersion);
+          j = (await r.json().catch(() => ({}))) as {
+            error?: string;
+            state?: GameState;
+            stateVersion?: number;
+            pause?: unknown;
+          };
+        }
+      }
       if (!r.ok) {
         if (action.type === "NEW_HAND" && r.status === 400) {
           setLoadError(null);
@@ -98,6 +132,9 @@ export function useHoldemOnlineGame(opts: {
       if (j.state) {
         setState(j.state);
         setLoadError(null);
+      }
+      if (typeof j.stateVersion === "number" && Number.isFinite(j.stateVersion)) {
+        stateVersionRef.current = j.stateVersion;
       }
       if ("pause" in j) {
         setPause(normalizeRoomPause(j.pause));
@@ -136,6 +173,38 @@ export function useHoldemOnlineGame(opts: {
       setPause(normalizeRoomPause(j.pause));
     },
     [roomId, mySeat, token, fetchSnapshot],
+  );
+
+  const sendRematchCmd = React.useCallback(
+    async (cmd: OnlineRematchCmd) => {
+      const r = await fetch(`/api/room/${roomId}/rematch`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ seat: mySeat, token, cmd }),
+      });
+      const j = (await r.json().catch(() => ({}))) as {
+        error?: string;
+        state?: GameState;
+        stateVersion?: number;
+        rematchAccepted?: [boolean, boolean];
+      };
+      if (!r.ok) {
+        setLoadError(j.error ?? "rematch request failed");
+        void fetchSnapshot();
+        return;
+      }
+      setLoadError(null);
+      if (j.state) setState(j.state);
+      if (typeof j.stateVersion === "number" && Number.isFinite(j.stateVersion)) {
+        stateVersionRef.current = j.stateVersion;
+      }
+      if (Array.isArray(j.rematchAccepted) && j.rematchAccepted.length === 2) {
+        setRematchAccepted([Boolean(j.rematchAccepted[0]), Boolean(j.rematchAccepted[1])]);
+      } else {
+        setRematchAccepted([false, false]);
+      }
+    },
+    [fetchSnapshot, mySeat, roomId, token],
   );
 
   const [actionTimerLeft, setActionTimerLeft] = React.useState<number | null>(
@@ -188,5 +257,7 @@ export function useHoldemOnlineGame(opts: {
     pause,
     sendPauseCmd,
     guestJoined,
+    rematchAccepted,
+    sendRematchCmd,
   };
 }

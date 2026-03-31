@@ -12,6 +12,14 @@ export function sanitizeGameStateForSeat(
 ): GameState {
   const out = structuredClone(state) as GameState;
   const opp = other(seat);
+
+  // Seat-based minimum disclosure:
+  // - hide opponent future resource info
+  // - hide unrevealed board cards from API payload
+  out.handPoolRemaining[opp] = {};
+  const visibleBoard = Math.max(0, Math.min(out.boardRevealed, out.board.length));
+  out.board = out.board.slice(0, visibleBoard);
+
   if (out.phase !== "showdown") {
     out.holes[opp] = null;
   }

@@ -38,6 +38,11 @@ export function HighCardDrawOverlay({
 }: HighCardDrawOverlayProps) {
   const [animPhase, setAnimPhase] = React.useState<AnimPhase>("intro");
   const timerRefs = React.useRef<number[]>([]);
+  const drawKey = `${draw.ranks[0]}-${draw.ranks[1]}-${draw.winnerSeat}`;
+  const onCloseRef = React.useRef(onClose);
+  React.useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
 
   const clearAll = React.useCallback(() => {
     timerRefs.current.forEach((id) => window.clearTimeout(id));
@@ -51,23 +56,27 @@ export function HighCardDrawOverlay({
 
   React.useEffect(() => {
     clearAll();
+    setAnimPhase("intro");
     sched(() => setAnimPhase("deal"),   700);   // 뒷면 동시 딜
     sched(() => setAnimPhase("flip"),   1650);  // 앞면 동시 오픈
     sched(() => setAnimPhase("result"), 2500);  // GLOW / 흑백
-    sched(() => { setAnimPhase("done"); onClose(); }, AUTO_CLOSE_MS);
+    sched(() => { setAnimPhase("done"); onCloseRef.current(); }, AUTO_CLOSE_MS);
     return clearAll;
-  }, [draw, sched, clearAll, onClose]);
+  }, [drawKey, sched, clearAll]);
 
   const skip = React.useCallback(() => {
     clearAll();
     setAnimPhase("done");
-    onClose();
-  }, [clearAll, onClose]);
+    onCloseRef.current();
+  }, [clearAll]);
 
   if (animPhase === "done") return null;
 
   const { ranks, winnerSeat } = draw;
   const winnerName = playerNames[winnerSeat];
+  const oppSeat: PlayerIndex = mySeat === 0 ? 1 : 0;
+  const myRank = rankLabel(ranks[mySeat]);
+  const oppRank = rankLabel(ranks[oppSeat]);
 
   const isDeal   = animPhase !== "intro";
   const isFlipped = animPhase === "flip" || animPhase === "result";
@@ -199,6 +208,10 @@ export function HighCardDrawOverlay({
           </p>
           <p className="mt-0.5 text-sm text-amber-300/80">
             버튼 (SB) 획득 — 프리플랍 먼저 액션
+          </p>
+          <p className="mt-1 text-xs text-amber-100/90">
+            상대 {oppRank} vs 나 {myRank} →{" "}
+            {winnerSeat === mySeat ? "나 선플레이어" : "상대 선플레이어"}
           </p>
         </div>
       )}

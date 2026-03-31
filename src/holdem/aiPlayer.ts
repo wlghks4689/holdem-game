@@ -7,11 +7,11 @@ import {
   canPreflopShortStackAllInShove,
   effectiveCallPay,
   facingFor,
-  iaAppliedCostFromPot,
-  levelFromContributions,
+  iaAppliedCostFromStack,
   postflopRaiseTargetCappedByOpponent,
   postflopMaxOpenBetForActor,
-  postflopMinRaiseToLevelChips,
+  headsUpSubBbVoluntaryEnabled,
+  postflopMinRaiseTargetForActor,
   preflopHasLegalRaise,
   preflopMaxRaiseTargetForActor,
   preflopMinTotalRaiseForActor,
@@ -164,7 +164,7 @@ function preflopRaiseTo(
 ): number {
   const minT = preflopMinTotalRaiseForActor(state);
   const maxT = preflopMaxRaiseTargetForActor(state);
-  if (minT > maxT + 1e-9) return minT;
+  if (minT > maxT + 1e-9) return roundHalfChip(maxT);
 
   const bb = resolveHandBlinds(state).bb;
   let target: number;
@@ -298,7 +298,6 @@ function postflopAction(
   p: AIPersonality,
 ): GameAction | null {
   const facing = facingFor(aiSeat, state.betting);
-  const level = levelFromContributions(state.betting);
   const chips = state.chips[aiSeat]!;
   const pot = state.pot;
   const bb = resolveHandBlinds(state).bb;
@@ -314,13 +313,17 @@ function postflopAction(
     const r = Math.random();
     if (facing === 0) {
       const maxB = postflopMaxOpenBetForActor(state);
-      if (!isAllIn && r < 0.38 && maxB >= bb) {
-        return { type: "POSTFLOP_BET", amount: clamp(maxB * rng(0.25, 0.65), bb, maxB) };
+      const minBet = headsUpSubBbVoluntaryEnabled(state) ? SMALLEST_CHIP : bb;
+      if (!isAllIn && r < 0.38 && maxB >= minBet - 1e-9) {
+        return {
+          type: "POSTFLOP_BET",
+          amount: clamp(maxB * rng(0.25, 0.65), minBet, maxB),
+        };
       }
       return { type: "POSTFLOP_CHECK" };
     } else {
       if (!isAllIn && !streetRaiseCapReached(state.betting) && r < 0.18) {
-        const minR = postflopMinRaiseToLevelChips(level, facing);
+        const minR = postflopMinRaiseTargetForActor(state);
         const maxR = postflopRaiseTargetCappedByOpponent(state);
         if (minR <= maxR + 1e-9) {
           return { type: "POSTFLOP_RAISE", toLevelChips: clamp(rng(minR, maxR), minR, maxR) };
@@ -338,15 +341,16 @@ function postflopAction(
       0, 0.95,
     );
     const maxB = postflopMaxOpenBetForActor(state);
+    const minBet = headsUpSubBbVoluntaryEnabled(state) ? SMALLEST_CHIP : bb;
 
-    if (!isAllIn && Math.random() < betThresh && maxB >= bb) {
+    if (!isAllIn && Math.random() < betThresh && maxB >= minBet - 1e-9) {
       const frac =
         difficulty === "normal"
           ? effectiveTier >= 4 ? rng(0.50, 0.75) : rng(0.30, 0.50)
           : effectiveTier >= 5 ? rng(0.70, 1.00) :
             effectiveTier >= 4 ? rng(0.55, 0.80) :
             effectiveTier >= 3 ? rng(0.40, 0.60) : rng(0.25, 0.42);
-      const amt = clamp(pot * frac, bb, maxB);
+      const amt = clamp(pot * frac, minBet, maxB);
       return { type: "POSTFLOP_BET", amount: amt };
     }
     return { type: "POSTFLOP_CHECK" };
@@ -362,7 +366,7 @@ function postflopAction(
 
     const r = Math.random();
     if (!isAllIn && !streetRaiseCapReached(state.betting) && r < raiseThresh) {
-      const minR = postflopMinRaiseToLevelChips(level, facing);
+      const minR = postflopMinRaiseTargetForActor(state);
       const maxR = postflopRaiseTargetCappedByOpponent(state);
       const contrib = state.betting.contributed[aiSeat]!;
       const affordable = roundHalfChip(contrib + chips);
@@ -431,10 +435,10 @@ export function shouldAIUseIA(
 ): boolean {
   const tier = handStrengthTier(state.holes[aiSeat]?.templateId);
   const bb = resolveHandBlinds(state).bb;
-  const iaCost = iaAppliedCostFromPot(state.pot, bb);
+  const iaCost = iaAppliedCostFromStack(state.pot, state.chips[aiSeat]!, bb);
 
   if (iaCost <= 1e-9) return false;
-  if (state.pot <= 0 || state.isAllIn) return false;
+  if (state.pot <= 0 || state.isAllIn || state.chips[aiSeat]! + 1e-9 < iaCost) return false;
 
   const base =
     difficulty === "easy"   ? 0.12 :

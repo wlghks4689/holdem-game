@@ -12,7 +12,7 @@ export function AllInShowdownCinemaOverlay({
   phase,
   onSkip,
 }: AllInShowdownCinemaOverlayProps) {
-  if (phase === "off" || phase === "result") return null;
+  if (phase === "off" || phase === "showdown-resolve") return null;
 
   return (
     <button
@@ -21,7 +21,7 @@ export function AllInShowdownCinemaOverlay({
       onClick={onSkip}
       aria-label="쇼다운 연출 스킵 — 전체 보드·결과 즉시 표시"
     >
-      {phase === "intro" ? (
+      {phase === "allin-lock" ? (
         <div
           className="pointer-events-none px-4 text-center"
           style={{
@@ -29,10 +29,10 @@ export function AllInShowdownCinemaOverlay({
           }}
         >
           <p className="text-2xl font-black uppercase tracking-[0.28em] text-amber-200 drop-shadow-[0_0_24px_rgba(251,191,36,0.35)] sm:text-3xl">
-            All-in Showdown
+            ALL-IN
           </p>
           <p className="mt-3 text-sm font-medium text-zinc-200/90">
-            플랍 · 턴 · 리버 순서로 공개합니다
+            보드를 순차 공개합니다
           </p>
         </div>
       ) : null}

@@ -22,7 +22,9 @@ export async function POST() {
   const token0 = randomBytes(24).toString("hex");
   const blob: RoomBlob = {
     state: createRoomInitialGameState(),
+    stateVersion: 0,
     tokens: [token0, null],
+    rematchAccepted: [false, false],
   };
   await roomSet(roomId, blob);
 

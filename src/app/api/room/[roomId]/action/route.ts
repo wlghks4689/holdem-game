@@ -35,15 +35,17 @@ export async function POST(req: Request, ctx: Ctx) {
     body === null ||
     !("action" in body) ||
     !("seat" in body) ||
-    !("token" in body)
+    !("token" in body) ||
+    !("stateVersion" in body)
   ) {
     return NextResponse.json({ error: "bad body" }, { status: 400 });
   }
 
-  const { seat, token, action } = body as {
+  const { seat, token, action, stateVersion } = body as {
     seat: unknown;
     token: unknown;
     action: unknown;
+    stateVersion: unknown;
   };
 
   if (
@@ -52,7 +54,10 @@ export async function POST(req: Request, ctx: Ctx) {
     token.length < 8 ||
     typeof action !== "object" ||
     action === null ||
-    !("type" in action)
+    !("type" in action) ||
+    typeof stateVersion !== "number" ||
+    !Number.isFinite(stateVersion) ||
+    stateVersion < 0
   ) {
     return NextResponse.json({ error: "bad body" }, { status: 400 });
   }
@@ -80,6 +85,17 @@ export async function POST(req: Request, ctx: Ctx) {
   if (!canSeatSendAction(blob.state, typedAction, typedSeat)) {
     return NextResponse.json({ error: "not your action" }, { status: 403 });
   }
+  if (blob.stateVersion !== stateVersion) {
+    return NextResponse.json(
+      {
+        error: "state version conflict",
+        state: sanitizeGameStateForSeat(blob.state, typedSeat),
+        stateVersion: blob.stateVersion,
+        pause: normalizeRoomPause(blob.pause),
+      },
+      { status: 409 },
+    );
+  }
 
   const before = blob.state;
   const after = holdemReducer(before, typedAction, serverRng());
@@ -88,10 +104,12 @@ export async function POST(req: Request, ctx: Ctx) {
   }
 
   blob.state = after;
+  blob.stateVersion += 1;
   await roomSet(roomId, blob);
 
   return NextResponse.json({
     state: sanitizeGameStateForSeat(after, typedSeat),
+    stateVersion: blob.stateVersion,
     pause: normalizeRoomPause(blob.pause),
   });
 }

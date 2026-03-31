@@ -7,17 +7,17 @@ import {
   canPreflopShortStackAllInShove,
   effectiveCallPay,
   facingFor,
-  iaAppliedCostFromPot,
+  iaAppliedCostFromStack,
   isLegalPreflopRaiseTarget,
   levelFromContributions,
   postflopCustomMaxRaiseToLevel,
   postflopRaiseTargetCappedByOpponent,
+  headsUpSubBbVoluntaryEnabled,
   postflopMaxOpenBetForActor,
-  postflopMinRaiseToLevelChips,
+  postflopMinRaiseTargetForActor,
+  preflopRaiseSliderRange,
   preflopAllInTotalContribution,
-  preflopHasLegalRaise,
   preflopMaxRaiseTargetForActor,
-  preflopMinTotalRaiseForActor,
   roundHalfChip,
   streetRaiseCapReached,
 } from "@/holdem/bettingHelpers";
@@ -231,6 +231,8 @@ function BetSlider({
 
 const btnPrimary =
   "rounded-lg border border-emerald-500/80 bg-emerald-800/45 px-3 py-2 text-xs font-semibold text-emerald-50 hover:bg-emerald-700/45 disabled:cursor-not-allowed disabled:opacity-45";
+const btnAllInCall =
+  "rounded-lg border border-amber-300/80 bg-amber-800/70 px-3 py-2 text-xs font-extrabold text-amber-50 shadow-[0_0_16px_rgba(251,191,36,0.28)] transition hover:bg-amber-700/70 hover:shadow-[0_0_22px_rgba(251,191,36,0.36)] disabled:cursor-not-allowed disabled:opacity-45";
 
 const btnDanger =
   "rounded-lg border border-rose-600/70 bg-rose-900/45 px-3 py-2 text-xs font-semibold text-rose-50 hover:bg-rose-800/40 disabled:cursor-not-allowed disabled:opacity-45";
@@ -239,23 +241,24 @@ const btnIa =
   "rounded-lg border border-indigo-400/60 bg-indigo-900/45 px-3 py-2 text-xs font-semibold text-indigo-50 hover:bg-indigo-800/40 disabled:cursor-not-allowed disabled:opacity-45";
 
 const btnPreflopAllIn =
-  "rounded-lg border border-rose-500/65 bg-rose-950/50 px-3 py-2 text-xs font-bold text-rose-100 hover:bg-rose-900/45 disabled:cursor-not-allowed disabled:opacity-45";
+  "rounded-lg border border-rose-400/75 bg-rose-900/65 px-3 py-2 text-xs font-extrabold text-rose-50 shadow-[0_0_16px_rgba(244,63,94,0.28)] transition hover:bg-rose-800/60 hover:shadow-[0_0_22px_rgba(244,63,94,0.36)] animate-pulse disabled:cursor-not-allowed disabled:opacity-45";
+const btnPostflopAllIn =
+  "rounded-lg border border-rose-400/80 bg-rose-900/70 px-3 py-2 text-xs font-extrabold text-rose-50 shadow-[0_0_18px_rgba(244,63,94,0.32)] transition hover:bg-rose-800/60 hover:shadow-[0_0_24px_rgba(244,63,94,0.4)] animate-pulse disabled:cursor-not-allowed disabled:opacity-45";
 
 // ─── 헬퍼 ────────────────────────────────────────────────────────────────────
 
 function preflopCompactRaiseKeyFromState(state: GameState): string {
   if (state.toAct == null) return "";
   const preflop = state.phase === "preflop" && state.preflopStage != null;
-  if (!preflop || state.isAllIn || !preflopHasLegalRaise(state)) return "";
-  const preRaiseCap = preflopMaxRaiseTargetForActor(state);
-  const preMinRaiseTarget = preflopMinTotalRaiseForActor(state);
+  const range = preflop ? preflopRaiseSliderRange(state) : null;
+  if (!preflop || state.isAllIn || range == null) return "";
   const level = levelFromContributions(state.betting);
   return [
     state.roundNumber,
     state.preflopStage,
     state.toAct,
-    preMinRaiseTarget,
-    preRaiseCap,
+    range.min,
+    range.max,
     state.betting.contributed[0],
     state.betting.contributed[1],
     level,
@@ -301,7 +304,7 @@ export function ActionPanel({
     const f = facingFor(actor, b);
     const lv = levelFromContributions(b);
     const maxBetHere = postflopMaxOpenBetForActor(state);
-    const minR = f > 0 ? postflopMinRaiseToLevelChips(lv, f) : 0;
+    const minR = f > 0 ? postflopMinRaiseTargetForActor(state) : 0;
     const maxT = f > 0 ? postflopRaiseTargetCappedByOpponent(state) : 0;
     return [
       state.roundNumber,
@@ -355,13 +358,16 @@ export function ActionPanel({
     const maxB = postflopMaxOpenBetForActor(state);
     const streetBb = resolveHandBlinds(state).bb;
     // 기본 베팅: ½ 팟 (최소 1bb, 최대 maxBet)
+    const relaxed = headsUpSubBbVoluntaryEnabled(state);
     setBetValue(
       maxB >= streetBb
         ? roundHalfChip(Math.min(maxB, Math.max(streetBb, roundHalfChip(maxB / 2))))
-        : streetBb,
+        : relaxed && maxB >= SMALLEST_CHIP - 1e-9
+          ? roundHalfChip(Math.min(maxB, Math.max(SMALLEST_CHIP, roundHalfChip(maxB / 2))))
+          : roundHalfChip(Math.min(maxB, streetBb)),
     );
     if (f > 0) {
-      const minR = postflopMinRaiseToLevelChips(lv, f);
+      const minR = postflopMinRaiseTargetForActor(state);
       setRaiseValue(roundHalfChip(minR));
     }
   }, [postFlopSyncKey]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -418,8 +424,10 @@ export function ActionPanel({
     if (preflopRaiseDraftKeyRef.current === preflopCompactRaiseKey) return;
     preflopRaiseDraftKeyRef.current = preflopCompactRaiseKey;
     if (state.toAct == null) return;
-    const preMin = preflopMinTotalRaiseForActor(state);
-    setPreflopRaiseValue(roundHalfChip(preMin));
+    const range = preflopRaiseSliderRange(state);
+    if (range != null) {
+      setPreflopRaiseValue(roundHalfChip(range.min));
+    }
   }, [preflopCompactRaiseKey, state]);
 
   // ── Early returns ─────────────────────────────────────────────────────────
@@ -544,24 +552,25 @@ export function ActionPanel({
   const idleAllInWaiting =
     isAllIn && chips <= 1e-9 && facing <= 1e-9 && (preflop || post);
 
-  const iaCost = iaAppliedCostFromPot(state.pot, bbUnit);
+  const iaCost = iaAppliedCostFromStack(state.pot, chips, bbUnit);
   const canIa =
     phase === "river" &&
     !state.iaUsed[p] &&
     iaCost > 1e-9 &&
     state.pot > 0 &&
+    chips >= iaCost - 1e-9 &&
     !isAllIn;
 
   // ── 프리플랍 ──────────────────────────────────────────────────────────────
   const preRaiseCap = preflop ? preflopMaxRaiseTargetForActor(state) : 0;
-  const showPreflopRaise = preflop && preflopHasLegalRaise(state);
+  const preflopRange = preflop ? preflopRaiseSliderRange(state) : null;
+  const showPreflopRaise = preflopRange != null;
   const isBbToAct = preflop && p !== state.button;
-  const preMinRaiseTarget = preflop ? preflopMinTotalRaiseForActor(state) : 0;
 
   const preflopRaiseClamped =
-    preflop && preMinRaiseTarget <= preRaiseCap + 1e-9
-      ? Math.max(preMinRaiseTarget, Math.min(preRaiseCap, preflopRaiseValue))
-      : preMinRaiseTarget;
+    preflopRange != null
+      ? Math.max(preflopRange.min, Math.min(preflopRange.max, preflopRaiseValue))
+      : 0;
   const preflopRaiseValid =
     showPreflopRaise && isLegalPreflopRaiseTarget(state, preflopRaiseClamped);
 
@@ -574,7 +583,7 @@ export function ActionPanel({
     facing > 0 ? postflopRaiseTargetCappedByOpponent(state) : level;
   const postRaiseOnlyByStack = facing > 0 && postRaiseCap + 1e-9 < postRaiseRuleCap;
   const postRaiseMin =
-    facing > 0 ? postflopMinRaiseToLevelChips(level, facing) : level;
+    facing > 0 ? postflopMinRaiseTargetForActor(state) : level;
   const canPostflopRaise =
     post &&
     facing > 0 &&
@@ -582,12 +591,31 @@ export function ActionPanel({
     postRaiseMin <= postRaiseCap + 1e-9 &&
     postRaiseMin <= maxAffordableRaiseTotal + 1e-9;
 
+  const relaxedOpen = post && headsUpSubBbVoluntaryEnabled(state);
+  const minOpenBet = relaxedOpen ? SMALLEST_CHIP : bbUnit;
   const betClamped =
-    post && maxBet > 0 ? Math.max(bbUnit, Math.min(maxBet, betValue)) : bbUnit;
+    post && maxBet > 0
+      ? Math.max(minOpenBet, Math.min(maxBet, betValue))
+      : minOpenBet;
   const postRaiseClamped =
     post && facing > 0
       ? Math.max(postRaiseMin, Math.min(postRaiseCap, raiseValue))
       : postRaiseMin;
+  const postAllInBetAmount = roundHalfChip(Math.min(chips, maxBet));
+  const canPostflopAllInBet =
+    post &&
+    facing <= 1e-9 &&
+    !isAllIn &&
+    postAllInBetAmount >= minOpenBet - 1e-9 &&
+    maxBet >= chips - 1e-9;
+  const postAllInRaiseTotal = roundHalfChip(maxAffordableRaiseTotal);
+  const canPostflopAllInRaise =
+    post &&
+    facing > 0 &&
+    !hideReraiseStreet &&
+    !streetCapped &&
+    postRaiseCap >= postAllInRaiseTotal - 1e-9 &&
+    postAllInRaiseTotal >= postRaiseMin - 1e-9;
 
   // ── 콜 / 폴드 표시 ────────────────────────────────────────────────────────
   const callPay = effectiveCallPay(p, state);
@@ -627,15 +655,15 @@ export function ActionPanel({
 
   // ── 프리플랍 레이즈 슬라이더 블록 ─────────────────────────────────────────
   const preflopRaiseBlock =
-    showPreflopRaise && !hideReraiseStreet && preMinRaiseTarget <= preRaiseCap + 1e-9 ? (
+    showPreflopRaise && preflopRange != null && !hideReraiseStreet ? (
       <div className="space-y-2 rounded-lg border border-zinc-600/45 bg-zinc-800/30 px-3 pb-3 pt-2.5">
         <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-400">
           Raise
         </p>
         <BetSlider
           value={preflopRaiseClamped}
-          min={preMinRaiseTarget}
-          max={preRaiseCap}
+          min={preflopRange.min}
+          max={preflopRange.max}
           pot={state.pot}
           bbUnit={bbUnit}
           onChange={setPreflopRaiseValue}
@@ -713,7 +741,7 @@ export function ActionPanel({
           <button
             type="button"
             className={[btnIa, "inline-flex items-center gap-1.5"].join(" ")}
-            title={`팟에서 비용이 차감되고 상대 홀의 카테고리만 공개됩니다. 사용 직후 이 리버 액션에 ${IA_RIVER_ACTION_EXTRA_SECONDS}초가 추가됩니다.`}
+            title={`내 스택에서 비용이 차감되고 상대 홀의 카테고리만 공개됩니다. 사용 직후 이 리버 액션에 ${IA_RIVER_ACTION_EXTRA_SECONDS}초가 추가됩니다.`}
             onClick={() => void dispatch({ type: "USE_IA" })}
           >
             <span className="font-semibold text-indigo-50">IA</span>
@@ -723,7 +751,7 @@ export function ActionPanel({
             </span>
           </button>
           <span className="text-[10px] text-indigo-200/80">
-            팟에서 차감 · 카테고리만 공개 · 사용 시 {IA_RIVER_ACTION_EXTRA_SECONDS}s 추가
+            내 스택 차감 · 카테고리만 공개 · 사용 시 {IA_RIVER_ACTION_EXTRA_SECONDS}s 추가
           </span>
         </div>
       ) : null}
@@ -745,7 +773,7 @@ export function ActionPanel({
                 {facing > 0 && callPay > 0 ? (
                   <button
                     type="button"
-                    className={btnPrimary + " flex-1"}
+                    className={(isAllInCallUi ? btnAllInCall : btnPrimary) + " flex-1"}
                     title={isAllInCallUi ? callButtonTitle : preflopCallFacingTitle}
                     onClick={() => void dispatch({ type: "PREFLOP_CALL" })}
                   >
@@ -784,7 +812,7 @@ export function ActionPanel({
                 {facing === 0 && !blockVoluntaryOpen ? (
                   <button
                     type="button"
-                    className={btnPrimary + " flex-1"}
+                    className={(isAllInCallUi ? btnAllInCall : btnPrimary) + " flex-1"}
                     title="추가 칩 없이 프리플랍을 통과합니다."
                     onClick={() => void dispatch({ type: "PREFLOP_CHECK" })}
                   >
@@ -819,7 +847,7 @@ export function ActionPanel({
                 {facing > 0 && callPay > 0 ? (
                   <button
                     type="button"
-                    className={btnPrimary + " flex-1"}
+                    className={(isAllInCallUi ? btnAllInCall : btnPrimary) + " flex-1"}
                     title={isAllInCallUi ? callButtonTitle : preflopCallFacingTitle}
                     onClick={() => void dispatch({ type: "PREFLOP_CALL" })}
                   >
@@ -905,14 +933,11 @@ export function ActionPanel({
       {post ? (
         <div className="space-y-2">
           {/* Bet 슬라이더 (베팅 없는 상황) */}
-          {bettingMatched(betting) && maxBet > 0 && !isAllIn ? (
+          {bettingMatched(betting) && maxBet >= minOpenBet - 1e-9 && !isAllIn ? (
             <div className="space-y-2 rounded-lg border border-zinc-600/45 bg-zinc-800/30 px-3 pb-3 pt-2.5">
-              <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-400">
-                Bet
-              </p>
               <BetSlider
                 value={betClamped}
-                min={bbUnit}
+                min={minOpenBet}
                 max={maxBet}
                 pot={state.pot}
                 bbUnit={bbUnit}
@@ -970,11 +995,26 @@ export function ActionPanel({
             {facing === 0 && !blockVoluntaryOpen ? (
               <button
                 type="button"
-                className={btnPrimary + " flex-1"}
+                className={(isAllInCallUi ? btnAllInCall : btnPrimary) + " flex-1"}
                 title="베팅이 없을 때 팟을 늘리지 않고 넘깁니다."
                 onClick={() => void dispatch({ type: "POSTFLOP_CHECK" })}
               >
                 Check
+              </button>
+            ) : null}
+            {canPostflopAllInBet ? (
+              <button
+                type="button"
+                className={btnPostflopAllIn}
+                title={`남은 스택 전부 ${chipsAsBbLabel(postAllInBetAmount, bbUnit)} 베팅`}
+                onClick={() =>
+                  void dispatch({
+                    type: "POSTFLOP_BET",
+                    amount: postAllInBetAmount,
+                  })
+                }
+              >
+                All-in ({chipsAsBbLabel(postAllInBetAmount, bbUnit)})
               </button>
             ) : null}
             {facing > 0 && callPay > 0 ? (
@@ -987,6 +1027,21 @@ export function ActionPanel({
                 {isAllInCallUi
                   ? `All-in Call (${callPayBb})`
                   : `Call (total ${chipsAsBbLabel(level, bbUnit)})`}
+              </button>
+            ) : null}
+            {canPostflopAllInRaise ? (
+              <button
+                type="button"
+                className={btnPostflopAllIn}
+                title={`남은 스택 전부로 총 ${chipsAsBbLabel(postAllInRaiseTotal, bbUnit)} 올인 레이즈`}
+                onClick={() =>
+                  void dispatch({
+                    type: "POSTFLOP_RAISE",
+                    toLevelChips: postAllInRaiseTotal,
+                  })
+                }
+              >
+                All-in ({chipsAsBbLabel(postAllInRaiseTotal, bbUnit)})
               </button>
             ) : null}
             {facing > 0 ? (

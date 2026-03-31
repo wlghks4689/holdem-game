@@ -4,6 +4,7 @@ import * as React from "react";
 import type { GameState } from "@/holdem/types";
 import { useHoldemMotionMode } from "../HoldemMotionRuntime";
 import { CardBack, PlayingCard } from "./Card";
+import { playBoardDealSoft } from "../showdownCinemaSounds";
 
 const streetKo: Record<string, string> = {
   hand_select: "핸드 선택",
@@ -15,9 +16,80 @@ const streetKo: Record<string, string> = {
   hand_over: "종료",
 };
 
-/** 새로 공개되는 카드마다 딜레이 (카드 0,1,2 … 순) */
-const DEAL_STAGGER_MS = 115;
-const DEAL_STAGGER_S = DEAL_STAGGER_MS / 1000;
+/** 플랍/턴 폴드 후 레빗 — 미공개 슬롯에 오버레이·공개 시 동일 보드 줄에 표시 */
+export type BoardRabbitHuntUi = {
+  active: boolean;
+  open: boolean;
+  onToggle: () => void;
+  /** 폴드 직전 boardRevealed — 3 또는 4 */
+  revealedAtFold: 3 | 4;
+};
+
+type EnterDeal = {
+  id: number;
+  slot: number;
+  delayMs: number;
+  durationMs: number;
+  animClass: string;
+};
+
+const FLOP_STAGGER_MS = 180;
+const TURN_RIVER_STAGGER_MS = 80;
+
+const BOARD_GAP = "gap-2 sm:gap-5 lg:gap-7";
+
+function rabbitSlotLabel(
+  i: number,
+  revealedAtFold: 3 | 4,
+): string {
+  if (revealedAtFold === 3) {
+    return i === 3 ? "턴" : "리버";
+  }
+  return "리버";
+}
+
+function buildEnterDeal(
+  slot: number,
+  prevRev: number,
+  nextRev: number,
+  subtle: boolean,
+  id: number,
+): EnterDeal | null {
+  const normalDuration = 620;
+  const subtleDuration = 380;
+  if (prevRev < 3 && nextRev >= 3 && slot < 3 && slot >= prevRev) {
+    const order = slot - Math.max(0, prevRev);
+    const animClass = subtle
+      ? `holdem-board-enter-flop-subtle-${order}`
+      : `holdem-board-enter-flop-${order}`;
+    return {
+      id,
+      slot,
+      delayMs: order * FLOP_STAGGER_MS,
+      durationMs: subtle ? subtleDuration : normalDuration,
+      animClass,
+    };
+  }
+  if (prevRev < 4 && nextRev >= 4 && slot === 3) {
+    return {
+      id,
+      slot,
+      delayMs: TURN_RIVER_STAGGER_MS,
+      durationMs: subtle ? subtleDuration : normalDuration,
+      animClass: subtle ? "holdem-board-enter-turn-subtle" : "holdem-board-enter-turn",
+    };
+  }
+  if (prevRev < 5 && nextRev >= 5 && slot === 4) {
+    return {
+      id,
+      slot,
+      delayMs: TURN_RIVER_STAGGER_MS,
+      durationMs: subtle ? subtleDuration : normalDuration,
+      animClass: subtle ? "holdem-board-enter-river-subtle" : "holdem-board-enter-river",
+    };
+  }
+  return null;
+}
 
 export type BoardDisplayProps = {
   state: GameState;
@@ -29,6 +101,8 @@ export type BoardDisplayProps = {
   cinematicFlip?: boolean;
   /** 강조할 스트리트 — 해당 슬롯에 글로우 */
   cinemaStreetPulse?: "flop" | "turn" | "river" | null;
+  /** 레빗 헌트(폴드 당사자만 active) */
+  rabbitHunt?: BoardRabbitHuntUi | null;
 };
 
 export function BoardDisplay({
@@ -37,6 +111,7 @@ export function BoardDisplay({
   streetLabelOverride = null,
   cinematicFlip = false,
   cinemaStreetPulse = null,
+  rabbitHunt = null,
 }: BoardDisplayProps) {
   const motionMode = useHoldemMotionMode();
   const subtleMotion = motionMode === "subtle";
@@ -51,12 +126,10 @@ export function BoardDisplay({
     state.phase;
   const showdown = state.phase === "showdown";
 
-  /** 직전 커밋의 `boardRevealed` — 카드 등장 스태거(레이아웃 이펙트로 `rev`와 동기화) */
-  const [lagRev, setLagRev] = React.useState(rev);
-  React.useLayoutEffect(() => {
-    setLagRev(rev);
-  }, [rev]);
-  const oldRev = lagRev;
+  const [enterDeals, setEnterDeals] = React.useState<EnterDeal[]>([]);
+  const prevRevRef = React.useRef(rev);
+  const dealSeqRef = React.useRef(1);
+  const clearTimersRef = React.useRef<number[]>([]);
 
   /** 로그 인덱스 기준 — 새 라운드 시 `logs.length`만 바뀌어 스캔이 재생되지 않도록 */
   const lastIaKey = React.useMemo(() => {
@@ -74,6 +147,56 @@ export function BoardDisplay({
     const t = window.setTimeout(() => setScanOn(false), 440);
     return () => window.clearTimeout(t);
   }, [lastIaKey]);
+
+  React.useEffect(() => {
+    return () => {
+      for (const t of clearTimersRef.current) window.clearTimeout(t);
+      clearTimersRef.current = [];
+    };
+  }, []);
+
+  React.useEffect(() => {
+    const prev = prevRevRef.current;
+    if (cinematicFlip || rev <= prev) {
+      prevRevRef.current = rev;
+      return;
+    }
+    const next: EnterDeal[] = [];
+    for (let i = prev; i < rev; i++) {
+      if (!state.board[i]) continue;
+      const built = buildEnterDeal(i, prev, rev, subtleMotion, dealSeqRef.current++);
+      if (built) next.push(built);
+    }
+    if (next.length > 0) {
+      setEnterDeals((cur) => [...cur, ...next]);
+      for (const deal of next) {
+        // SFX: 각 카드가 들어올 때 가볍게 "사사삭" 한 번
+        const sfxDelay = deal.delayMs;
+        const sfxTimer = window.setTimeout(() => {
+          playBoardDealSoft();
+        }, sfxDelay);
+        const t = window.setTimeout(() => {
+          setEnterDeals((cur) => cur.filter((x) => x.id !== deal.id));
+          clearTimersRef.current = clearTimersRef.current.filter(
+            (id) => id !== t && id !== sfxTimer,
+          );
+        }, deal.delayMs + deal.durationMs + 80);
+        clearTimersRef.current.push(t, sfxTimer);
+      }
+    }
+    prevRevRef.current = rev;
+  }, [rev, state.board, state.roundNumber, cinematicFlip, subtleMotion]);
+
+  React.useEffect(() => {
+    setEnterDeals([]);
+    prevRevRef.current = rev;
+    for (const t of clearTimersRef.current) window.clearTimeout(t);
+    clearTimersRef.current = [];
+  }, [state.roundNumber]); // new hand safety reset
+
+  const tailIndices = slots.filter((i) => i >= rev && i < 5);
+  const rabbitTail = rabbitHunt?.active === true && tailIndices.length > 0;
+  const rabbitSingleTail = rabbitTail && tailIndices.length === 1;
 
   return (
     <div
@@ -96,7 +219,7 @@ export function BoardDisplay({
       <div
         className={[
           "holdem-board-perspective relative flex flex-wrap items-center justify-center overflow-visible",
-          showdown ? "gap-2.5 sm:gap-3 lg:gap-4" : "gap-2 sm:gap-5 lg:gap-7",
+          showdown ? "gap-2.5 sm:gap-3 lg:gap-4" : BOARD_GAP,
         ].join(" ")}
       >
         {scanOn ? (
@@ -115,82 +238,115 @@ export function BoardDisplay({
         {slots.map((i) => {
           if (i < rev && state.board[i]) {
             const c = state.board[i]!;
-            const newlyShown = i >= oldRev && i < rev;
-            const stagger = newlyShown ? Math.max(0, i - oldRev) * DEAL_STAGGER_S : 0;
-            /** 이번에 공개된 카드들 중 맨 마지막(스트리트 전환 체감용 강조) */
-            const isLeadNewCard = newlyShown && i === rev - 1;
-            const pulseStreet =
-              (cinemaStreetPulse === "flop" && i <= 2) ||
-              (cinemaStreetPulse === "turn" && i === 3) ||
-              (cinemaStreetPulse === "river" && i === 4);
-            const dealEase = "cubic-bezier(0.22, 1, 0.36, 1) both";
-            const innerDealAnim =
-              newlyShown && cinematicFlip
-                ? subtleMotion
-                  ? `holdem-card-flip-reveal-subtle 0.32s ${dealEase}`
-                  : `holdem-card-flip-reveal 0.48s ${dealEase}`
-                : newlyShown && !cinematicFlip
-                  ? isLeadNewCard
-                    ? subtleMotion
-                      ? `holdem-board-deal-3d-lead-subtle 0.42s ${dealEase}`
-                      : `holdem-board-deal-3d-lead 0.68s ${dealEase}`
-                    : subtleMotion
-                      ? `holdem-board-deal-3d-subtle 0.36s ${dealEase}`
-                      : `holdem-board-deal-3d 0.58s ${dealEase}`
-                  : null;
-            const outerPulseStyle =
-              pulseStreet && newlyShown
-                ? {
-                    animation: subtleMotion
-                      ? "holdem-board-street-pulse-subtle 0.38s ease-out 1"
-                      : "holdem-board-street-pulse 0.55s ease-out 1",
-                  }
-                : undefined;
+            const slotDeals = enterDeals.filter((d) => d.slot === i);
+            const hasEnterDeal = slotDeals.length > 0;
             return (
               <div
                 key={i}
-                className={[
-                  "relative transition-transform lg:origin-center lg:scale-[1.14]",
-                  pulseStreet && newlyShown ? "rounded-md" : "",
-                ].join(" ")}
-                style={outerPulseStyle}
+                className="relative transition-transform lg:origin-center lg:scale-[1.14]"
               >
-                <div
-                  className={newlyShown ? "holdem-board-card-3d-root" : undefined}
-                  style={
-                    innerDealAnim
-                      ? {
-                          animation: innerDealAnim,
-                          animationDelay: `${stagger}s`,
-                        }
-                      : undefined
-                  }
-                >
-                  <PlayingCard
-                    card={c}
-                    size="board"
-                    className={[
-                      showdown ? "drop-shadow-sm" : "drop-shadow-md",
-                      isLeadNewCard && newlyShown && !cinematicFlip
-                        ? "z-[1] ring-2 ring-amber-400/70 ring-offset-2 ring-offset-zinc-900/90 shadow-[0_0_20px_rgba(251,191,36,0.35)]"
-                        : pulseStreet && newlyShown
-                          ? "ring-2 ring-amber-400/55 ring-offset-2 ring-offset-zinc-900/90"
-                          : "",
-                    ].join(" ")}
-                  />
-                </div>
+                <PlayingCard
+                  card={c}
+                  size="board"
+                  className={[
+                    showdown ? "drop-shadow-sm" : "drop-shadow-md",
+                    hasEnterDeal ? "opacity-0" : "opacity-100",
+                    "transition-opacity duration-150",
+                  ].join(" ")}
+                />
+                {!cinematicFlip
+                  ? slotDeals.map((deal) => (
+                      <div
+                        key={deal.id}
+                        className="pointer-events-none absolute inset-0 z-20"
+                        aria-hidden
+                      >
+                        <div
+                          className={[
+                            "holdem-board-enter-root",
+                            "holdem-board-card-3d-root",
+                            deal.animClass,
+                          ].join(" ")}
+                          style={{ animationDelay: `${deal.delayMs}ms` }}
+                        >
+                          <PlayingCard
+                            card={c}
+                            size="board"
+                            className="drop-shadow-lg"
+                          />
+                        </div>
+                      </div>
+                    ))
+                  : null}
               </div>
             );
           }
-          return (
-            <div
-              key={i}
-              className="transition-transform lg:origin-center lg:scale-[1.14]"
-            >
-              <CardBack size="board" className="opacity-80" />
-            </div>
-          );
+          return null;
         })}
+        {!rabbitTail
+          ? tailIndices.map((i) => (
+              <div
+                key={i}
+                className="transition-transform lg:origin-center lg:scale-[1.14]"
+              >
+                <CardBack size="board" className="opacity-80" />
+              </div>
+            ))
+          : (
+            <div
+              className={[
+                "relative flex flex-wrap items-end justify-center overflow-visible rounded-lg",
+                BOARD_GAP,
+              ].join(" ")}
+            >
+              {rabbitHunt &&
+                tailIndices.map((i) => {
+                  const c = state.board[i];
+                  const showRabbitCard = rabbitHunt.open && c != null;
+                  return (
+                    <div
+                      key={i}
+                      className={[
+                        "relative flex flex-col items-center gap-0.5 lg:origin-center lg:scale-[1.14]",
+                        !showRabbitCard
+                          ? "cursor-pointer active:scale-[0.985]"
+                          : "cursor-pointer",
+                      ].join(" ")}
+                      role="button"
+                      tabIndex={0}
+                      onClick={rabbitHunt.onToggle}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          rabbitHunt.onToggle();
+                        }
+                      }}
+                      aria-label={showRabbitCard ? "레빗 카드 닫기" : "레빗 카드 공개"}
+                    >
+                      {showRabbitCard ? (
+                        <>
+                          <span className="whitespace-nowrap text-[9px] font-medium text-cyan-200/85">
+                            {rabbitSingleTail
+                              ? "레빗"
+                              : rabbitSlotLabel(i, rabbitHunt.revealedAtFold)}
+                          </span>
+                          <PlayingCard
+                            card={c}
+                            size="board"
+                            className="drop-shadow-md ring-1 ring-cyan-400/50 shadow-[0_0_14px_rgba(34,211,238,0.22)]"
+                          />
+                        </>
+                      ) : (
+                        <CardBack
+                          size="board"
+                          className="opacity-80 ring-1 ring-cyan-500/35 shadow-[0_0_10px_rgba(34,211,238,0.12)]"
+                        />
+                      )}
+                    </div>
+                  );
+                })}
+            </div>
+          )}
       </div>
     </div>
   );

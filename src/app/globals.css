@@ -142,6 +142,91 @@ body {
   backface-visibility: hidden;
 }
 
+/* 새로 공개된 보드 카드 전용 1회성 엔터 레이어 */
+.holdem-board-enter-root {
+  width: 100%;
+  height: 100%;
+  will-change: transform, opacity, filter;
+}
+
+@keyframes holdem-board-enter-flop-0 {
+  0% { opacity: 0; transform: translate(0, -34px) rotate(-6deg) scale(0.9); }
+  62% { opacity: 1; transform: translate(0, -4px) rotate(1.4deg) scale(1.02); }
+  100% { opacity: 1; transform: translate(0, 0) rotate(0deg) scale(1); }
+}
+@keyframes holdem-board-enter-flop-1 {
+  0% { opacity: 0; transform: translate(0, -34px) rotate(-6deg) scale(0.9); }
+  62% { opacity: 1; transform: translate(0, -4px) rotate(1.4deg) scale(1.02); }
+  100% { opacity: 1; transform: translate(0, 0) rotate(0deg) scale(1); }
+}
+@keyframes holdem-board-enter-flop-2 {
+  0% { opacity: 0; transform: translate(0, -34px) rotate(-6deg) scale(0.9); }
+  62% { opacity: 1; transform: translate(0, -4px) rotate(1.4deg) scale(1.02); }
+  100% { opacity: 1; transform: translate(0, 0) rotate(0deg) scale(1); }
+}
+@keyframes holdem-board-enter-turn {
+  0% { opacity: 0; transform: translate(0, -34px) rotate(-6deg) scale(0.9); }
+  60% { opacity: 1; transform: translate(0, -4px) rotate(1.4deg) scale(1.02); }
+  100% { opacity: 1; transform: translate(0, 0) rotate(0deg) scale(1); }
+}
+@keyframes holdem-board-enter-river {
+  0% { opacity: 0; transform: translate(0, -34px) rotate(-6deg) scale(0.9); }
+  60% { opacity: 1; transform: translate(0, -4px) rotate(1.4deg) scale(1.02); }
+  100% { opacity: 1; transform: translate(0, 0) rotate(0deg) scale(1); }
+}
+
+.holdem-board-enter-flop-0 {
+  animation: holdem-board-enter-flop-0 620ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.holdem-board-enter-flop-1 {
+  animation: holdem-board-enter-flop-1 620ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.holdem-board-enter-flop-2 {
+  animation: holdem-board-enter-flop-2 620ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.holdem-board-enter-turn {
+  animation: holdem-board-enter-turn 620ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.holdem-board-enter-river {
+  animation: holdem-board-enter-river 620ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes holdem-board-enter-flop-subtle-0 {
+  0% { opacity: 0.38; transform: translate(0, -18px) rotate(-3deg) scale(0.96); }
+  100% { opacity: 1; transform: translate(0, 0) rotate(0deg) scale(1); }
+}
+@keyframes holdem-board-enter-flop-subtle-1 {
+  0% { opacity: 0.38; transform: translate(0, -18px) rotate(-3deg) scale(0.96); }
+  100% { opacity: 1; transform: translate(0, 0) rotate(0deg) scale(1); }
+}
+@keyframes holdem-board-enter-flop-subtle-2 {
+  0% { opacity: 0.38; transform: translate(0, -18px) rotate(-3deg) scale(0.96); }
+  100% { opacity: 1; transform: translate(0, 0) rotate(0deg) scale(1); }
+}
+@keyframes holdem-board-enter-turn-subtle {
+  0% { opacity: 0.38; transform: translate(0, -18px) rotate(-3deg) scale(0.96); }
+  100% { opacity: 1; transform: translate(0, 0) rotate(0deg) scale(1); }
+}
+@keyframes holdem-board-enter-river-subtle {
+  0% { opacity: 0.38; transform: translate(0, -18px) rotate(-3deg) scale(0.96); }
+  100% { opacity: 1; transform: translate(0, 0) rotate(0deg) scale(1); }
+}
+.holdem-board-enter-flop-subtle-0 {
+  animation: holdem-board-enter-flop-subtle-0 380ms ease-out both;
+}
+.holdem-board-enter-flop-subtle-1 {
+  animation: holdem-board-enter-flop-subtle-1 380ms ease-out both;
+}
+.holdem-board-enter-flop-subtle-2 {
+  animation: holdem-board-enter-flop-subtle-2 380ms ease-out both;
+}
+.holdem-board-enter-turn-subtle {
+  animation: holdem-board-enter-turn-subtle 380ms ease-out both;
+}
+.holdem-board-enter-river-subtle {
+  animation: holdem-board-enter-river-subtle 380ms ease-out both;
+}
+
 @keyframes holdem-turn-ring {
   0% {
     box-shadow: 0 0 #34d39973;
@@ -157,6 +242,88 @@ body {
   }
   100% {
     box-shadow: 0 0 0 4px #34d39900;
+  }
+}
+
+/** 메이드 티어와 맞춘 턴 펄스(내 패널 — 스트레이트~스트플) */
+@keyframes holdem-turn-ring-t1 {
+  0% {
+    box-shadow: 0 0 rgba(251, 191, 36, 0.55);
+  }
+  100% {
+    box-shadow: 0 0 0 8px rgba(251, 191, 36, 0);
+  }
+}
+@keyframes holdem-turn-ring-t1-subtle {
+  0% {
+    box-shadow: 0 0 rgba(251, 191, 36, 0.38);
+  }
+  100% {
+    box-shadow: 0 0 0 4px rgba(251, 191, 36, 0);
+  }
+}
+@keyframes holdem-turn-ring-t2 {
+  0% {
+    box-shadow: 0 0 rgba(56, 189, 248, 0.55);
+  }
+  100% {
+    box-shadow: 0 0 0 8px rgba(56, 189, 248, 0);
+  }
+}
+@keyframes holdem-turn-ring-t2-subtle {
+  0% {
+    box-shadow: 0 0 rgba(56, 189, 248, 0.38);
+  }
+  100% {
+    box-shadow: 0 0 0 4px rgba(56, 189, 248, 0);
+  }
+}
+@keyframes holdem-turn-ring-t3 {
+  0% {
+    box-shadow: 0 0 rgba(167, 139, 250, 0.55);
+  }
+  100% {
+    box-shadow: 0 0 0 8px rgba(167, 139, 250, 0);
+  }
+}
+@keyframes holdem-turn-ring-t3-subtle {
+  0% {
+    box-shadow: 0 0 rgba(167, 139, 250, 0.38);
+  }
+  100% {
+    box-shadow: 0 0 0 4px rgba(167, 139, 250, 0);
+  }
+}
+@keyframes holdem-turn-ring-t4 {
+  0% {
+    box-shadow: 0 0 rgba(252, 211, 77, 0.55);
+  }
+  100% {
+    box-shadow: 0 0 0 8px rgba(252, 211, 77, 0);
+  }
+}
+@keyframes holdem-turn-ring-t4-subtle {
+  0% {
+    box-shadow: 0 0 rgba(252, 211, 77, 0.38);
+  }
+  100% {
+    box-shadow: 0 0 0 4px rgba(252, 211, 77, 0);
+  }
+}
+@keyframes holdem-turn-ring-t5 {
+  0% {
+    box-shadow: 0 0 rgba(253, 224, 71, 0.55);
+  }
+  100% {
+    box-shadow: 0 0 0 8px rgba(253, 224, 71, 0);
+  }
+}
+@keyframes holdem-turn-ring-t5-subtle {
+  0% {
+    box-shadow: 0 0 rgba(253, 224, 71, 0.38);
+  }
+  100% {
+    box-shadow: 0 0 0 4px rgba(253, 224, 71, 0);
   }
 }
 
@@ -841,6 +1008,20 @@ body {
  * hydration 전: reduced 이고 아직 data 없음 → subtle 규칙 적용(노멀 사용자는 normal로 차단).
  */
 @media (prefers-reduced-motion: reduce) {
+  .holdem-board-enter-flop-0,
+  .holdem-board-enter-flop-1,
+  .holdem-board-enter-flop-2,
+  .holdem-board-enter-turn,
+  .holdem-board-enter-river,
+  .holdem-board-enter-flop-subtle-0,
+  .holdem-board-enter-flop-subtle-1,
+  .holdem-board-enter-flop-subtle-2,
+  .holdem-board-enter-turn-subtle,
+  .holdem-board-enter-river-subtle {
+    animation-duration: 240ms !important;
+    animation-timing-function: ease-out !important;
+  }
+
   html:not([data-holdem-motion="debug-full"]):not([data-holdem-motion="normal"])
     .holdem-made-fx-t1 {
     animation: holdem-made-straight-subtle 0.42s ease-out 1 !important;
