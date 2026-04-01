@@ -115,6 +115,9 @@ export function TableHeaderBar({ state, playerNames }: TableHeaderBarProps) {
 
   const blindTooltip = `${debugBlindLine(state.roundNumber, hb)}\n${isEn ? "Next" : "다음"}: ${nextBlindHint}\n${isEn ? "IA total" : "IA 누적"}: ${fmtChips(iaRemovedTotal)}${isEn ? " chips" : "칩"}`;
 
+  /** 매치 승자 확정 시(버스트·30R·조기 종료 무관) 승/패 배너 구분 */
+  const matchDecided = state.matchWinner != null;
+
   return (
     <>
       {blindUpKey != null ? (
@@ -196,6 +199,10 @@ export function TableHeaderBar({ state, playerNames }: TableHeaderBarProps) {
           const acting =
             bettingUi && state.toAct === p;
           const dimOpponentTurn = bettingUi && state.toAct !== p;
+          const matchWinnerGlow =
+            matchDecided && p === state.matchWinner;
+          const matchLoserDim =
+            matchDecided && p !== state.matchWinner;
           const label = playerNames[p]!;
           const blindTagRaw = headsUpPositionLabel(state, p);
           const blindTag = isEn && blindTagRaw === HU_DEALER_SB_LABEL
@@ -211,31 +218,46 @@ export function TableHeaderBar({ state, playerNames }: TableHeaderBarProps) {
               key={p}
               className={[
                 "relative rounded-lg px-2 py-1.5 transition-[background-color,opacity,box-shadow,filter] duration-200 sm:py-2",
-                acting
-                  ? "z-[1] bg-emerald-900/40 ring-2 ring-emerald-400/50 shadow-[0_0_22px_rgba(52,211,153,0.22)]"
-                  : dimOpponentTurn
-                    ? "opacity-[0.55] brightness-90 ring-1 ring-zinc-700/40"
-                    : "bg-zinc-800/20 ring-1 ring-zinc-700/30",
+                matchWinnerGlow
+                  ? "z-[2] bg-gradient-to-br from-amber-950/55 via-zinc-900/50 to-zinc-900/30 ring-2 ring-amber-400/90 shadow-[0_0_32px_rgba(251,191,36,0.38)]"
+                  : matchLoserDim
+                    ? "opacity-[0.5] brightness-[0.9] ring-1 ring-zinc-700/35"
+                    : acting
+                      ? "z-[1] bg-emerald-900/40 ring-2 ring-emerald-400/50 shadow-[0_0_22px_rgba(52,211,153,0.22)]"
+                      : dimOpponentTurn
+                        ? "opacity-[0.55] brightness-90 ring-1 ring-zinc-700/40"
+                        : "bg-zinc-800/20 ring-1 ring-zinc-700/30",
               ].join(" ")}
               style={
-                acting && turnPulse
+                matchWinnerGlow
                   ? {
                       animation: subtleMotion
-                        ? "holdem-turn-ring-subtle 0.24s ease-out 1"
-                        : "holdem-turn-ring 0.32s ease-out 1",
+                        ? "holdem-match-winner-stack-glow-subtle 2.1s ease-in-out infinite"
+                        : "holdem-match-winner-stack-glow 2.2s ease-in-out infinite",
                     }
-                  : acting
+                  : acting && turnPulse
                     ? {
                         animation: subtleMotion
-                          ? "holdem-active-turn-glow-subtle 1.45s ease-in-out infinite"
-                          : "holdem-active-turn-glow 2.2s ease-in-out infinite",
+                          ? "holdem-turn-ring-subtle 0.24s ease-out 1"
+                          : "holdem-turn-ring 0.32s ease-out 1",
                       }
-                    : undefined
+                    : acting
+                      ? {
+                          animation: subtleMotion
+                            ? "holdem-active-turn-glow-subtle 1.45s ease-in-out infinite"
+                            : "holdem-active-turn-glow 2.2s ease-in-out infinite",
+                        }
+                      : undefined
               }
             >
               <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
                 <span className="text-sm font-semibold text-zinc-50">
                   {label}
+                  {matchWinnerGlow ? (
+                    <span className="ml-1.5 inline-block rounded-md bg-amber-500/30 px-1.5 py-0.5 text-[9px] font-extrabold uppercase tracking-wide text-amber-100 ring-1 ring-amber-400/60">
+                      {isEn ? "WIN" : "승리"}
+                    </span>
+                  ) : null}
                 </span>
                 <span
                   className="rounded bg-zinc-600/80 px-1.5 py-px font-medium uppercase text-zinc-300"

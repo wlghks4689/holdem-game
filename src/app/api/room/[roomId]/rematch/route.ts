@@ -16,61 +16,66 @@ export async function POST(req: Request, ctx: Ctx) {
   if (!assertValidRoomId(roomId)) {
     return NextResponse.json({ error: "invalid room id" }, { status: 400 });
   }
+
   let body: unknown;
   try {
     body = await req.json();
   } catch {
     return NextResponse.json({ error: "invalid json" }, { status: 400 });
   }
+
   if (
     typeof body !== "object" ||
-    body == null ||
+    body === null ||
     !("seat" in body) ||
     !("token" in body) ||
     !("cmd" in body)
   ) {
     return NextResponse.json({ error: "bad body" }, { status: 400 });
   }
+
   const { seat, token, cmd } = body as {
     seat: unknown;
     token: unknown;
     cmd: unknown;
   };
-  if (
-    (seat !== 0 && seat !== 1) ||
-    typeof token !== "string" ||
-    token.length < 8 ||
-    (cmd !== "accept" && cmd !== "cancel")
-  ) {
+
+  if ((seat !== 0 && seat !== 1) || typeof token !== "string" || token.length < 8) {
     return NextResponse.json({ error: "bad body" }, { status: 400 });
   }
-  const mySeat = seat as PlayerIndex;
+  if (cmd !== "accept" && cmd !== "cancel") {
+    return NextResponse.json({ error: "bad cmd" }, { status: 400 });
+  }
+
   const blob = await roomGet(roomId);
   if (!blob) {
     return NextResponse.json({ error: "room not found" }, { status: 404 });
   }
-  if (blob.tokens[mySeat] !== token) {
+
+  const s = seat as PlayerIndex;
+  if (blob.tokens[s] !== token) {
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
   }
-  if (blob.state.matchWinner == null) {
-    return NextResponse.json({ error: "match not ended" }, { status: 400 });
-  }
 
-  const accepted = blob.rematchAccepted ?? [false, false];
-  accepted[mySeat] = cmd === "accept";
-  blob.rematchAccepted = accepted;
+  blob.rematchAccepted = blob.rematchAccepted ?? [false, false];
+  blob.rematchAccepted[s] = cmd === "accept";
 
-  if (accepted[0] && accepted[1]) {
-    const reset = createInitialGameState();
-    blob.state = holdemReducer(reset, { type: "START_GAME" }, serverRng());
+  const bothAccepted = blob.rematchAccepted[0] && blob.rematchAccepted[1];
+
+  if (bothAccepted) {
+    // Reset the game: RESET_MATCH = createInitialGameState + START_GAME internally
+    const rng = serverRng();
+    const newState = holdemReducer(createInitialGameState(), { type: "RESET_MATCH" }, rng);
+    blob.state = newState;
+    blob.stateVersion = (blob.stateVersion ?? 0) + 1;
     blob.rematchAccepted = [false, false];
   }
 
-  blob.stateVersion += 1;
   await roomSet(roomId, blob);
+
   return NextResponse.json({
-    state: sanitizeGameStateForSeat(blob.state, mySeat),
-    stateVersion: blob.stateVersion,
+    state: sanitizeGameStateForSeat(blob.state, s),
+    stateVersion: blob.stateVersion ?? 0,
     rematchAccepted: blob.rematchAccepted,
   });
 }

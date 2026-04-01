@@ -2,7 +2,11 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { STARTING_CHIPS, TOTAL_ROUNDS } from "@/holdem/constants";
+import {
+  HELL_AI_EXTRA_STARTING_CHIPS,
+  STARTING_CHIPS,
+  TOTAL_ROUNDS,
+} from "@/holdem/constants";
 import type { RoomPauseState } from "@/holdem/roomPause";
 import type { GameAction, GameState, PlayerIndex, SelectedHand } from "@/holdem/types";
 import { HEADS_UP_RULES_BLURB } from "@/holdem/headsUpLabels";
@@ -39,6 +43,8 @@ export type HoldemPlayUIProps = {
   playMode: "local" | "online" | "single";
   /** 싱글플레이 난이도 (playMode === "single" 일 때) */
   singleDifficulty?: import("@/holdem/aiPlayer").Difficulty;
+  /** 싱글 Hell 등: 재경기 시 초기 스택 (RESET_MATCH) */
+  singlePlayerResetChips?: [number, number];
   /** 온라인일 때 방 ID 표시 등 */
   onlineMeta?: { roomId: string };
   /** 연습: 즉시 토글 퍼즈 */
@@ -72,6 +78,7 @@ export function HoldemPlayUI({
   mySeat,
   playMode,
   singleDifficulty,
+  singlePlayerResetChips,
   onlineMeta,
   localPause,
   onlinePause,
@@ -81,6 +88,8 @@ export function HoldemPlayUI({
 }: HoldemPlayUIProps) {
   const { t, locale } = useHoldemI18n();
   const isEn = locale === "en";
+  const isHellSingle =
+    playMode === "single" && singleDifficulty === "hell";
 
   const showdownCinema = useAllInShowdownCinema(state);
   const winnerCinematicPulse =
@@ -200,8 +209,12 @@ export function HoldemPlayUI({
       onMatchRematch();
       return;
     }
-    void dispatch({ type: "RESET_MATCH" });
-  }, [dispatch, onMatchRematch]);
+    void dispatch(
+      playMode === "single" && singlePlayerResetChips != null
+        ? { type: "RESET_MATCH", initialChips: singlePlayerResetChips }
+        : { type: "RESET_MATCH" },
+    );
+  }, [dispatch, onMatchRematch, playMode, singlePlayerResetChips]);
 
   const handleExitGame = React.useCallback(() => {
     if (typeof window === "undefined") return;
@@ -210,7 +223,14 @@ export function HoldemPlayUI({
   }, []);
 
   return (
-    <div className="min-h-dvh bg-gradient-to-b from-zinc-800 via-zinc-800 to-zinc-900 text-zinc-50">
+    <div
+      className={[
+        "min-h-dvh text-zinc-50",
+        isHellSingle
+          ? "bg-gradient-to-b from-fuchsia-950/55 via-zinc-900 to-zinc-950"
+          : "bg-gradient-to-b from-zinc-800 via-zinc-800 to-zinc-900",
+      ].join(" ")}
+    >
       <div className="relative mx-auto max-w-3xl px-3 py-4 pb-14 sm:px-4 sm:py-5 sm:pb-16 lg:max-w-6xl lg:px-8 lg:py-6 lg:pb-8">
         {showPauseChrome ? (
           <div className="pointer-events-auto absolute right-3 top-3 z-40 flex max-w-[min(19rem,calc(100%-1.5rem))] flex-col items-end gap-2 sm:right-5 sm:top-5">
@@ -317,13 +337,32 @@ export function HoldemPlayUI({
             ) : playMode === "single" ? (
               <p className="text-xs text-zinc-400">
                 {isEn ? "Single-player · AI " : "싱글플레이 · AI "}
-                <span className={
-                  singleDifficulty === "hard" ? "font-semibold text-rose-400" :
-                  singleDifficulty === "normal" ? "font-semibold text-amber-400" :
-                  "font-semibold text-emerald-400"
-                }>
-                  {singleDifficulty === "hard" ? "Hard" : singleDifficulty === "normal" ? "Normal" : "Easy"}
+                <span
+                  className={
+                    singleDifficulty === "hell"
+                      ? "font-semibold text-fuchsia-400"
+                      : singleDifficulty === "hard"
+                        ? "font-semibold text-rose-400"
+                        : singleDifficulty === "normal"
+                          ? "font-semibold text-amber-400"
+                          : "font-semibold text-emerald-400"
+                  }
+                >
+                  {singleDifficulty === "hell"
+                    ? "Hell"
+                    : singleDifficulty === "hard"
+                      ? "Hard"
+                      : singleDifficulty === "normal"
+                        ? "Normal"
+                        : "Easy"}
                 </span>
+                {singleDifficulty === "hell" ? (
+                  <span className="text-zinc-500">
+                    {isEn
+                      ? ` · You ${STARTING_CHIPS} / AI ${STARTING_CHIPS + HELL_AI_EXTRA_STARTING_CHIPS} chips`
+                      : ` · 본인 ${STARTING_CHIPS} / AI ${STARTING_CHIPS + HELL_AI_EXTRA_STARTING_CHIPS}칩`}
+                  </span>
+                ) : null}
               </p>
             ) : null}
           </div>
@@ -395,13 +434,17 @@ export function HoldemPlayUI({
 
         <section
           className={[
-            "relative mb-4 rounded-2xl border border-zinc-600/80 bg-zinc-800/35 p-3 shadow-[0_0_40px_rgba(0,0,0,0.2)] sm:p-4",
+            "relative mb-4 rounded-2xl border p-3 sm:p-4",
+            isHellSingle
+              ? "border-fuchsia-500/35 bg-gradient-to-b from-fuchsia-950/25 via-zinc-800/45 to-zinc-950/90 shadow-[0_0_44px_rgba(147,51,234,0.14),inset_0_1px_0_rgba(244,114,182,0.06)]"
+              : "border-zinc-600/80 bg-zinc-800/35 shadow-[0_0_40px_rgba(0,0,0,0.2)]",
             state.phase === "showdown"
               ? "space-y-2 sm:space-y-2.5 lg:space-y-3"
               : "space-y-3 sm:space-y-4",
-            "lg:mx-auto lg:mb-6 lg:max-w-5xl lg:rounded-[2rem] lg:border-zinc-700/70",
-            "lg:bg-gradient-to-b lg:from-zinc-800 lg:via-zinc-800/95 lg:to-zinc-900/90",
-            "lg:p-6 lg:shadow-[0_0_80px_rgba(0,0,0,0.45)]",
+            "lg:mx-auto lg:mb-6 lg:max-w-5xl lg:rounded-[2rem] lg:p-6",
+            isHellSingle
+              ? "lg:border-fuchsia-800/45 lg:bg-gradient-to-b lg:from-fuchsia-950/30 lg:via-zinc-800/95 lg:to-zinc-950/92 lg:shadow-[0_0_88px_rgba(126,34,206,0.22),inset_0_1px_0_rgba(232,121,249,0.08)]"
+              : "lg:border-zinc-700/70 lg:bg-gradient-to-b lg:from-zinc-800 lg:via-zinc-800/95 lg:to-zinc-900/90 lg:shadow-[0_0_80px_rgba(0,0,0,0.45)]",
             showdownCinema.blockingInput ? "pointer-events-none select-none" : "",
             showdownCinema.active ? "holdem-cinema-active" : "",
             showdownCinema.phase === "allin-lock" ? "holdem-allin-lock" : "",

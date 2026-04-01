@@ -295,6 +295,93 @@ export function pickBestRiverEvAction(
   return { ev: bestEvCheck, action: bestA };
 }
 
+/** 리버 라인 분류 — 솔버 혼합 정책용 */
+export type RiverLineKind = "fold" | "call" | "raise" | "check" | "bet";
+
+export type RiverLineCandidate = {
+  kind: RiverLineKind;
+  ev: number;
+  action: GameAction;
+};
+
+/**
+ * 리버에서 의미 있는 라인별 (EV, 액션) 열거 — Hell 솔버 테이블 혼합 샘플링용.
+ * 같은 kind 여러 개(레이즈 사이즈 등)는 kind당 최고 EV 하나만 유지.
+ */
+export function enumerateRiverLineCandidates(
+  state: GameState,
+  aiSeat: PlayerIndex,
+  potEff: number,
+  categoryFilter: OpponentHandCategory | null,
+): RiverLineCandidate[] {
+  if (state.phase !== "river") return [];
+  const heroSel = state.holes[aiSeat];
+  const board = state.board;
+  if (!heroSel || board.length < 5) return [];
+
+  const range = buildWeightedOpponentHoles(state, aiSeat, categoryFilter);
+  if (totalWeight(range) <= 1e-12) return [];
+
+  const { equity } = equityVsWeightedRange(heroSel.hole, board, range);
+
+  const sPot = withVirtualPot(state, potEff);
+  const bb = resolveHandBlinds(sPot).bb;
+  const facing = facingFor(aiSeat, state.betting);
+
+  const byKind = new Map<RiverLineKind, RiverLineCandidate>();
+
+  const put = (kind: RiverLineKind, ev: number, action: GameAction) => {
+    const prev = byKind.get(kind);
+    if (prev == null || ev > prev.ev + CHIP_EPS) {
+      byKind.set(kind, { kind, ev, action });
+    }
+  };
+
+  if (facing > CHIP_EPS) {
+    const pay = effectiveCallPay(aiSeat, state);
+    if (pay > CHIP_EPS) {
+      const evCall = equity * roundHalfChip(potEff + pay) - pay;
+      put("call", evCall, { type: "POSTFLOP_CALL" });
+    }
+    put("fold", 0, { type: "FOLD" });
+
+    if (!state.isAllIn && !streetRaiseCapReached(state.betting)) {
+      const minR = postflopMinRaiseTargetForActor(sPot);
+      const maxR = postflopRaiseTargetCappedByOpponent(sPot);
+      const subBb = headsUpSubBbVoluntaryEnabled(sPot);
+      if (minR <= maxR + CHIP_EPS) {
+        for (const T of snapRaiseTargets(minR, maxR, bb, subBb)) {
+          if (!isLegalPostflopRaiseTo(sPot, T)) continue;
+          const out = raisePotOutcome(state, aiSeat, potEff, T);
+          if (!out.ok) continue;
+          const evR = equity * out.potNew - out.heroPay;
+          const prev = byKind.get("raise");
+          const act: GameAction = { type: "POSTFLOP_RAISE", toLevelChips: T };
+          if (prev == null || evR > prev.ev + CHIP_EPS) {
+            byKind.set("raise", { kind: "raise", ev: evR, action: act });
+          }
+        }
+      }
+    }
+  } else {
+    put("check", equity * roundHalfChip(potEff), { type: "POSTFLOP_CHECK" });
+
+    if (!state.isAllIn && !state.betting.raiseDone) {
+      for (const B of openBetCandidates(sPot)) {
+        const potNew = roundHalfChip(potEff + 2 * B);
+        const evB = equity * potNew - B;
+        const act: GameAction = { type: "POSTFLOP_BET", amount: B };
+        const prev = byKind.get("bet");
+        if (prev == null || evB > prev.ev + CHIP_EPS) {
+          byKind.set("bet", { kind: "bet", ev: evB, action: act });
+        }
+      }
+    }
+  }
+
+  return [...byKind.values()];
+}
+
 /**
  * HARD 리버: IA 기대이익 vs 비용(내 스택 차감) 비교.
  */

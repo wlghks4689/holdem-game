@@ -20,13 +20,32 @@ import {
 } from "./bettingHelpers";
 import { resolveHandBlinds } from "./blindLevels";
 import { SMALLEST_CHIP } from "./constants";
+import {
+  hellEndgameBonuses,
+  hellPotOddsCallBonus,
+} from "./hellGtoHeuristics";
+import { hellPoolAdjustedTierWeights } from "./hellPoolComposition";
+import {
+  analyzeHellPostflopStrength,
+  hellBlendPostflopTier,
+} from "./hellPostflopStrength";
+import {
+  hellPreflopSolverAction,
+  hellRiverSolverAction,
+} from "./hellSolverPolicy";
+import type { HellAdaptation } from "./hellUserPattern";
 import { ALL_HAND_TEMPLATES } from "./handPool";
 import { pickBestRiverEvAction } from "./riverEvAi";
 import type { GameAction, GameState, PlayerIndex } from "./types";
 
 // ─── 공개 타입 ────────────────────────────────────────────────────────────────
 
-export type Difficulty = "easy" | "normal" | "hard";
+export type Difficulty = "easy" | "normal" | "hard" | "hell";
+
+/** Hell 전용: 유저 패턴 적응 — `useHoldemSinglePlayer`에서 주입 */
+export type HellAiContext = {
+  adaptation: HellAdaptation;
+};
 
 export type AIPersonality = {
   /** 플레이 스타일 */
@@ -65,6 +84,9 @@ const STYLES = ["aggressive", "passive", "tight", "loose"] as const;
 /**
  * 게임 시작 시 한 번, 이후 라운드 진행에 따라 부분 갱신
  * - 칩 차이가 크면 지는 쪽 → 공격적, 이기는 쪽 → 타이트
+ *
+ * Hell: 유저가 칩 열위에서 공격할 때 버티고, 프리미엄에서만 강하게 베팅해
+ * 블러프·실수를 유도 — `hellGtoHeuristics`로 배당·엔드게임 보정을 추가로 적용.
  */
 export function generatePersonality(
   difficulty: Difficulty,
@@ -80,7 +102,8 @@ export function generatePersonality(
 
   // 큰 역전 상황에서 성향 보정
   if (aiShare < 0.35) style = "aggressive";       // 지고 있을 때 → 공격적
-  else if (aiShare > 0.65 && difficulty === "hard") style = "tight"; // 이기고 있을 때(hard) → 타이트
+  else if (aiShare > 0.65 && (difficulty === "hard" || difficulty === "hell"))
+    style = "tight";
 
   switch (difficulty) {
     case "easy":
@@ -96,6 +119,13 @@ export function generatePersonality(
         style,
         bluffRate: style === "aggressive" || style === "loose" ? 0.13 : 0.06,
         raiseFreq: style === "aggressive" ? 0.72 : style === "passive" ? 0.38 : 0.55,
+      };
+    case "hell":
+      // 타이트·선택적 공격 — 블러프 최소, 상대 레인지 “읽기”에 가깝게 포스트플랍 분기
+      return {
+        style: "tight",
+        bluffRate: aiShare < 0.4 ? 0.06 : 0.03,
+        raiseFreq: aiShare < 0.35 ? 0.52 : 0.42,
       };
   }
 }
@@ -121,6 +151,7 @@ export function pickAIHandTemplateId(
       easy:   [0, 1.0, 1.0, 1.0, 1.0, 1.0],
       normal: [0, 1.0, 1.0, 1.5, 2.0, 3.0],
       hard:   [0, 1.0, 1.0, 2.0, 3.5, 5.0],
+      hell:   hellPoolAdjustedTierWeights(state, aiSeat),
     };
     return table[difficulty][tier] ?? 1.0;
   };
@@ -173,6 +204,12 @@ function preflopRaiseTo(
     target = minT + rng(0, bb * 2);
   } else if (difficulty === "normal") {
     target = tier >= 4 ? minT + rng(bb, bb * 2.5) : minT + rng(0, bb);
+  } else if (difficulty === "hell") {
+    const pot = state.pot;
+    target =
+      tier >= 5 ? pot * 0.82 + minT :
+      tier >= 4 ? pot * 0.58 + minT :
+                  minT + rng(0, bb * 0.55);
   } else {
     // hard: pot-appropriate
     const pot = state.pot;
@@ -233,6 +270,11 @@ function preflopAction(
       if (facing > 0) return { type: "FOLD" };
     }
     return { type: "PREFLOP_CALL" };
+  }
+
+  // ── Hell: 프리플랍 솔버 테이블 (`hellSolverPolicy` — 실제 솔버로 교체 가능) ──
+  if (difficulty === "hell") {
+    return hellPreflopSolverAction(state, aiSeat, tier);
   }
 
   // ── Normal / Hard: 티어 기반 ───────────────────────────────────────────────
@@ -296,6 +338,7 @@ function postflopAction(
   tier: number,
   difficulty: Difficulty,
   p: AIPersonality,
+  hellCtx?: HellAiContext | null,
 ): GameAction | null {
   const facing = facingFor(aiSeat, state.betting);
   const chips = state.chips[aiSeat]!;
@@ -304,9 +347,21 @@ function postflopAction(
   const isAllIn = state.isAllIn;
   const { agg } = personalityBonus(p);
 
+  const hellAd = difficulty === "hell" ? hellCtx?.adaptation : null;
+  const brHell =
+    difficulty === "hell"
+      ? Math.min(0.22, Math.max(0, p.bluffRate * (hellAd?.bluffMult ?? 1)))
+      : p.bluffRate;
+
   // 블러프 여부: 낮은 티어에서 일정 확률로 높은 티어처럼 행동
-  const isBluffing = Math.random() < p.bluffRate;
-  const effectiveTier = isBluffing && tier <= 2 ? 4 : tier;
+  const isBluffing = Math.random() < (difficulty === "hell" ? brHell : p.bluffRate);
+
+  let tierBase = tier;
+  if (difficulty === "hell") {
+    const snap = analyzeHellPostflopStrength(state, aiSeat);
+    tierBase = hellBlendPostflopTier(tier, snap);
+  }
+  const effectiveTier = isBluffing && tierBase <= 2 ? 4 : tierBase;
 
   // ── Easy ────────────────────────────────────────────────────────────────────
   if (difficulty === "easy") {
@@ -334,10 +389,26 @@ function postflopAction(
     }
   }
 
-  // ── Normal / Hard ───────────────────────────────────────────────────────────
+  // ── Normal / Hard / Hell ────────────────────────────────────────────────────
+  const isHellPf = difficulty === "hell";
+  const callPayPf = effectiveCallPay(aiSeat, state);
+  const egHellPost = isHellPf ? hellEndgameBonuses(state, aiSeat) : null;
+  const poHell =
+    isHellPf && facing > 0 ? hellPotOddsCallBonus(callPayPf, pot) : 0;
+
+  const rm =
+    isHellPf && hellAd ? Math.min(1.15, Math.max(0.75, hellAd.raiseMult)) : 1;
+  const cm =
+    isHellPf && hellAd ? Math.min(1.15, Math.max(0.75, hellAd.callMult)) : 1;
+
   if (facing === 0) {
     const betThresh = clamp(
-      ([0, 0.15, 0.25, 0.45, 0.68, 0.82][effectiveTier] ?? 0.4) + agg,
+      ((isHellPf
+        ? [0, 0.10, 0.18, 0.36, 0.62, 0.78][effectiveTier]
+        : [0, 0.15, 0.25, 0.45, 0.68, 0.82][effectiveTier] ?? 0.4) +
+        agg +
+        (egHellPost ? egHellPost.openBetBonus : 0)) *
+        (isHellPf ? rm : 1),
       0, 0.95,
     );
     const maxB = postflopMaxOpenBetForActor(state);
@@ -347,20 +418,35 @@ function postflopAction(
       const frac =
         difficulty === "normal"
           ? effectiveTier >= 4 ? rng(0.50, 0.75) : rng(0.30, 0.50)
-          : effectiveTier >= 5 ? rng(0.70, 1.00) :
-            effectiveTier >= 4 ? rng(0.55, 0.80) :
-            effectiveTier >= 3 ? rng(0.40, 0.60) : rng(0.25, 0.42);
+          : isHellPf
+            ? effectiveTier >= 5 ? rng(0.72, 1.0) :
+              effectiveTier >= 4 ? rng(0.58, 0.85) :
+              effectiveTier >= 3 ? rng(0.38, 0.58) : rng(0.22, 0.38)
+            : effectiveTier >= 5 ? rng(0.70, 1.00) :
+              effectiveTier >= 4 ? rng(0.55, 0.80) :
+              effectiveTier >= 3 ? rng(0.40, 0.60) : rng(0.25, 0.42);
       const amt = clamp(pot * frac, minBet, maxB);
       return { type: "POSTFLOP_BET", amount: amt };
     }
     return { type: "POSTFLOP_CHECK" };
   } else {
     const raiseThresh = clamp(
-      ([0, 0.05, 0.10, 0.18, 0.30, 0.45][effectiveTier] ?? 0.15) + agg * 0.5,
+      ((isHellPf
+        ? [0, 0.03, 0.07, 0.14, 0.26, 0.40][effectiveTier]
+        : [0, 0.05, 0.10, 0.18, 0.30, 0.45][effectiveTier] ?? 0.15) +
+        agg * 0.5 +
+        (egHellPost ? egHellPost.raiseBonus : 0)) *
+        (isHellPf ? rm : 1),
       0, 0.8,
     );
     const callThresh = clamp(
-      ([0, 0.18, 0.28, 0.50, 0.68, 0.78][effectiveTier] ?? 0.40) + agg * 0.2,
+      ((isHellPf
+        ? [0, 0.14, 0.24, 0.44, 0.64, 0.76][effectiveTier]
+        : [0, 0.18, 0.28, 0.50, 0.68, 0.78][effectiveTier] ?? 0.40) +
+        agg * 0.2 +
+        poHell +
+        (egHellPost ? egHellPost.callBonus : 0)) *
+        (isHellPf ? cm : 1),
       0, 0.95,
     );
 
@@ -392,6 +478,7 @@ export function computeAIBettingAction(
   aiSeat: PlayerIndex,
   difficulty: Difficulty,
   personality: AIPersonality,
+  hellCtx?: HellAiContext | null,
 ): GameAction | null {
   const tier = handStrengthTier(state.holes[aiSeat]?.templateId);
   const phase = state.phase;
@@ -400,6 +487,17 @@ export function computeAIBettingAction(
     return preflopAction(state, aiSeat, tier, difficulty, personality);
   }
   if (phase === "flop" || phase === "turn" || phase === "river") {
+    if (
+      difficulty === "hell" &&
+      phase === "river" &&
+      !state.isAllIn &&
+      state.holes[aiSeat] != null &&
+      state.board.length >= 5
+    ) {
+      const iaCat = state.iaReveal[aiSeat];
+      const hellRiver = hellRiverSolverAction(state, aiSeat, iaCat ?? null);
+      if (hellRiver != null) return hellRiver;
+    }
     if (
       difficulty === "hard" &&
       phase === "river" &&
@@ -416,7 +514,14 @@ export function computeAIBettingAction(
       );
       if (pick != null) return pick.action;
     }
-    return postflopAction(state, aiSeat, tier, difficulty, personality);
+    return postflopAction(
+      state,
+      aiSeat,
+      tier,
+      difficulty,
+      personality,
+      difficulty === "hell" ? hellCtx : undefined,
+    );
   }
   return null;
 }
@@ -442,7 +547,8 @@ export function shouldAIUseIA(
 
   const base =
     difficulty === "easy"   ? 0.12 :
-    difficulty === "normal" ? 0.24 : 0.40;
+    difficulty === "normal" ? 0.24 :
+    difficulty === "hell"   ? 0.48 : 0.40;
   const tierBonus = (tier - 2) * 0.08;
   const aggBonus = personality.style === "aggressive" ? 0.05 : 0;
 

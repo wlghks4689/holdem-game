@@ -500,6 +500,10 @@ export function holdemReducer(
 ): GameState {
   if (action.type === "RESET_MATCH") {
     const seeded = createInitialGameState();
+    if (action.initialChips != null) {
+      seeded.chips[0] = roundHalfChip(action.initialChips[0]);
+      seeded.chips[1] = roundHalfChip(action.initialChips[1]);
+    }
     return holdemReducer(seeded, { type: "START_GAME" }, random);
   }
   const s: GameState = structuredClone(state);

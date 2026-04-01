@@ -8,20 +8,16 @@ import {
 } from "@/holdem/holdemPrefs";
 import { DEFAULT_HOLDEM_DISPLAY_NAMES } from "@/holdem/playerDisplayNames";
 import type { Difficulty } from "@/holdem/aiPlayer";
+import { singlePlayerInitialChips } from "@/holdem/singlePlayerProgress";
 import type { PlayerIndex } from "@/holdem/types";
 import { useHoldemSinglePlayer } from "@/holdem/useHoldemSinglePlayer";
 import { HoldemPlayUI } from "./HoldemPlayUI";
-
-const DIFFICULTY_LABEL: Record<Difficulty, string> = {
-  easy: "Easy",
-  normal: "Normal",
-  hard: "Hard",
-};
 
 const AI_NAMES: Record<Difficulty, string> = {
   easy: "Rookie",
   normal: "Regular",
   hard: "Pro",
+  hell: "Warden",
 };
 
 interface Props {
@@ -88,6 +84,11 @@ export default function HoldemSinglePlayerClient({ difficulty }: Props) {
       mySeat={HUMAN_SEAT}
       playMode="single"
       singleDifficulty={difficulty}
+      singlePlayerResetChips={
+        difficulty === "hell"
+          ? singlePlayerInitialChips(difficulty, AI_SEAT)
+          : undefined
+      }
       localPause={{ paused: localPaused, onToggle: toggleLocalPause }}
     />
   );

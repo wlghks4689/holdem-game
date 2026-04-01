@@ -3,6 +3,8 @@
 import * as React from "react";
 import Link from "next/link";
 
+const IS_STATIC = process.env.NEXT_PUBLIC_STATIC_EXPORT === "1";
+
 type SubmitState = "idle" | "submitting" | "done" | "error";
 
 const STARS = [1, 2, 3, 4, 5] as const;
@@ -16,6 +18,26 @@ const STAR_LABELS: Record<number, string> = {
 };
 
 export default function FeedbackClient() {
+  if (IS_STATIC) {
+    return (
+      <div className="flex flex-col items-center gap-5 py-12 text-center">
+        <div className="text-4xl">🌐</div>
+        <p className="text-sm font-semibold text-zinc-300">
+          Feedback is available on the web version only.
+        </p>
+        <p className="text-xs text-zinc-500">
+          Visit the browser version to leave feedback.
+        </p>
+        <Link
+          href="/holdem"
+          className="mt-2 rounded-lg bg-sky-600 px-4 py-2 text-sm font-semibold text-white hover:bg-sky-500"
+        >
+          Home
+        </Link>
+      </div>
+    );
+  }
+
   const [nickname, setNickname] = React.useState("");
   const [message, setMessage] = React.useState("");
   const [rating, setRating] = React.useState<number | null>(null);

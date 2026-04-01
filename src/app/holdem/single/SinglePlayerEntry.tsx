@@ -2,7 +2,12 @@
 
 import * as React from "react";
 import type { Difficulty } from "@/holdem/aiPlayer";
+import { HELL_UNLOCK_HARD_MATCH_WINS } from "@/holdem/constants";
 import { useHoldemI18n } from "@/holdem/i18n/HoldemLocaleProvider";
+import {
+  getHardModeMatchWins,
+  isHellModeUnlocked,
+} from "@/holdem/singlePlayerProgress";
 import HoldemSinglePlayerClient from "../HoldemSinglePlayerClient";
 
 type DifficultyMeta = {
@@ -38,9 +43,19 @@ const DIFFICULTIES: DifficultyMeta[] = [
 ];
 
 export default function SinglePlayerEntry() {
-  const { locale } = useHoldemI18n();
+  const { locale, t } = useHoldemI18n();
   const isEn = locale === "en";
   const [difficulty, setDifficulty] = React.useState<Difficulty | null>(null);
+  const [hardWins, setHardWins] = React.useState(0);
+
+  React.useEffect(() => {
+    setHardWins(getHardModeMatchWins());
+    const fn = () => setHardWins(getHardModeMatchWins());
+    window.addEventListener("holdem-sp-progress-changed", fn);
+    return () => window.removeEventListener("holdem-sp-progress-changed", fn);
+  }, []);
+
+  const hellUnlocked = isHellModeUnlocked();
 
   if (difficulty) {
     return <HoldemSinglePlayerClient difficulty={difficulty} />;
@@ -80,6 +95,54 @@ export default function SinglePlayerEntry() {
             </p>
           </button>
         ))}
+
+        {/* Hell — Hard 매치 승리 10회 잠금 해제 */}
+        <div
+          className={[
+            "w-full rounded-xl border-2 px-6 py-4 text-left transition-all duration-150",
+            hellUnlocked
+              ? "border-fuchsia-500/65 bg-zinc-800/60 text-fuchsia-200 hover:border-fuchsia-400"
+              : "cursor-not-allowed border-zinc-600/45 bg-zinc-900/35 text-zinc-500",
+          ].join(" ")}
+        >
+          <button
+            type="button"
+            disabled={!hellUnlocked}
+            onClick={() => hellUnlocked && setDifficulty("hell")}
+            className={[
+              "w-full text-left",
+              hellUnlocked
+                ? "active:scale-[0.98]"
+                : "cursor-not-allowed opacity-90",
+            ].join(" ")}
+          >
+            <div className="flex items-center justify-between">
+              <span className="text-base font-bold">{t("single.hellTitle")}</span>
+              {hellUnlocked ? (
+                <span className="text-[11px] text-fuchsia-400/90">
+                  {isEn ? "▶ Start" : "▶ 시작"}
+                </span>
+              ) : (
+                <span className="text-[10px] font-semibold uppercase tracking-wide text-zinc-500">
+                  {isEn ? "Locked" : "잠금"}
+                </span>
+              )}
+            </div>
+            <p className="mt-0.5 text-[12px] text-zinc-400">
+              {t("single.hellDesc")}
+            </p>
+          </button>
+          {!hellUnlocked ? (
+            <p className="mt-2 border-t border-zinc-700/50 pt-2 text-[11px] leading-relaxed text-zinc-500">
+              {t("single.hellLockedHint")}
+              <span className="mt-1 block font-mono text-fuchsia-300/80">
+                {isEn ? "Hard wins: " : "Hard 승리: "}
+                {Math.min(hardWins, HELL_UNLOCK_HARD_MATCH_WINS)}/
+                {HELL_UNLOCK_HARD_MATCH_WINS}
+              </span>
+            </p>
+          ) : null}
+        </div>
       </div>
 
       {/* AI 소개 */}

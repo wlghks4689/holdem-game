@@ -9,7 +9,16 @@ export const BET_RAISE_UNIT = CHIPS_PER_BB;
 
 /** 시작 스택 (칩). 티어 1 기준 200bb */
 export const STARTING_CHIPS = 200;
+
+/** Hell 싱글: AI만 시작 스택에 +칩 (플레이어는 STARTING_CHIPS 유지) */
+export const HELL_AI_EXTRA_STARTING_CHIPS = 100;
+
+/** Hell 모드 잠금 해제: Hard 매치 승리 횟수 */
+export const HELL_UNLOCK_HARD_MATCH_WINS = 10;
 export const TOTAL_ROUNDS = 30;
+
+/** Hell: 마지막 N라운드에서 배당·엔드게임 보정(역전/칩 우위 운영) */
+export const HELL_ENDGAME_LAST_ROUNDS = 3;
 
 /** 프리플랍 팟 상한(bb) — 양측 합산 팟이 이 값을 넘지 않도록 제한(유지) */
 export const PREFLOP_MAX_POT_BB = 15;
@@ -47,6 +56,9 @@ export const NEW_HAND_AUTO_SECONDS = 8;
  * 의사결정 +0.5s 정도로 체감 속도를 낮춤.
  */
 export const SINGLE_PLAYER_AI_THINK_EXTRA_MS = 500;
+
+/** 싱글플레이 AI 베팅(콜·레이즈·폴드 등) 직전 추가 대기(ms) — 반응이 너무 빠를 때 긴장감용 */
+export const SINGLE_PLAYER_AI_BETTING_REACTION_MS = 300;
 
 /** 올인 런아웃 직전 `GameState.lastActionNote` — UI 시네마 전용 마커 */
 export const ALL_IN_RUNOUT_LAST_NOTE = "올인 · 남은 보드 공개";

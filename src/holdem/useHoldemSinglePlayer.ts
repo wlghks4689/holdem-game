@@ -14,10 +14,18 @@ import {
   type AIPersonality,
   type Difficulty,
 } from "./aiPlayer";
+import { HellUserPatternTracker } from "./hellUserPattern";
 import { shouldAIUseIAHardEv } from "./riverEvAi";
 import { iaAppliedCostFromStack } from "./bettingHelpers";
 import { resolveHandBlinds } from "./blindLevels";
-import { SINGLE_PLAYER_AI_THINK_EXTRA_MS } from "./constants";
+import {
+  SINGLE_PLAYER_AI_BETTING_REACTION_MS,
+  SINGLE_PLAYER_AI_THINK_EXTRA_MS,
+} from "./constants";
+import {
+  recordHardModeMatchWin,
+  singlePlayerInitialChips,
+} from "./singlePlayerProgress";
 import { createInitialGameState, holdemReducer } from "./gameReducer";
 import type { GameAction, GameState, PlayerIndex } from "./types";
 
@@ -46,12 +54,34 @@ export function useHoldemSinglePlayer({
   const humanSeat = (1 - aiSeat) as PlayerIndex;
 
   // ── 게임 상태 ──────────────────────────────────────────────────────────────
-  const [state, dispatch] = React.useReducer(
+  const [state, rawDispatch] = React.useReducer(
     (s: GameState, a: GameAction) => holdemReducer(s, a),
-    undefined,
-    createInitialGameState,
+    { difficulty, aiSeat },
+    ({ difficulty: d, aiSeat: seat }) => {
+      const base = createInitialGameState();
+      const chips = singlePlayerInitialChips(d, seat);
+      base.chips[0] = chips[0]!;
+      base.chips[1] = chips[1]!;
+      return base;
+    },
   );
   const [localPaused, setLocalPaused] = React.useState(false);
+
+  const hellPatternRef = React.useRef(new HellUserPatternTracker());
+  const prevPhaseForHellRef = React.useRef(state.phase);
+
+  const dispatch = React.useCallback(
+    (a: GameAction) => {
+      if (difficulty === "hell") {
+        const cur = stateRef.current;
+        if (cur.toAct === humanSeat) {
+          hellPatternRef.current.onHumanAction(humanSeat, a);
+        }
+      }
+      rawDispatch(a);
+    },
+    [difficulty, humanSeat],
+  );
 
   // 최신 상태를 항상 참조할 수 있도록 ref 유지
   const stateRef = React.useRef(state);
@@ -63,6 +93,20 @@ export function useHoldemSinglePlayer({
   React.useLayoutEffect(() => {
     dispatchRef.current = dispatch;
   }, [dispatch]);
+
+  React.useEffect(() => {
+    if (difficulty !== "hell") {
+      prevPhaseForHellRef.current = state.phase;
+      return;
+    }
+    if (
+      prevPhaseForHellRef.current !== "hand_over" &&
+      state.phase === "hand_over"
+    ) {
+      hellPatternRef.current.finalizeHand(state, humanSeat);
+    }
+    prevPhaseForHellRef.current = state.phase;
+  }, [difficulty, humanSeat, state.phase, state.handEndMode]);
 
   // ── AI 성향 (라운드마다 칩 비율에 따라 재생성) ─────────────────────────────
   const [personality, setPersonality] = React.useState<AIPersonality>(() =>
@@ -81,6 +125,20 @@ export function useHoldemSinglePlayer({
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.roundNumber]);
+
+  // Hard 매치 승리 누적 → Hell 잠금 해제 조건
+  const recordedHardWinRef = React.useRef(false);
+  React.useEffect(() => {
+    if (state.matchWinner == null) {
+      recordedHardWinRef.current = false;
+      return;
+    }
+    if (recordedHardWinRef.current) return;
+    recordedHardWinRef.current = true;
+    if (difficulty === "hard" && state.matchWinner === humanSeat) {
+      recordHardModeMatchWin();
+    }
+  }, [state.matchWinner, difficulty, humanSeat]);
 
   // ── 액션 타이머 (human 차례용) ─────────────────────────────────────────────
   const [actionTimerLeft, setActionTimerLeft] = React.useState<number | null>(null);
@@ -161,9 +219,12 @@ export function useHoldemSinglePlayer({
     ) return;
     if (localPaused) return;
 
-    // 0.6 ~ 1.6 초 + 추가 생각 시간 후 AI 액션
+    // 0.6 ~ 1.6 초 + 추가 생각 시간 + 반응 지연(긴장감) 후 AI 액션
     const delay =
-      SINGLE_PLAYER_AI_THINK_EXTRA_MS + 600 + Math.random() * 1000;
+      SINGLE_PLAYER_AI_THINK_EXTRA_MS +
+      SINGLE_PLAYER_AI_BETTING_REACTION_MS +
+      600 +
+      Math.random() * 1000;
     const timer = window.setTimeout(() => {
       const cur = stateRef.current;
       if (cur.toAct !== aiSeat) return;
@@ -181,7 +242,7 @@ export function useHoldemSinglePlayer({
 
       if (canIA) {
         const useIa =
-          difficulty === "hard"
+          difficulty === "hard" || difficulty === "hell"
             ? shouldAIUseIAHardEv(cur, aiSeat)
             : shouldAIUseIA(cur, aiSeat, personalityRef.current, difficulty);
         if (useIa) {
@@ -191,7 +252,12 @@ export function useHoldemSinglePlayer({
       }
 
       // 베팅 결정
-      const action = computeAIBettingAction(cur, aiSeat, difficulty, personalityRef.current);
+      const action =
+        difficulty === "hell"
+          ? computeAIBettingAction(cur, aiSeat, difficulty, personalityRef.current, {
+              adaptation: hellPatternRef.current.getAdaptation(),
+            })
+          : computeAIBettingAction(cur, aiSeat, difficulty, personalityRef.current);
       if (action) {
         dispatchRef.current(action);
       } else {

@@ -68,7 +68,10 @@ export type MessageKey =
   | "action.bet"
   | "action.allInCall"
   | "action.matchEnd"
-  | "action.winner";
+  | "action.winner"
+  | "single.hellTitle"
+  | "single.hellDesc"
+  | "single.hellLockedHint";
 
 const KO: Record<MessageKey, string> = {
   "settings.title": "환경 설정",
@@ -145,6 +148,10 @@ const KO: Record<MessageKey, string> = {
   "action.allInCall": "All-in Call",
   "action.matchEnd": "매치 종료",
   "action.winner": "승자:",
+  "single.hellTitle": "Hell",
+  "single.hellDesc": "도전 해보세요 당신의 실력을",
+  "single.hellLockedHint":
+    "Hard 매치 승리 10회로 잠금 해제 · 현재 진행도는 아래에 표시됩니다",
 };
 
 const EN: Record<MessageKey, string> = {
@@ -221,6 +228,10 @@ const EN: Record<MessageKey, string> = {
   "action.allInCall": "All-in call",
   "action.matchEnd": "Match over",
   "action.winner": "Winner:",
+  "single.hellTitle": "Hell",
+  "single.hellDesc": "Challenge yourself — show what you've got",
+  "single.hellLockedHint":
+    "Unlock by winning 10 Hard matches — progress shown below",
 };
 
 const MAP: Record<HoldemUiLocale, Record<MessageKey, string>> = {

@@ -13,6 +13,8 @@ import {
   type LastActiveRoom,
 } from "@/holdem/roomCredentials";
 
+const IS_STATIC = process.env.NEXT_PUBLIC_STATIC_EXPORT === "1";
+
 const cardClass =
   "flex flex-col gap-2 rounded-2xl border border-zinc-600/80 bg-zinc-800/60 p-5 shadow-lg transition hover:border-sky-500/50 hover:bg-zinc-800/90 active:scale-[0.99]";
 
@@ -113,7 +115,7 @@ export function HoldemHomeHub() {
           </p>
         </header>
 
-        {lastRoom ? (
+        {!IS_STATIC && lastRoom ? (
           <div className="mb-4 rounded-2xl border border-emerald-600/50 bg-emerald-950/30 p-4 shadow-lg">
             <div className="flex items-center justify-between gap-3">
               <div>
@@ -151,8 +153,8 @@ export function HoldemHomeHub() {
         ) : null}
 
         <div className="grid gap-4 sm:grid-cols-2">
-          {/* ── 멀티플레이 카드 (확장형 서브메뉴) ── */}
-          <div
+          {/* ── 멀티플레이 카드 (정적 빌드에서는 숨김) ── */}
+          {!IS_STATIC && <div
             className={[
               "rounded-2xl border shadow-lg transition",
               multiOpen
@@ -242,7 +244,21 @@ export function HoldemHomeHub() {
                 </Link>
               </div>
             )}
-          </div>
+          </div>}
+
+          {/* itch.io 전용: 웹 전용 멀티플레이 안내 카드 */}
+          {IS_STATIC && (
+            <div className="flex flex-col gap-2 rounded-2xl border border-zinc-700/50 bg-zinc-800/30 p-5 shadow-lg opacity-60 cursor-not-allowed">
+              <span className="text-lg font-semibold text-zinc-400">
+                {locale === "en" ? "Multiplayer" : "멀티플레이"}
+              </span>
+              <span className="text-xs leading-relaxed text-zinc-500">
+                {locale === "en"
+                  ? "Available on the web version only. Visit the web version to play online."
+                  : "웹 버전에서만 이용 가능합니다. 온라인 플레이는 웹 버전을 이용해주세요."}
+              </span>
+            </div>
+          )}
 
           <Link href="/holdem/guide" className={cardClass}>
             <span className="text-lg font-semibold text-zinc-100">
@@ -271,14 +287,16 @@ export function HoldemHomeHub() {
             </span>
           </Link>
 
-          <Link href="/holdem/feedback" className={cardClass}>
-            <span className="text-lg font-semibold text-zinc-100">
-              {t("home.feedback")}
-            </span>
-            <span className="text-xs leading-relaxed text-zinc-400">
-              {t("home.feedbackDesc")}
-            </span>
-          </Link>
+          {!IS_STATIC && (
+            <Link href="/holdem/feedback" className={cardClass}>
+              <span className="text-lg font-semibold text-zinc-100">
+                {t("home.feedback")}
+              </span>
+              <span className="text-xs leading-relaxed text-zinc-400">
+                {t("home.feedbackDesc")}
+              </span>
+            </Link>
+          )}
         </div>
 
         {err ? (

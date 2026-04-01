@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "build:itch": "powershell -ExecutionPolicy Bypass -File scripts\\build-itch.ps1",
     "start": "next start",
     "lint": "eslint"
   },

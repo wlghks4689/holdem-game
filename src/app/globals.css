@@ -593,6 +593,37 @@ body {
   100% { box-shadow: 0 0 10px 2px rgba(251,191,36,0.35); }
 }
 
+/** 매치 승자 확정 시 헤더 스택 배너(버스트·라운드 한도 등 무관) */
+@keyframes holdem-match-winner-stack-glow {
+  0%,
+  100% {
+    box-shadow:
+      0 0 14px rgba(251, 191, 36, 0.35),
+      0 0 28px rgba(245, 158, 11, 0.2),
+      inset 0 0 0 1px rgba(253, 230, 138, 0.12);
+  }
+  50% {
+    box-shadow:
+      0 0 26px rgba(251, 191, 36, 0.65),
+      0 0 48px rgba(245, 158, 11, 0.35),
+      inset 0 0 0 1px rgba(253, 230, 138, 0.22);
+  }
+}
+
+@keyframes holdem-match-winner-stack-glow-subtle {
+  0%,
+  100% {
+    box-shadow:
+      0 0 10px rgba(251, 191, 36, 0.22),
+      inset 0 0 0 1px rgba(253, 230, 138, 0.08);
+  }
+  50% {
+    box-shadow:
+      0 0 18px rgba(251, 191, 36, 0.4),
+      inset 0 0 0 1px rgba(253, 230, 138, 0.14);
+  }
+}
+
 @keyframes holdem-hcd-result-in {
   0%   { opacity: 0; transform: scale(0.85) translateY(10px); }
   100% { opacity: 1; transform: scale(1)    translateY(0);    }
