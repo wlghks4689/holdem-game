@@ -60,15 +60,22 @@ function kindLabelKo(t: HandPoolTemplate): string {
   return "오프수트";
 }
 
+function templateUiCategory(t: HandPoolTemplate): OpponentHandCategory {
+  if (t.id.startsWith("hi_")) return CATEGORY_ORDER[0]!;
+  if (t.id.startsWith("axo_") || t.id.startsWith("axs_")) return CATEGORY_ORDER[1]!;
+  if (t.id.startsWith("bw_")) return CATEGORY_ORDER[2]!;
+  if (t.id.startsWith("mid_")) return CATEGORY_ORDER[3]!;
+  if (t.id.startsWith("low_")) return CATEGORY_ORDER[4]!;
+  return CATEGORY_ORDER[5]!;
+}
+
 function groupTemplateListByCategory(
   templates: readonly HandPoolTemplate[],
 ): Map<OpponentHandCategory, HandPoolTemplate[]> {
   const m = new Map<OpponentHandCategory, HandPoolTemplate[]>();
   for (const c of CATEGORY_ORDER) m.set(c, []);
   for (const t of templates) {
-    const bucket = m.get(t.iaCategory);
-    if (bucket) bucket.push(t);
-    else m.set(t.iaCategory, [t]);
+    m.get(templateUiCategory(t))!.push(t);
   }
   return m;
 }
@@ -118,7 +125,7 @@ function HandPickerColumn({
   }, [phase, state.roundNumber, player]);
 
   const tpl = pick ? getHandTemplateForMode(state.gameMode, pick) : null;
-  const categoryForPick = tpl?.iaCategory ?? null;
+  const categoryForPick = tpl ? templateUiCategory(tpl) : null;
 
   const poolForActor = React.useMemo(() => {
     const pools = normalizeHandPoolRemaining(state.handPoolRemaining as unknown, state.gameMode);

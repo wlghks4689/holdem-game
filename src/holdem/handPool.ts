@@ -12,6 +12,13 @@ import type {
 export const SUITS: Suit[] = ["c", "d", "h", "s"];
 export const HAND_COST_STARTING_POINTS = 100;
 
+const CAT_HIGH_PAIR = "?섏씠?뚯폆";
+const CAT_AX_OFFSUIT = "Ax ?ㅽ봽?섑듃";
+const CAT_BROADWAY_SUITED = "釉뚮줈?쒖썾???섎뵩";
+const CAT_MIDDLE_PAIR = "誘몃뱾?뚯폆";
+const CAT_LOW_PAIR = "濡쒖슦?뚯폆";
+const CAT_SUITED_CONNECTOR = "而ㅻ꽖???섎뵩";
+
 export function normalizeGameMode(raw: unknown): HoldemGameMode {
   return raw === "cost" ? "cost" : "classic";
 }
@@ -27,9 +34,17 @@ function pair(
   cat: string,
   cost = 0,
 ): HandPoolTemplate {
+  const iaCategory =
+    id.startsWith("hi_")
+      ? CAT_HIGH_PAIR
+      : id.startsWith("mid_")
+        ? CAT_MIDDLE_PAIR
+        : id.startsWith("low_")
+          ? CAT_LOW_PAIR
+          : (cat as OpponentHandCategory);
   return {
     id,
-    iaCategory: cat as OpponentHandCategory,
+    iaCategory: iaCategory as OpponentHandCategory,
     kind: "pair",
     ranks: [r, r],
     maxUses,
@@ -40,7 +55,7 @@ function pair(
 function off(id: string, hi: number, lo: number, maxUses: number, cost = 0): HandPoolTemplate {
   return {
     id,
-    iaCategory: "Ax ?ㅽ봽?섑듃" as OpponentHandCategory,
+    iaCategory: CAT_AX_OFFSUIT as OpponentHandCategory,
     kind: "offsuit",
     ranks: [Math.max(hi, lo), Math.min(hi, lo)],
     maxUses,
@@ -63,9 +78,15 @@ function suited(
   cat: string,
   cost = 0,
 ): HandPoolTemplate {
+  const iaCategory =
+    id.startsWith("bw_")
+      ? CAT_BROADWAY_SUITED
+      : id.startsWith("conn_")
+        ? CAT_SUITED_CONNECTOR
+        : (cat as OpponentHandCategory);
   return {
     id,
-    iaCategory: cat as OpponentHandCategory,
+    iaCategory: iaCategory as OpponentHandCategory,
     kind: "suited",
     ranks: [Math.max(hi, lo), Math.min(hi, lo)],
     maxUses,
