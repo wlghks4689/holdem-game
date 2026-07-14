@@ -28,14 +28,6 @@ function IaRevealBlock({
   pl: (p: PlayerIndex) => string;
   isEn: boolean;
 }) {
-  const categoryLabelEn: Record<OpponentHandCategory, string> = {
-    "하이파켓": "High Pairs",
-    "Ax 오프수트": "Ax Offsuit",
-    "브로드웨이 수딧": "Broadway Suited",
-    "미들파켓": "Middle Pairs",
-    "로우파켓": "Low Pairs",
-    "커넥터 수딧": "Suited Connectors",
-  };
   const categoryText = isEn ? iaCategoryLabelEn(category) : iaCategoryLabelKo(category);
   const imBuyer = viewer === buyer;
   if (imBuyer) {

@@ -5,6 +5,7 @@ import {
   canSelectHandTemplate,
   getHandTemplateForMode,
   getHandTemplatesForMode,
+  HAND_COST_STARTING_POINTS,
   iaCategoryLabelEn,
   iaCategoryLabelKo,
   normalizeHandCostRemaining,
@@ -38,15 +39,6 @@ const CATEGORY_BLURB: Record<OpponentHandCategory, string> = {
   "커넥터 수딧": "드로우 잠재력 높음, 변동성 큼",
 };
 
-const CATEGORY_LABEL_EN: Record<OpponentHandCategory, string> = {
-  "하이파켓": "High Pairs",
-  "Ax 오프수트": "Ax Offsuit",
-  "브로드웨이 수딧": "Broadway Suited",
-  "미들파켓": "Middle Pairs",
-  "로우파켓": "Low Pairs",
-  "커넥터 수딧": "Suited Connectors",
-};
-
 const CATEGORY_BLURB_EN: Record<OpponentHandCategory, string> = {
   "하이파켓": "Premium pairs, strong postflop pressure",
   "Ax 오프수트": "Top-kicker structure, clear endgame lines",
@@ -55,6 +47,30 @@ const CATEGORY_BLURB_EN: Record<OpponentHandCategory, string> = {
   "로우파켓": "Hidden sets with board leverage",
   "커넥터 수딧": "High draw potential, higher variance",
 };
+
+function categoryLabelForMode(
+  cat: OpponentHandCategory,
+  isEn: boolean,
+  isCostMode: boolean,
+): string {
+  if (cat === CATEGORY_ORDER[1] && isCostMode) {
+    return isEn ? "Ax" : "Ax";
+  }
+  return isEn ? iaCategoryLabelEn(cat) : iaCategoryLabelKo(cat);
+}
+
+function categoryBlurbForMode(
+  cat: OpponentHandCategory,
+  isEn: boolean,
+  isCostMode: boolean,
+): string {
+  if (cat === CATEGORY_ORDER[1] && isCostMode) {
+    return isEn
+      ? "A-suited and A-off combinations"
+      : "A 수딧과 A 오프수트 조합";
+  }
+  return isEn ? CATEGORY_BLURB_EN[cat] : CATEGORY_BLURB[cat];
+}
 
 function kindLabelKo(t: HandPoolTemplate): string {
   if (t.kind === "pair") return "페어";
@@ -138,6 +154,19 @@ function HandPickerColumn({
     return costs[player] ?? 0;
   }, [state.handCostRemaining, state.gameMode, player]);
   const canConfirm = tpl != null && canSelectHandTemplate(state, player, tpl);
+  const costPercent = Math.max(
+    0,
+    Math.min(100, (costForActor / HAND_COST_STARTING_POINTS) * 100),
+  );
+  const selectedAfterCost = tpl ? Math.max(0, costForActor - tpl.cost) : null;
+  const confirmLabel =
+    isCostMode && tpl
+      ? isEn
+        ? `Confirm ${templateLabel(tpl)} (${tpl.cost} COST)`
+        : `${templateLabel(tpl)} 선택 확정 (${tpl.cost} COST)`
+      : isEn
+        ? "Lock this hand"
+        : "이 핸드로 확정";
 
   const posLabel =
     state.button === player ? HU_DEALER_SB_LABEL : HU_BB_LABEL;
@@ -188,8 +217,22 @@ function HandPickerColumn({
         )}
       </h3>
       {isCostMode ? (
-        <div className="mb-2 rounded-md border border-zinc-600/70 bg-zinc-900/35 px-2 py-1 text-[10px] font-semibold text-amber-100">
-          {isEn ? "Hand cost left" : "Hand cost left"}: {costForActor}
+        <div className="mb-2 rounded-lg border border-amber-400/35 bg-amber-950/25 px-2.5 py-2 shadow-[inset_0_1px_0_rgba(251,191,36,0.12)]">
+          <div className="flex items-center justify-between gap-2 text-[11px] font-bold text-amber-50">
+            <span>{isEn ? "Hand Cost" : "남은 코스트"}</span>
+            <span className="font-mono">{costForActor} / {HAND_COST_STARTING_POINTS}</span>
+          </div>
+          <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-zinc-800/80 ring-1 ring-amber-500/20">
+            <div
+              className="h-full rounded-full bg-gradient-to-r from-amber-400 to-emerald-400 transition-[width] duration-300"
+              style={{ width: `${costPercent}%` }}
+            />
+          </div>
+          <p className="mt-1.5 text-[10px] leading-snug text-amber-100/75">
+            {isEn
+              ? "Cost mode: every hand can be selected once per match."
+              : "Cost 모드에서는 모든 핸드를 매치당 1회만 선택할 수 있습니다."}
+          </p>
         </div>
       ) : null}
       {isCostMode && !hasAvailableHand ? (
@@ -204,7 +247,7 @@ function HandPickerColumn({
           return (
             <section
               key={cat}
-              title={CATEGORY_BLURB[cat]}
+              title={categoryBlurbForMode(cat, isEn, isCostMode)}
               className={[
                 "rounded-md border border-zinc-600/70 bg-zinc-800/55",
                 compact ? "p-1.5" : "p-2",
@@ -217,11 +260,11 @@ function HandPickerColumn({
                 ].join(" ")}
               >
                 <h4 className="text-[10px] font-bold uppercase tracking-wide text-zinc-100">
-                  {isEn ? iaCategoryLabelEn(cat) : iaCategoryLabelKo(cat)}
+                  {categoryLabelForMode(cat, isEn, isCostMode)}
                 </h4>
                 {!compact ? (
                   <p className="mt-0.5 text-[11px] leading-snug text-zinc-400">
-                    {isEn ? CATEGORY_BLURB_EN[cat] : CATEGORY_BLURB[cat]}
+                    {categoryBlurbForMode(cat, isEn, isCostMode)}
                   </p>
                 ) : null}
               </div>
@@ -233,9 +276,13 @@ function HandPickerColumn({
                   const tooExpensive = isCostMode && costForActor < t.cost;
                   const dead = usedUp || tooExpensive;
                   const disabledReason = usedUp
-                    ? "used"
+                    ? isEn
+                      ? "used"
+                      : "사용 완료"
                     : tooExpensive
-                      ? "not enough cost"
+                      ? isEn
+                        ? "not enough cost"
+                        : "코스트 부족"
                       : null;
                   return (
                     <button
@@ -244,9 +291,13 @@ function HandPickerColumn({
                       disabled={dead}
                       onClick={() => onHandClick(t.id)}
                       title={
-                        isEn
-                          ? `${templateLabel(t)} · remaining ×${left}`
-                          : `${templateLabel(t)} · 잔여 ×${left}`
+                        isCostMode
+                          ? `${templateLabel(t)} · ${t.cost} COST${
+                              disabledReason ? ` · ${disabledReason}` : ""
+                            }`
+                          : isEn
+                            ? `${templateLabel(t)} · remaining ×${left}`
+                            : `${templateLabel(t)} · 잔여 ×${left}`
                       }
                       aria-label={
                         isCostMode
@@ -260,8 +311,12 @@ function HandPickerColumn({
                       className={[
                         "group relative flex flex-col items-center justify-center rounded-md border px-0.5 py-1 text-center transition-all",
                         btnMinH,
-                        dead
-                          ? "cursor-not-allowed border-zinc-700/80 bg-zinc-800/35 opacity-50 grayscale"
+                        dead && isCostMode
+                          ? usedUp
+                            ? "cursor-not-allowed border-zinc-700/80 bg-zinc-950/55 opacity-65"
+                            : "cursor-not-allowed border-rose-900/70 bg-rose-950/20 opacity-65"
+                          : dead
+                            ? "cursor-not-allowed border-zinc-700/80 bg-zinc-800/35 opacity-50 grayscale"
                           : sel
                             ? "border-violet-400 bg-gradient-to-b from-violet-800/55 to-violet-900/65 shadow-[0_0_14px_rgba(167,139,250,0.4)] ring-1 ring-violet-400/55"
                             : "border-zinc-500/90 bg-zinc-700/55 hover:border-violet-500/55 hover:bg-zinc-600/65",
@@ -270,7 +325,7 @@ function HandPickerColumn({
                       <span
                         className={[
                           "font-mono font-bold leading-none tracking-tight",
-                          monoSize,
+                          isCostMode && !compact ? "text-base" : monoSize,
                           dead ? "text-zinc-500" : sel ? "text-violet-50" : "text-zinc-50",
                         ].join(" ")}
                       >
@@ -279,9 +334,15 @@ function HandPickerColumn({
                       {isCostMode ? (
                         <span
                           className={[
-                            "mt-0.5 font-medium leading-none",
+                            "mt-1 font-semibold leading-none",
                             compact ? "text-[9px]" : "text-[10px]",
-                            dead ? "text-zinc-500" : "text-zinc-400",
+                            dead
+                              ? tooExpensive
+                                ? "text-rose-300/70"
+                                : "text-zinc-500"
+                              : sel
+                                ? "text-amber-100"
+                                : "text-amber-200/90",
                           ].join(" ")}
                         >
                           {t.cost} COST
@@ -289,6 +350,7 @@ function HandPickerColumn({
                       ) : null}
                       <span
                         className={[
+                          isCostMode ? "hidden" : "",
                           "mt-0.5 font-medium leading-none",
                           compact ? "text-[9px]" : "text-[10px]",
                           dead ? "text-zinc-500" : "text-zinc-400",
@@ -296,6 +358,18 @@ function HandPickerColumn({
                       >
                         ×{left}
                       </span>
+                      {isCostMode && dead ? (
+                        <span
+                          className={[
+                            "mt-1 rounded-sm px-1 py-0.5 text-[8px] font-bold leading-none",
+                            tooExpensive
+                              ? "bg-rose-950/70 text-rose-200"
+                              : "bg-zinc-900/80 text-zinc-400",
+                          ].join(" ")}
+                        >
+                          {disabledReason}
+                        </span>
+                      ) : null}
                     </button>
                   );
                 })}
@@ -338,15 +412,26 @@ function HandPickerColumn({
               <p className="text-[11px] text-zinc-300">
                 <span className="text-zinc-500">{isEn ? "Category · " : "카테고리 · "}</span>
                 {categoryForPick != null && isEn
-                  ? iaCategoryLabelEn(categoryForPick)
+                  ? categoryLabelForMode(categoryForPick, isEn, isCostMode)
                   : categoryForPick != null
-                    ? iaCategoryLabelKo(categoryForPick)
+                    ? categoryLabelForMode(categoryForPick, isEn, isCostMode)
                     : null}
               </p>
               {isCostMode ? (
-                <p className="text-[11px] text-amber-100">
-                  COST {tpl.cost} / LEFT {costForActor}
-                </p>
+                <div className="mt-1 grid gap-1 rounded-md border border-amber-400/25 bg-amber-950/20 px-2 py-1.5 text-[11px] text-amber-50">
+                  <p className="flex items-center justify-between gap-2">
+                    <span className="text-amber-200/75">{isEn ? "Selected hand" : "선택 핸드"}</span>
+                    <span className="font-mono font-bold">{templateLabel(tpl)}</span>
+                  </p>
+                  <p className="flex items-center justify-between gap-2">
+                    <span className="text-amber-200/75">{isEn ? "Cost" : "소모 코스트"}</span>
+                    <span className="font-mono font-bold">{tpl.cost}</span>
+                  </p>
+                  <p className="flex items-center justify-between gap-2">
+                    <span className="text-amber-200/75">{isEn ? "After pick" : "선택 후 남은 코스트"}</span>
+                    <span className="font-mono font-bold">{selectedAfterCost}</span>
+                  </p>
+                </div>
               ) : null}
             </div>
           ) : (
@@ -367,7 +452,7 @@ function HandPickerColumn({
               : "cursor-not-allowed bg-zinc-700 text-zinc-400",
           ].join(" ")}
         >
-          {isEn ? "Lock this hand" : "이 핸드로 확정"}
+          {confirmLabel}
         </button>
         {pending != null ? (
           <p className="text-[10px] leading-snug text-zinc-500">
@@ -445,3 +530,4 @@ export function HandSelectPanel({
     </div>
   );
 }
+
