@@ -361,7 +361,7 @@ function HandPickerColumn({
                       {isCostMode && dead ? (
                         <span
                           className={[
-                            "mt-1 rounded-sm px-1 py-0.5 text-[8px] font-bold leading-none",
+                            "mt-1 max-w-full truncate rounded-sm px-1 py-0.5 text-[8px] font-bold leading-none",
                             tooExpensive
                               ? "bg-rose-950/70 text-rose-200"
                               : "bg-zinc-900/80 text-zinc-400",
@@ -418,17 +418,17 @@ function HandPickerColumn({
                     : null}
               </p>
               {isCostMode ? (
-                <div className="mt-1 grid gap-1 rounded-md border border-amber-400/25 bg-amber-950/20 px-2 py-1.5 text-[11px] text-amber-50">
-                  <p className="flex items-center justify-between gap-2">
-                    <span className="text-amber-200/75">{isEn ? "Selected hand" : "선택 핸드"}</span>
+                <div className="mt-1 grid min-w-0 gap-1 rounded-md border border-amber-400/25 bg-amber-950/20 px-2 py-1.5 text-[11px] text-amber-50">
+                  <p className="flex min-w-0 flex-wrap items-center justify-between gap-x-2 gap-y-0.5">
+                    <span className="min-w-0 text-amber-200/75">{isEn ? "Selected hand" : "선택 핸드"}</span>
                     <span className="font-mono font-bold">{templateLabel(tpl)}</span>
                   </p>
-                  <p className="flex items-center justify-between gap-2">
-                    <span className="text-amber-200/75">{isEn ? "Cost" : "소모 코스트"}</span>
+                  <p className="flex min-w-0 flex-wrap items-center justify-between gap-x-2 gap-y-0.5">
+                    <span className="min-w-0 text-amber-200/75">{isEn ? "Cost" : "소모 코스트"}</span>
                     <span className="font-mono font-bold">{tpl.cost}</span>
                   </p>
-                  <p className="flex items-center justify-between gap-2">
-                    <span className="text-amber-200/75">{isEn ? "After pick" : "선택 후 남은 코스트"}</span>
+                  <p className="flex min-w-0 flex-wrap items-center justify-between gap-x-2 gap-y-0.5">
+                    <span className="min-w-0 text-amber-200/75">{isEn ? "After pick" : "선택 후 남은 코스트"}</span>
                     <span className="font-mono font-bold">{selectedAfterCost}</span>
                   </p>
                 </div>
@@ -446,7 +446,7 @@ function HandPickerColumn({
           onClick={submit}
           disabled={!canConfirm}
           className={[
-            "w-full rounded-lg py-2 text-xs font-semibold transition-colors sm:text-sm",
+            "min-h-10 w-full rounded-lg px-2 py-2 text-xs font-semibold leading-tight break-words transition-colors sm:text-sm",
             canConfirm
               ? "bg-violet-600 text-white hover:bg-violet-500 active:bg-violet-700"
               : "cursor-not-allowed bg-zinc-700 text-zinc-400",
