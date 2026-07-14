@@ -14,10 +14,11 @@ export type AllInCinemaPhase =
   | "showdown-reveal"
   | "showdown-resolve";
 
-// 올인 연출 타이밍 (ms) — 기존 대비 약 2배로 여유롭게
-const DELAY_LOCK = 1100;             // allin-lock 단계 유지 시간
-const DELAY_BETWEEN_REVEAL = 900;    // 각 보드 카드 공개 간격
-const DELAY_AFTER_LAST_REVEAL = 380; // 마지막 공개 후 결과까지 정지 시간
+// 올인 연출 타이밍 (ms)
+// 목표: 핸드가 먼저 쇼다운(양쪽 홀 카드 공개)되고, 남은 보드가 1장씩 천천히 깔린 뒤 결과가 고정된다.
+const DELAY_LOCK = 800;               // allin-lock 단계 유지 시간 (ALL-IN 오버레이는 짧게)
+const DELAY_BETWEEN_REVEAL = 1050;    // 각 보드 카드 공개 간격(긴장감 유지)
+const DELAY_AFTER_LAST_REVEAL = 650;  // 마지막 공개 후 결과까지 정지 시간
 
 function runoutStartRev(state: GameState): number {
   const v = state.runoutUiStartRevealed;
@@ -63,12 +64,7 @@ function computeCinemaMeta(state: GameState): CinemaMeta {
 export function useAllInShowdownCinema(state: GameState) {
   const meta = React.useMemo(
     () => computeCinemaMeta(state),
-    [
-      state.phase,
-      state.handEndMode,
-      state.logs,
-      state.runoutUiStartRevealed,
-    ],
+    [state],
   );
   const { runKey, startRev, targets } = meta;
 
@@ -83,8 +79,6 @@ export function useAllInShowdownCinema(state: GameState) {
     for (const id of timersRef.current) clearTimeout(id);
     timersRef.current = [];
   }, []);
-
-  const targetsKey = targets.join(",");
 
   const skip = React.useCallback(() => {
     skippedRef.current = true;
@@ -144,7 +138,7 @@ export function useAllInShowdownCinema(state: GameState) {
     }, t + DELAY_AFTER_LAST_REVEAL);
 
     return clearTimers;
-  }, [runKey, targetsKey, clearTimers]);
+  }, [runKey, clearTimers]);
 
   const active = runKey != null;
   const blocking = active && phase !== "showdown-resolve" && phase !== "off";

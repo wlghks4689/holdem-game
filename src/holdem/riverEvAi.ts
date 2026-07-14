@@ -19,7 +19,7 @@ import {
 } from "./bettingHelpers";
 import { SMALLEST_CHIP } from "./constants";
 import { resolveHandBlinds } from "./blindLevels";
-import { ALL_HAND_TEMPLATES, allConcreteHolesForTemplate } from "./handPool";
+import { allConcreteHolesForTemplate, getHandTemplatesForMode } from "./handPool";
 import { best5Of7, compareHandValue } from "./pokerEval";
 import type { GameAction, GameState, OpponentHandCategory, PlayerIndex } from "./types";
 
@@ -67,7 +67,7 @@ export function buildWeightedOpponentHoles(
   const used = usedCardSet(hero, boardKnown);
 
   const out: WeightedHole[] = [];
-  for (const t of ALL_HAND_TEMPLATES) {
+  for (const t of getHandTemplatesForMode(state.gameMode)) {
     if (categoryFilter != null && t.iaCategory !== categoryFilter) continue;
     const rem = pool[t.id] ?? 0;
     if (rem <= 0) continue;
@@ -186,11 +186,23 @@ function isLegalPostflopRaiseTo(state: GameState, targetRaw: number): boolean {
   const minTarget = postflopMinRaiseTargetForActor(state);
   const bbUnit = resolveHandBlinds(state).bb;
   const target = roundHalfChip(targetRaw);
+  const contributed = state.betting.contributed[p]!;
+  const add = roundHalfChip(target - contributed);
+  if (add <= 1e-9 || add > state.chips[p]! + CHIP_EPS) return false;
+
+  const level = levelFromContributions(state.betting);
+  // 레이즈는 "현재 레벨 초과"여야 함
+  if (target <= level + CHIP_EPS) return false;
+
+  const allInRaise = add >= state.chips[p]! - CHIP_EPS;
+  // 노리밋: 올인 레이즈는 최소 레이즈 미만이어도 허용
+  if (allInRaise) {
+    return target <= cap + CHIP_EPS;
+  }
+
   const allowSub = headsUpSubBbVoluntaryEnabled(state);
   if (!isVoluntaryBetAmount(target, bbUnit, allowSub)) return false;
   if (target > cap + CHIP_EPS || target + CHIP_EPS < minTarget) return false;
-  const add = target - state.betting.contributed[p]!;
-  if (add <= 1e-9 || add > state.chips[p]! + CHIP_EPS) return false;
   return true;
 }
 
@@ -270,6 +282,19 @@ export function pickBestRiverEvAction(
           if (evR > bestEv + CHIP_EPS) {
             bestEv = evR;
             best = { type: "POSTFLOP_RAISE", toLevelChips: T };
+          }
+        }
+      } else {
+        // 노리밋 미달이어도 올인 레이즈는 허용.
+        const T = maxR;
+        if (isLegalPostflopRaiseTo(sPot, T)) {
+          const out = raisePotOutcome(state, aiSeat, potEff, T);
+          if (out.ok) {
+            const evR = equity * out.potNew - out.heroPay;
+            if (evR > bestEv + CHIP_EPS) {
+              bestEv = evR;
+              best = { type: "POSTFLOP_RAISE", toLevelChips: T };
+            }
           }
         }
       }
@@ -361,6 +386,20 @@ export function enumerateRiverLineCandidates(
             byKind.set("raise", { kind: "raise", ev: evR, action: act });
           }
         }
+      } else {
+        // 노리밋 미달이어도 올인 레이즈는 허용
+        const T = maxR;
+        if (isLegalPostflopRaiseTo(sPot, T)) {
+          const out = raisePotOutcome(state, aiSeat, potEff, T);
+          if (out.ok) {
+            const evR = equity * out.potNew - out.heroPay;
+            const prev = byKind.get("raise");
+            const act: GameAction = { type: "POSTFLOP_RAISE", toLevelChips: T };
+            if (prev == null || evR > prev.ev + CHIP_EPS) {
+              byKind.set("raise", { kind: "raise", ev: evR, action: act });
+            }
+          }
+        }
       }
     }
   } else {
@@ -416,7 +455,7 @@ export function shouldAIUseIAHardEv(state: GameState, aiSeat: PlayerIndex): bool
 
   const categories = [
     ...new Set(
-      ALL_HAND_TEMPLATES.map((t) => t.iaCategory),
+      getHandTemplatesForMode(state.gameMode).map((t) => t.iaCategory),
     ),
   ] as OpponentHandCategory[];
 

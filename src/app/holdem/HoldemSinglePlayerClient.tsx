@@ -9,7 +9,7 @@ import {
 import { DEFAULT_HOLDEM_DISPLAY_NAMES } from "@/holdem/playerDisplayNames";
 import type { Difficulty } from "@/holdem/aiPlayer";
 import { singlePlayerInitialChips } from "@/holdem/singlePlayerProgress";
-import type { PlayerIndex } from "@/holdem/types";
+import type { HoldemGameMode, PlayerIndex } from "@/holdem/types";
 import { useHoldemSinglePlayer } from "@/holdem/useHoldemSinglePlayer";
 import { HoldemPlayUI } from "./HoldemPlayUI";
 
@@ -22,9 +22,13 @@ const AI_NAMES: Record<Difficulty, string> = {
 
 interface Props {
   difficulty: Difficulty;
+  gameMode?: HoldemGameMode;
 }
 
-export default function HoldemSinglePlayerClient({ difficulty }: Props) {
+export default function HoldemSinglePlayerClient({
+  difficulty,
+  gameMode = "classic",
+}: Props) {
   const AI_SEAT: PlayerIndex = 1;
   const HUMAN_SEAT: PlayerIndex = 0;
 
@@ -34,7 +38,7 @@ export default function HoldemSinglePlayerClient({ difficulty }: Props) {
     actionTimerSecondsLeft,
     localPaused,
     toggleLocalPause,
-  } = useHoldemSinglePlayer({ difficulty, aiSeat: AI_SEAT });
+  } = useHoldemSinglePlayer({ difficulty, aiSeat: AI_SEAT, gameMode });
 
   const buildNames = React.useCallback(
     (): [string, string] => {

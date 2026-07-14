@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useHoldemI18n } from "@/holdem/i18n/HoldemLocaleProvider";
 import { loadRoomNickname } from "@/holdem/holdemPrefs";
+import type { HoldemGameMode } from "@/holdem/types";
 import {
   saveRoomAuth,
   loadLastActiveRoom,
@@ -26,6 +27,7 @@ export function HoldemHomeHub() {
   const router = useRouter();
   const [multiOpen, setMultiOpen] = React.useState(false);
   const [creating, setCreating] = React.useState<"private" | "public" | null>(null);
+  const [roomGameMode, setRoomGameMode] = React.useState<HoldemGameMode>("classic");
   const [err, setErr] = React.useState<string | null>(null);
   const [lastRoom, setLastRoom] = React.useState<LastActiveRoom | null>(null);
 
@@ -44,8 +46,8 @@ export function HoldemHomeHub() {
     try {
       const nick = loadRoomNickname();
       const body = isPublic
-        ? { public: true, hostNickname: nick || "Player 1" }
-        : {};
+        ? { public: true, hostNickname: nick || "Player 1", gameMode: roomGameMode }
+        : { gameMode: roomGameMode };
       const r = await fetch("/api/room/create", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -191,6 +193,23 @@ export function HoldemHomeHub() {
             {/* 서브메뉴 */}
             {multiOpen && (
               <div className="flex flex-col gap-2 px-4 pb-4">
+                <div className="grid grid-cols-2 gap-2 rounded-xl border border-zinc-700 bg-zinc-900/45 p-1.5">
+                  {(["classic", "cost"] as HoldemGameMode[]).map((mode) => (
+                    <button
+                      key={mode}
+                      type="button"
+                      onClick={() => setRoomGameMode(mode)}
+                      className={[
+                        "rounded-lg px-3 py-2 text-xs font-bold uppercase transition",
+                        roomGameMode === mode
+                          ? "bg-sky-600 text-white"
+                          : "text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100",
+                      ].join(" ")}
+                    >
+                      {mode === "classic" ? "Classic" : "Cost"}
+                    </button>
+                  ))}
+                </div>
                 {/* 비공개 방 만들기 */}
                 <button
                   type="button"
@@ -247,6 +266,31 @@ export function HoldemHomeHub() {
           </div>}
 
           {/* itch.io 전용: 웹 전용 멀티플레이 안내 카드 */}
+          <div className={cardClass}>
+            <span className="text-lg font-semibold text-zinc-100">
+              {locale === "en" ? "Practice" : "연습 게임"}
+            </span>
+            <span className="text-xs leading-relaxed text-zinc-400">
+              {locale === "en"
+                ? "Play locally with either rule set."
+                : "Classic 또는 Cost 규칙으로 로컬 대전을 시작합니다."}
+            </span>
+            <div className="mt-2 grid grid-cols-2 gap-2">
+              <Link
+                href="/holdem/practice?mode=classic"
+                className="rounded-lg border border-zinc-600/70 bg-zinc-900/45 px-3 py-2 text-center text-xs font-bold uppercase text-zinc-200 hover:bg-zinc-700/70"
+              >
+                Classic
+              </Link>
+              <Link
+                href="/holdem/practice?mode=cost"
+                className="rounded-lg border border-emerald-700/60 bg-emerald-950/30 px-3 py-2 text-center text-xs font-bold uppercase text-emerald-100 hover:bg-emerald-900/35"
+              >
+                Cost
+              </Link>
+            </div>
+          </div>
+
           {IS_STATIC && (
             <div className="flex flex-col gap-2 rounded-2xl border border-zinc-700/50 bg-zinc-800/30 p-5 shadow-lg opacity-60 cursor-not-allowed">
               <span className="text-lg font-semibold text-zinc-400">

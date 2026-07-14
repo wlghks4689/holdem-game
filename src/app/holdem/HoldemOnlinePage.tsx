@@ -194,6 +194,7 @@ export function HoldemOnlinePage(props: {
   if (state.phase === "lobby") {
     const isHost = mySeat === 0;
     const canStart = isHost && guestJoined;
+    const gameModeLabel = state.gameMode === "cost" ? "Cost" : "Classic";
     const inviteUrl =
       typeof window !== "undefined"
         ? `${window.location.origin}/holdem/room/${roomId}`
@@ -208,6 +209,9 @@ export function HoldemOnlinePage(props: {
           <h1 className="mt-1 text-2xl font-extrabold tracking-tight">
             대기실
           </h1>
+          <p className="mt-2 inline-flex rounded-md border border-zinc-700 bg-zinc-800/70 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-zinc-300">
+            {gameModeLabel}
+          </p>
         </div>
 
         {/* 입장 현황 */}

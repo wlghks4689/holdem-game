@@ -2,10 +2,6 @@ import {
   CHIPS_PER_BB,
   IA_COST_MIN_BB,
   IA_COST_POT_FRACTION,
-  MAX_RAISES_PER_STREET,
-  POSTFLOP_MAX_BET_POT_FRACTION,
-  PREFLOP_MAX_POT_BB,
-  PREFLOP_SHORT_STACK_ALL_IN_MAX_BB,
   SMALLEST_CHIP,
 } from "./constants";
 import { resolveHandBlinds } from "./blindLevels";
@@ -96,7 +92,9 @@ export function splitPotTwoWayChopChips(
 }
 
 export function preflopMaxPotChips(s: GameState): number {
-  return PREFLOP_MAX_POT_BB * resolveHandBlinds(s).bb;
+  // 노리밋 텍사스 홀덤: 프리플랍에 인위적인 팟 상한이 없다.
+  void s;
+  return Number.POSITIVE_INFINITY;
 }
 
 /** 프리플랍: 블라인드+앤티만 반영된 시작 팟 (프리플랍 액션 전) = SB + BB + 앤티 */
@@ -125,9 +123,9 @@ export function blindContributionFromPreflopPost(
  * 팟 = sb + bb + 앤티총액 + (T - sb) + (T - bb) = 2*T + 앤티총액
  */
 export function maxMatchedContributionPreflop(s: GameState): number {
-  const cap = preflopMaxPotChips(s);
-  const { sb, bb } = resolveHandBlinds(s);
-  return roundHalfChip((cap - preflopDeadPotChips(s) + sb + bb) / 2);
+  // 노리밋: 상대가 맞출 수 있는지와 무관하게 내 스택까지 레이즈 가능.
+  const p = s.toAct ?? 0;
+  return roundHalfChip(s.betting.contributed[p]! + s.chips[p]!);
 }
 
 /**
@@ -183,17 +181,16 @@ export function maxMatchedTotalForPlayer(s: GameState, player: PlayerIndex): num
 
 /** 프리플랍 최대 총 기여: 팟 캡(15bb) 기반 + 상대 스택 상한 */
 export function preflopMaxRaiseTargetForActor(s: GameState): number {
-  const capT = maxMatchedContributionPreflop(s);
+  // 노리밋: 프리플랍 레이즈 최대 총 기여 = 내 스택까지
   const p = s.toAct!;
-  const affordable = roundHalfChip(s.betting.contributed[p]! + s.chips[p]!);
-  const opp: PlayerIndex = p === 0 ? 1 : 0;
-  const oppCeiling = maxMatchedTotalForPlayer(s, opp);
-  return roundHalfChip(Math.min(capT, affordable, oppCeiling));
+  return roundHalfChip(s.betting.contributed[p]! + s.chips[p]!);
 }
 
 /** 이번 스트리트에서 허용된 레이즈 횟수에 도달 — 추가 레이즈·레이즈성 프리 올인 불가 */
 export function streetRaiseCapReached(b: BettingRoundMeta): boolean {
-  return (b.raisesThisStreet ?? 0) >= MAX_RAISES_PER_STREET;
+  // 노리밋: 스트리트 레이즈 횟수 제한이 없다.
+  void b;
+  return false;
 }
 
 export function canActorPreflopRaise(s: GameState): boolean {
@@ -209,7 +206,6 @@ export function canActorPreflopRaise(s: GameState): boolean {
 /** 프리플랍 레이즈 슬라이더 (표준 구간 또는 숏스택 시 올인 레이즈 한 점만) */
 export function preflopRaiseSliderRange(s: GameState): { min: number; max: number } | null {
   if (!canActorPreflopRaise(s)) return null;
-  if (streetRaiseCapReached(s.betting)) return null;
   const level = levelFromContributions(s.betting);
   const maxT = preflopMaxRaiseTargetForActor(s);
   if (maxT <= level + 1e-9) return null;
@@ -235,7 +231,6 @@ export function preflopHasLegalRaise(s: GameState): boolean {
 
 export function isLegalPreflopRaiseTarget(s: GameState, targetRaw: number): boolean {
   if (!canActorPreflopRaise(s)) return false;
-  if (streetRaiseCapReached(s.betting)) return false;
   const range = preflopRaiseSliderRange(s);
   if (range == null) return false;
   const bbUnit = resolveHandBlinds(s).bb;
@@ -268,8 +263,6 @@ export function canPreflopShortStackAllInShove(s: GameState): boolean {
   const p = s.toAct;
   if (p == null || s.phase !== "preflop" || s.preflopStage == null) return false;
   if (!canActorPreflopRaise(s)) return false;
-  if (streetRaiseCapReached(s.betting)) return false;
-  if (actorStackBb(s) > PREFLOP_SHORT_STACK_ALL_IN_MAX_BB + 1e-9) return false;
   const cur = s.betting.contributed[p]!;
   const stk = s.chips[p]!;
   if (stk <= 1e-9) return false;
@@ -328,10 +321,9 @@ export function totalIaDeductedFromPotThisHand(logs: readonly GameMessage[]): nu
 }
 
 export function postflopMaxBet(pot: number, stack: number): number {
-  const rawCap = pot * POSTFLOP_MAX_BET_POT_FRACTION;
-  const cap = roundDownToHalfChip(rawCap);
-  const stk = roundDownToHalfChip(stack);
-  return Math.max(0, Math.min(cap, stk));
+  // 노리밋: 팟 비율 상한이 없다. 최대 베팅/레잊는 내 스택까지.
+  void pot;
+  return roundHalfChip(stack);
 }
 
 export function pokerMinRaiseTotalToLevel(
@@ -368,18 +360,10 @@ export function postflopEffectiveMaxRaiseToLevel(
  * 포스트플랍 레이즈 시 상대가 도달할 수 있는 총액을 넘지 않도록 한 상한(규칙·자기 스택 캡 위에 적용).
  */
 export function postflopRaiseTargetCappedByOpponent(s: GameState): number {
+  // 노리밋: 상대가 맞출 수 있는 범위와 무관하게, 내 스택까지 레이즈 가능.
   const p = s.toAct;
   if (p == null) return 0;
-  const opp: PlayerIndex = p === 0 ? 1 : 0;
-  const f = facingFor(p, s.betting);
-  if (f <= 0) return levelFromContributions(s.betting);
-  const ruleAndStack = postflopEffectiveMaxRaiseToLevel(
-    s.pot,
-    f,
-    s.betting.contributed[p]!,
-    s.chips[p]!,
-  );
-  return roundHalfChip(Math.min(ruleAndStack, maxMatchedTotalForPlayer(s, opp)));
+  return roundHalfChip(s.betting.contributed[p]! + s.chips[p]!);
 }
 
 /**
@@ -391,21 +375,16 @@ export function postflopMinRaiseTargetForActor(s: GameState): number {
   const p = s.toAct;
   if (p == null) return Infinity;
   const f = facingFor(p, s.betting);
-  const cap = postflopRaiseTargetCappedByOpponent(s);
-  const standard = postflopMinRaiseToLevelChips(lv, f);
-  if (!headsUpSubBbVoluntaryEnabled(s)) return standard;
-  if (standard <= cap + 1e-9) return standard;
-  if (cap > lv + 1e-9) return roundHalfChip(cap);
-  return standard;
+  // 노리밋 min-raise(헤즈업 기준): 최소 레이즈 총액 = level + facing
+  return postflopMinRaiseToLevelChips(lv, f);
 }
 
 /** 오픈 베트: 규칙·내 스택뿐 아니라 상대가 이번 액션에서 맞을 수 있는 칩(통상 남은 스택)을 넘지 않음 */
 export function postflopMaxOpenBetForActor(s: GameState): number {
   const p = s.toAct;
   if (p == null) return 0;
-  const opp: PlayerIndex = p === 0 ? 1 : 0;
-  const base = postflopMaxBet(s.pot, s.chips[p]!);
-  return roundHalfChip(Math.min(base, maxMatchedTotalForPlayer(s, opp)));
+  // 노리밋: 오픈 베팅(대기중) 최대 = 내 스택까지.
+  return roundHalfChip(s.chips[p]!);
 }
 
 export function levelFromContributions(b: BettingRoundMeta): number {

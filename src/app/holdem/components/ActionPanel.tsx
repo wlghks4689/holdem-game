@@ -386,8 +386,15 @@ export function ActionPanel({
   const inNextHandPause =
     state.matchWinner == null &&
     (phase === "showdown" || phase === "hand_over");
+  const inAllInRunoutShowdown =
+    phase === "showdown" &&
+    state.handEndMode === "showdown" &&
+    state.runoutUiStartRevealed != null;
+  // 올인 런아웃 시네마(턴/리버 순차 공개 + 결과 확인) 시간을 보장하기 위한 추가 유예.
+  const nextHandAutoSeconds =
+    NEW_HAND_AUTO_SECONDS + (inAllInRunoutShowdown ? 5 : 0);
   const nextHandAutoKey = inNextHandPause
-    ? `${state.roundNumber}-${phase}`
+    ? `${state.roundNumber}-${phase}-${inAllInRunoutShowdown ? "runout" : "normal"}`
     : null;
   const [nextHandAutoLeft, setNextHandAutoLeft] = React.useState<number | null>(null);
   const skipAutoNewHandRef = React.useRef(false);
@@ -402,7 +409,7 @@ export function ActionPanel({
       return;
     }
     skipAutoNewHandRef.current = false;
-    const ms = NEW_HAND_AUTO_SECONDS * 1000;
+    const ms = nextHandAutoSeconds * 1000;
     const tEnd = Date.now() + ms;
     const tick = () => {
       setNextHandAutoLeft(Math.max(0, Math.ceil((tEnd - Date.now()) / 1000)));
@@ -418,7 +425,7 @@ export function ActionPanel({
       window.clearTimeout(to);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [nextHandAutoKey]);
+  }, [nextHandAutoKey, nextHandAutoSeconds]);
 
   // ── 프리플랍 레이즈 싱크 ──────────────────────────────────────────────────
   const preflopCompactRaiseKey = React.useMemo(
@@ -526,7 +533,7 @@ export function ActionPanel({
           </button>
           <div
             className="flex flex-col items-center justify-center gap-0.5 rounded-lg border border-zinc-600/80 bg-zinc-800/50 px-3 py-2 text-center sm:min-w-[6.5rem]"
-            title={`${NEW_HAND_AUTO_SECONDS}초 후 자동으로 다음 라운드(핸드 선택)가 시작됩니다.`}
+            title={`${nextHandAutoSeconds}초 후 자동으로 다음 라운드(핸드 선택)가 시작됩니다.`}
           >
             <span className="text-[9px] font-medium uppercase tracking-wide text-zinc-500">
               {isEn ? "AUTO START" : "자동 시작"}
@@ -643,7 +650,7 @@ export function ActionPanel({
     post &&
     facing <= 1e-9 &&
     !isAllIn &&
-    postAllInBetAmount >= minOpenBet - 1e-9 &&
+    chips > 1e-9 &&
     maxBet >= chips - 1e-9;
   const postAllInRaiseTotal = roundHalfChip(maxAffordableRaiseTotal);
   const canPostflopAllInRaise =
@@ -651,8 +658,7 @@ export function ActionPanel({
     facing > 0 &&
     !hideReraiseStreet &&
     !streetCapped &&
-    postRaiseCap >= postAllInRaiseTotal - 1e-9 &&
-    postAllInRaiseTotal >= postRaiseMin - 1e-9;
+    postRaiseCap >= postAllInRaiseTotal - 1e-9;
 
   // ── 콜 / 폴드 표시 ────────────────────────────────────────────────────────
   const callPay = effectiveCallPay(p, state);
@@ -669,7 +675,7 @@ export function ActionPanel({
   const preflopAllInTotalChips = preflopShortStackAllInAllowed
     ? preflopAllInTotalContribution(state)
     : 0;
-  const preflopAllInTitle = `프리플랍 전액 레이즈(총 ${chipsAsBbLabel(preflopAllInTotalChips, bbUnit)}). 남은 스택 ${actorStackBb(state).toFixed(1)}bb — ${PREFLOP_SHORT_STACK_ALL_IN_MAX_BB}bb 이하일 때만 가능합니다.`;
+  const preflopAllInTitle = `프리플랍 전액 레이즈(총 ${chipsAsBbLabel(preflopAllInTotalChips, bbUnit)}). 남은 스택 ${actorStackBb(state).toFixed(1)}bb로 전액 올인 가능합니다.`;
 
   if (idleAllInWaiting) {
     return (

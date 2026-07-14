@@ -4,7 +4,7 @@ import {
   IA_RIVER_ACTION_EXTRA_SECONDS,
 } from "./constants";
 import { facingFor } from "./bettingHelpers";
-import { ALL_HAND_TEMPLATES, normalizeHandPoolRemaining } from "./handPool";
+import { canSelectHandTemplate, getHandTemplatesForMode } from "./handPool";
 import type { GameAction, GameState } from "./types";
 
 export { ACTION_TIMER_SECONDS, HAND_SELECT_TIMER_SECONDS };
@@ -22,12 +22,11 @@ function shuffled<T>(arr: readonly T[]): T[] {
 /** 아직 미확정인 좌석부터 자동 제출 (0 → 1 순) — 선택 가능한 전체 풀에서 무작위 */
 function buildAutoSelectHand(state: GameState): GameAction | null {
   if (state.handSelectPhase === "done") return null;
-  const pools = normalizeHandPoolRemaining(state.handPoolRemaining as unknown);
   for (const player of [0, 1] as const) {
     if (state.handPickPending[player] != null) continue;
-    const poolForActor = pools[player] ?? {};
-    const canPick = (tid: string): boolean => (poolForActor[tid] ?? 0) > 0;
-    const available = ALL_HAND_TEMPLATES.filter((tpl) => canPick(tpl.id));
+    const available = getHandTemplatesForMode(state.gameMode).filter((tpl) =>
+      canSelectHandTemplate(state, player, tpl),
+    );
     if (available.length === 0) continue;
     const pick = shuffled(available)[0]!;
     return { type: "SELECT_HAND", player, templateId: pick.id };

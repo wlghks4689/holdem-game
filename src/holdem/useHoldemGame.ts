@@ -7,12 +7,12 @@ import {
   computeTimeoutAction,
 } from "./actionTimer";
 import { createInitialGameState, holdemReducer } from "./gameReducer";
-import type { GameAction, GameState } from "./types";
+import type { GameAction, GameState, HoldemGameMode } from "./types";
 
-export function useHoldemGame() {
+export function useHoldemGame(gameMode: HoldemGameMode = "classic") {
   const [state, dispatch] = React.useReducer(
     (s: GameState, a: GameAction) => holdemReducer(s, a),
-    undefined,
+    gameMode,
     createInitialGameState,
   );
 

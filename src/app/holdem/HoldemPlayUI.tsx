@@ -24,6 +24,7 @@ import { HoleCards } from "./components/HoleCards";
 import { IaBanner } from "./components/IaBanner";
 import { PlayAreaPotBetting } from "./components/PlayAreaPotBetting";
 import { TableHeaderBar } from "./components/TableHeaderBar";
+import { ShowdownDramaticOverlay } from "./components/ShowdownDramaticOverlay";
 import { rabbitHuntInfo, viewerMayUseRabbit } from "@/holdem/rabbitHunt";
 import { useAllInShowdownCinema } from "./hooks/useAllInShowdownCinema";
 
@@ -88,6 +89,7 @@ export function HoldemPlayUI({
 }: HoldemPlayUIProps) {
   const { t, locale } = useHoldemI18n();
   const isEn = locale === "en";
+  const gameModeLabel = state.gameMode === "cost" ? "Cost" : "Classic";
   const isHellSingle =
     playMode === "single" && singleDifficulty === "hell";
 
@@ -96,6 +98,19 @@ export function HoldemPlayUI({
     showdownCinema.active && showdownCinema.phase === "showdown-resolve";
   const showdownFxArmed =
     !showdownCinema.active || showdownCinema.phase === "showdown-resolve";
+  const showdownWinnerKey =
+    state.phase === "showdown" &&
+    state.winner != null &&
+    (!showdownCinema.active || showdownCinema.phase === "showdown-resolve")
+      ? `sd-winner-${state.roundNumber}-${state.winner}`
+      : null;
+
+  const showdownDramaticArmed =
+    state.phase === "showdown" &&
+    state.handEndMode === "showdown" &&
+    state.boardRevealed >= 5 &&
+    state.winner != null &&
+    (!showdownCinema.active || showdownCinema.phase === "showdown-resolve");
 
   const showResultBannerSlot =
     state.phase === "showdown" ||
@@ -314,6 +329,9 @@ export function HoldemPlayUI({
             <h1 className="text-base font-bold text-zinc-50 sm:text-lg lg:text-xl">
               {t("home.title")}
             </h1>
+            <div className="mt-1 inline-flex rounded-md border border-zinc-600 bg-zinc-800/70 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-zinc-300">
+              {gameModeLabel}
+            </div>
             {playMode === "local" ? (
               <p
                 className="text-[11px] text-zinc-400 sm:text-xs"
@@ -454,6 +472,11 @@ export function HoldemPlayUI({
           data-allin-cinema-phase={showdownCinema.active ? showdownCinema.phase : "off"}
           aria-label="플레이 영역"
         >
+          <ShowdownDramaticOverlay
+            state={state}
+            playerNames={playerNames}
+            armed={showdownDramaticArmed}
+          />
           {effectivePaused ? (
             <div className="absolute inset-0 z-20 flex items-start justify-center rounded-[inherit] bg-zinc-950/60 pt-16 backdrop-blur-[2px] lg:pt-24">
               <p className="mx-4 rounded-xl border border-zinc-500/80 bg-zinc-900/95 px-4 py-3 text-center text-sm font-semibold text-zinc-100 shadow-xl">
@@ -465,7 +488,7 @@ export function HoldemPlayUI({
           {state.phase === "showdown" || state.phase === "hand_over" ? (
             <div
               className={[
-                "hidden space-y-2 lg:block",
+                "hidden space-y-2 transition-opacity duration-500 lg:block",
                 showdownCinema.active && showdownCinema.phase !== "showdown-resolve"
                   ? "opacity-55"
                   : "",
@@ -486,7 +509,7 @@ export function HoldemPlayUI({
           ) : (
             <div
               className={[
-                "hidden lg:block",
+                "hidden transition-opacity duration-500 lg:block",
                 showdownCinema.active && showdownCinema.phase !== "showdown-resolve"
                   ? "opacity-55"
                   : "",
@@ -522,6 +545,17 @@ export function HoldemPlayUI({
               }
             />
           ) : null}
+          {showdownWinnerKey ? (
+            <div
+              key={showdownWinnerKey}
+              className="pointer-events-none absolute left-1/2 top-14 z-40 -translate-x-1/2 rounded-full border border-emerald-400/50 bg-emerald-950/55 px-4 py-1.5 text-xs font-extrabold tracking-wide text-emerald-50 shadow-[0_0_22px_rgba(16,185,129,0.22)]"
+              style={{ animation: "holdem-result-pop 0.36s ease-out both" }}
+              aria-label="쇼다운 승자 표시"
+            >
+              승자 ·{" "}
+              {playerNames[state.winner!] ?? `플레이어 ${state.winner! + 1}`}
+            </div>
+          ) : null}
 
           <div
             className={[
@@ -541,7 +575,7 @@ export function HoldemPlayUI({
 
           <div
             className={[
-              "mx-auto w-full max-w-3xl lg:max-w-2xl",
+              "mx-auto w-full max-w-3xl transition-opacity duration-500 lg:max-w-2xl",
               showdownCinema.active && showdownCinema.phase !== "showdown-resolve"
                 ? "opacity-85"
                 : "",
@@ -556,7 +590,7 @@ export function HoldemPlayUI({
 
           <div
             className={[
-              "mx-auto max-w-lg lg:max-w-xl",
+              "mx-auto max-w-lg transition-opacity duration-500 lg:max-w-xl",
               showdownCinema.active && showdownCinema.phase !== "showdown-resolve"
                 ? "opacity-55"
                 : "",
@@ -574,7 +608,7 @@ export function HoldemPlayUI({
 
           <div
             className={[
-              "space-y-3 lg:hidden",
+              "space-y-3 transition-opacity duration-500 lg:hidden",
               showdownCinema.active && showdownCinema.phase !== "showdown-resolve"
                 ? "opacity-60"
                 : "",
@@ -623,7 +657,7 @@ export function HoldemPlayUI({
 
           <div
             className={[
-              "mt-2 hidden gap-8 lg:mt-8 lg:grid lg:grid-cols-2 lg:items-start lg:gap-10",
+              "mt-2 hidden gap-8 transition-opacity duration-500 lg:mt-8 lg:grid lg:grid-cols-2 lg:items-start lg:gap-10",
               showdownCinema.active && showdownCinema.phase !== "showdown-resolve"
                 ? "opacity-60"
                 : "",
@@ -659,7 +693,6 @@ export function HoldemPlayUI({
         {showdownCinema.active ? (
           <AllInShowdownCinemaOverlay
             phase={showdownCinema.phase}
-            onSkip={showdownCinema.skip}
           />
         ) : null}
 

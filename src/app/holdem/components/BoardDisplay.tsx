@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import type { GameState } from "@/holdem/types";
+import { bestFiveCardsFromSeven, best5Of7, compareHandValue } from "@/holdem/pokerEval";
 import { useHoldemMotionMode } from "../HoldemMotionRuntime";
 import { CardBack, PlayingCard } from "./Card";
 import { playBoardDealSoft } from "../showdownCinemaSounds";
@@ -53,15 +54,19 @@ function buildEnterDeal(
   prevRev: number,
   nextRev: number,
   subtle: boolean,
+  cinematicFlip: boolean,
   id: number,
 ): EnterDeal | null {
-  const normalDuration = 620;
-  const subtleDuration = 380;
+  const normalDuration = cinematicFlip ? 540 : 620;
+  const subtleDuration = cinematicFlip ? 360 : 380;
+  const flipClass = subtle ? "holdem-board-flip-reveal-subtle" : "holdem-board-flip-reveal";
   if (prevRev < 3 && nextRev >= 3 && slot < 3 && slot >= prevRev) {
     const order = slot - Math.max(0, prevRev);
-    const animClass = subtle
-      ? `holdem-board-enter-flop-subtle-${order}`
-      : `holdem-board-enter-flop-${order}`;
+    const animClass = cinematicFlip
+      ? flipClass
+      : subtle
+        ? `holdem-board-enter-flop-subtle-${order}`
+        : `holdem-board-enter-flop-${order}`;
     return {
       id,
       slot,
@@ -76,7 +81,11 @@ function buildEnterDeal(
       slot,
       delayMs: TURN_RIVER_STAGGER_MS,
       durationMs: subtle ? subtleDuration : normalDuration,
-      animClass: subtle ? "holdem-board-enter-turn-subtle" : "holdem-board-enter-turn",
+      animClass: cinematicFlip
+        ? flipClass
+        : subtle
+          ? "holdem-board-enter-turn-subtle"
+          : "holdem-board-enter-turn",
     };
   }
   if (prevRev < 5 && nextRev >= 5 && slot === 4) {
@@ -85,7 +94,11 @@ function buildEnterDeal(
       slot,
       delayMs: TURN_RIVER_STAGGER_MS,
       durationMs: subtle ? subtleDuration : normalDuration,
-      animClass: subtle ? "holdem-board-enter-river-subtle" : "holdem-board-enter-river",
+      animClass: cinematicFlip
+        ? flipClass
+        : subtle
+          ? "holdem-board-enter-river-subtle"
+          : "holdem-board-enter-river",
     };
   }
   return null;
@@ -126,6 +139,35 @@ export function BoardDisplay({
     state.phase;
   const showdown = state.phase === "showdown";
 
+  const showdownMadeKeySet = React.useMemo(() => {
+    // 올인 시네마 리빌 단계(긴장감 구간)에는 디밍을 걸지 않는다.
+    if (state.phase !== "showdown" || cinematicFlip) return null;
+    const h0 = state.holes[0];
+    const h1 = state.holes[1];
+    if (!h0 || !h1) return null;
+    // 보드 5장이 모두 공개된 뒤에만 "승부에 사용된 5장" 하이라이트가 명확하다.
+    if (rev < 5) return null;
+
+    const all0 = [...h0.hole, ...state.board];
+    const all1 = [...h1.hole, ...state.board];
+    const v0 = best5Of7(all0);
+    const v1 = best5Of7(all1);
+    const cmp = compareHandValue(v0, v1);
+
+    const key = (c: { rank: number; suit: string }) => `${c.rank}:${c.suit}`;
+    const set = new Set<string>();
+
+    if (cmp === 0) {
+      // 타이: 양쪽의 best5가 동일/유사할 수 있으니 둘 다 합집합으로 강조
+      for (const c of bestFiveCardsFromSeven(all0)) set.add(key(c));
+      for (const c of bestFiveCardsFromSeven(all1)) set.add(key(c));
+    } else {
+      const winAll = cmp > 0 ? all0 : all1;
+      for (const c of bestFiveCardsFromSeven(winAll)) set.add(key(c));
+    }
+    return set;
+  }, [cinematicFlip, rev, state.board, state.holes, state.phase]);
+
   const [enterDeals, setEnterDeals] = React.useState<EnterDeal[]>([]);
   const prevRevRef = React.useRef(rev);
   const dealSeqRef = React.useRef(1);
@@ -157,14 +199,21 @@ export function BoardDisplay({
 
   React.useEffect(() => {
     const prev = prevRevRef.current;
-    if (cinematicFlip || rev <= prev) {
+    if (rev <= prev) {
       prevRevRef.current = rev;
       return;
     }
     const next: EnterDeal[] = [];
     for (let i = prev; i < rev; i++) {
       if (!state.board[i]) continue;
-      const built = buildEnterDeal(i, prev, rev, subtleMotion, dealSeqRef.current++);
+      const built = buildEnterDeal(
+        i,
+        prev,
+        rev,
+        subtleMotion,
+        cinematicFlip,
+        dealSeqRef.current++,
+      );
       if (built) next.push(built);
     }
     if (next.length > 0) {
@@ -240,6 +289,9 @@ export function BoardDisplay({
             const c = state.board[i]!;
             const slotDeals = enterDeals.filter((d) => d.slot === i);
             const hasEnterDeal = slotDeals.length > 0;
+            const cardKey = `${c.rank}:${c.suit}`;
+            const madeOnWinner = showdownMadeKeySet?.has(cardKey) ?? false;
+            const dimNonMade = showdownMadeKeySet != null && !madeOnWinner;
             return (
               <div
                 key={i}
@@ -250,33 +302,45 @@ export function BoardDisplay({
                   size="board"
                   className={[
                     showdown ? "drop-shadow-sm" : "drop-shadow-md",
+                    madeOnWinner
+                      ? "ring-2 ring-amber-300/75 shadow-[0_0_22px_rgba(252,211,77,0.28)]"
+                      : "",
+                    dimNonMade
+                      ? "opacity-35 brightness-[0.78] saturate-50 grayscale-[0.18]"
+                      : "",
                     hasEnterDeal ? "opacity-0" : "opacity-100",
                   ].join(" ")}
                 />
-                {!cinematicFlip
-                  ? slotDeals.map((deal) => (
-                      <div
-                        key={deal.id}
-                        className="pointer-events-none absolute inset-0 z-20"
-                        aria-hidden
-                      >
-                        <div
-                          className={[
-                            "holdem-board-enter-root",
-                            "holdem-board-card-3d-root",
-                            deal.animClass,
-                          ].join(" ")}
-                          style={{ animationDelay: `${deal.delayMs}ms` }}
-                        >
-                          <PlayingCard
-                            card={c}
-                            size="board"
-                            className="drop-shadow-lg"
-                          />
-                        </div>
-                      </div>
-                    ))
-                  : null}
+                {slotDeals.map((deal) => (
+                  <div
+                    key={deal.id}
+                    className="pointer-events-none absolute inset-0 z-20"
+                    aria-hidden
+                  >
+                    <div
+                      className={[
+                        "holdem-board-enter-root",
+                        "holdem-board-card-3d-root",
+                        deal.animClass,
+                      ].join(" ")}
+                      style={{ animationDelay: `${deal.delayMs}ms` }}
+                    >
+                      <PlayingCard
+                        card={c}
+                        size="board"
+                        className={[
+                          "drop-shadow-lg",
+                          madeOnWinner
+                            ? "ring-2 ring-amber-300/80 shadow-[0_0_26px_rgba(252,211,77,0.32)]"
+                            : "",
+                          dimNonMade
+                            ? "opacity-35 brightness-[0.78] saturate-50 grayscale-[0.18]"
+                            : "",
+                        ].join(" ")}
+                      />
+                    </div>
+                  </div>
+                ))}
               </div>
             );
           }

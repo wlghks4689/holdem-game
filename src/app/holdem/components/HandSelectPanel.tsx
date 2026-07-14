@@ -2,8 +2,10 @@
 
 import * as React from "react";
 import {
-  ALL_HAND_TEMPLATES,
-  findTemplate,
+  canSelectHandTemplate,
+  getHandTemplateForMode,
+  getHandTemplatesForMode,
+  normalizeHandCostRemaining,
   normalizeHandPoolRemaining,
   templateLabel,
 } from "@/holdem/handPool";
@@ -58,16 +60,18 @@ function kindLabelKo(t: HandPoolTemplate): string {
   return "오프수트";
 }
 
-function groupTemplatesByCategory(): Map<OpponentHandCategory, HandPoolTemplate[]> {
+function groupTemplateListByCategory(
+  templates: readonly HandPoolTemplate[],
+): Map<OpponentHandCategory, HandPoolTemplate[]> {
   const m = new Map<OpponentHandCategory, HandPoolTemplate[]>();
   for (const c of CATEGORY_ORDER) m.set(c, []);
-  for (const t of ALL_HAND_TEMPLATES) {
-    m.get(t.iaCategory)!.push(t);
+  for (const t of templates) {
+    const bucket = m.get(t.iaCategory);
+    if (bucket) bucket.push(t);
+    else m.set(t.iaCategory, [t]);
   }
   return m;
 }
-
-const TEMPLATES_BY_CATEGORY = groupTemplatesByCategory();
 
 export type HandSelectPanelProps = {
   state: GameState;
@@ -96,6 +100,15 @@ function HandPickerColumn({
   const { locale } = useHoldemI18n();
   const isEn = locale === "en";
   const phase = state.handSelectPhase;
+  const isCostMode = state.gameMode === "cost";
+  const templatesForMode = React.useMemo(
+    () => getHandTemplatesForMode(state.gameMode),
+    [state.gameMode],
+  );
+  const templatesByCategory = React.useMemo(
+    () => groupTemplateListByCategory(templatesForMode),
+    [templatesForMode],
+  );
   const [pick, setPick] = React.useState<string | null>(null);
 
   const pending = state.handPickPending[player];
@@ -104,14 +117,18 @@ function HandPickerColumn({
     setPick(null);
   }, [phase, state.roundNumber, player]);
 
-  const tpl = pick ? findTemplate(pick) : null;
+  const tpl = pick ? getHandTemplateForMode(state.gameMode, pick) : null;
   const categoryForPick = tpl?.iaCategory ?? null;
-  const canConfirm = tpl != null;
 
   const poolForActor = React.useMemo(() => {
-    const pools = normalizeHandPoolRemaining(state.handPoolRemaining as unknown);
+    const pools = normalizeHandPoolRemaining(state.handPoolRemaining as unknown, state.gameMode);
     return pools[player] ?? {};
-  }, [state.handPoolRemaining, player]);
+  }, [state.handPoolRemaining, state.gameMode, player]);
+  const costForActor = React.useMemo(() => {
+    const costs = normalizeHandCostRemaining(state.handCostRemaining as unknown, state.gameMode);
+    return costs[player] ?? 0;
+  }, [state.handCostRemaining, state.gameMode, player]);
+  const canConfirm = tpl != null && canSelectHandTemplate(state, player, tpl);
 
   const posLabel =
     state.button === player ? HU_DEALER_SB_LABEL : HU_BB_LABEL;
@@ -122,8 +139,8 @@ function HandPickerColumn({
   };
 
   const onHandClick = (id: string) => {
-    const left = poolForActor[id] ?? 0;
-    if (left <= 0) return;
+    const t = getHandTemplateForMode(state.gameMode, id);
+    if (t == null || !canSelectHandTemplate(state, player, t)) return;
     setPick(id);
   };
 
@@ -133,8 +150,11 @@ function HandPickerColumn({
   const handGridClass = compact
     ? "grid grid-cols-4 gap-1"
     : "grid grid-cols-3 gap-1.5 sm:grid-cols-4";
-  const btnMinH = compact ? "min-h-[2.35rem]" : "min-h-[3.25rem]";
+  const btnMinH = compact ? "min-h-[3.05rem]" : "min-h-[3.75rem]";
   const monoSize = compact ? "text-xs" : "text-sm";
+  const hasAvailableHand = templatesForMode.some((t) =>
+    canSelectHandTemplate(state, player, t),
+  );
 
   return (
     <div
@@ -158,10 +178,20 @@ function HandPickerColumn({
           </span>
         )}
       </h3>
+      {isCostMode ? (
+        <div className="mb-2 rounded-md border border-zinc-600/70 bg-zinc-900/35 px-2 py-1 text-[10px] font-semibold text-amber-100">
+          {isEn ? "Hand cost left" : "Hand cost left"}: {costForActor}
+        </div>
+      ) : null}
+      {isCostMode && !hasAvailableHand ? (
+        <div className="mb-2 rounded-md border border-red-500/35 bg-red-950/25 px-2 py-1 text-[10px] font-semibold text-red-100">
+          {isEn ? "No affordable hands remain." : "No affordable hands remain."}
+        </div>
+      ) : null}
 
       <div className={catGridClass}>
         {CATEGORY_ORDER.map((cat) => {
-          const hands = TEMPLATES_BY_CATEGORY.get(cat) ?? [];
+          const hands = templatesByCategory.get(cat) ?? [];
           return (
             <section
               key={cat}
@@ -190,7 +220,14 @@ function HandPickerColumn({
                 {hands.map((t) => {
                   const left = poolForActor[t.id] ?? 0;
                   const sel = pick === t.id;
-                  const dead = left <= 0;
+                  const usedUp = left <= 0;
+                  const tooExpensive = isCostMode && costForActor < t.cost;
+                  const dead = usedUp || tooExpensive;
+                  const disabledReason = usedUp
+                    ? "used"
+                    : tooExpensive
+                      ? "not enough cost"
+                      : null;
                   return (
                     <button
                       key={t.id}
@@ -201,6 +238,15 @@ function HandPickerColumn({
                         isEn
                           ? `${templateLabel(t)} · remaining ×${left}`
                           : `${templateLabel(t)} · 잔여 ×${left}`
+                      }
+                      aria-label={
+                        isCostMode
+                          ? `${templateLabel(t)} cost ${t.cost}, remaining ${left}${
+                              disabledReason ? `, ${disabledReason}` : ""
+                            }`
+                          : `${templateLabel(t)} remaining ${left}${
+                              disabledReason ? `, ${disabledReason}` : ""
+                            }`
                       }
                       className={[
                         "group relative flex flex-col items-center justify-center rounded-md border px-0.5 py-1 text-center transition-all",
@@ -221,6 +267,17 @@ function HandPickerColumn({
                       >
                         {templateLabel(t)}
                       </span>
+                      {isCostMode ? (
+                        <span
+                          className={[
+                            "mt-0.5 font-medium leading-none",
+                            compact ? "text-[9px]" : "text-[10px]",
+                            dead ? "text-zinc-500" : "text-zinc-400",
+                          ].join(" ")}
+                        >
+                          {t.cost} COST
+                        </span>
+                      ) : null}
                       <span
                         className={[
                           "mt-0.5 font-medium leading-none",
@@ -275,6 +332,11 @@ function HandPickerColumn({
                   ? CATEGORY_LABEL_EN[categoryForPick]
                   : categoryForPick}
               </p>
+              {isCostMode ? (
+                <p className="text-[11px] text-amber-100">
+                  COST {tpl.cost} / LEFT {costForActor}
+                </p>
+              ) : null}
             </div>
           ) : (
             <p className="mt-1 text-[11px] text-zinc-400">

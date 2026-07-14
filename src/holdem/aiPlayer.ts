@@ -34,7 +34,7 @@ import {
   hellRiverSolverAction,
 } from "./hellSolverPolicy";
 import type { HellAdaptation } from "./hellUserPattern";
-import { ALL_HAND_TEMPLATES } from "./handPool";
+import { canSelectHandTemplate, getHandTemplatesForMode } from "./handPool";
 import { pickBestRiverEvAction } from "./riverEvAi";
 import type { GameAction, GameState, PlayerIndex } from "./types";
 
@@ -66,8 +66,9 @@ export function handStrengthTier(templateId: string | null | undefined): number 
   if (!templateId) return 2;
   if (templateId === "hi_AA" || templateId === "hi_KK") return 5;
   if (templateId === "hi_QQ" || templateId === "hi_JJ") return 4;
+  if (templateId === "axs_AKs") return 4;
   if (templateId === "axo_AKo" || templateId === "bw_KQs") return 4;
-  if (templateId.startsWith("axo_") || templateId.startsWith("bw_")) return 3;
+  if (templateId.startsWith("axs_") || templateId.startsWith("axo_") || templateId.startsWith("bw_")) return 3;
   if (templateId === "mid_TT" || templateId === "mid_99") return 3;
   if (templateId.startsWith("mid_")) return 2;
   // 커넥터 수딧: 연결성이 높을수록 약간 높게
@@ -141,8 +142,9 @@ export function pickAIHandTemplateId(
   aiSeat: PlayerIndex,
   difficulty: Difficulty,
 ): string | null {
-  const pool = state.handPoolRemaining[aiSeat];
-  const available = ALL_HAND_TEMPLATES.filter((t) => (pool[t.id] ?? 0) > 0);
+  const available = getHandTemplatesForMode(state.gameMode).filter((t) =>
+    canSelectHandTemplate(state, aiSeat, t),
+  );
   if (available.length === 0) return null;
 
   const tierWeight = (tier: number): number => {
@@ -380,8 +382,16 @@ function postflopAction(
       if (!isAllIn && !streetRaiseCapReached(state.betting) && r < 0.18) {
         const minR = postflopMinRaiseTargetForActor(state);
         const maxR = postflopRaiseTargetCappedByOpponent(state);
+        const level = state.betting.currentLevel;
+        // 노리밋: 스택이 min-raise를 못 맞추더라도 "올인 레이즈"는 허용
         if (minR <= maxR + 1e-9) {
-          return { type: "POSTFLOP_RAISE", toLevelChips: clamp(rng(minR, maxR), minR, maxR) };
+          return {
+            type: "POSTFLOP_RAISE",
+            toLevelChips: clamp(rng(minR, maxR), minR, maxR),
+          };
+        }
+        if (maxR > level + 1e-9) {
+          return { type: "POSTFLOP_RAISE", toLevelChips: maxR };
         }
       }
       if (r < 0.55) return { type: "POSTFLOP_CALL" };
@@ -456,10 +466,15 @@ function postflopAction(
       const maxR = postflopRaiseTargetCappedByOpponent(state);
       const contrib = state.betting.contributed[aiSeat]!;
       const affordable = roundHalfChip(contrib + chips);
+      const level = state.betting.currentLevel;
       if (minR <= maxR + 1e-9 && minR <= affordable + 1e-9) {
         const frac = effectiveTier >= 4 ? rng(0.6, 1.0) : rng(0.35, 0.7);
         const to = clamp(minR + (maxR - minR) * frac, minR, maxR);
         return { type: "POSTFLOP_RAISE", toLevelChips: to };
+      }
+      // 노리밋: min-raise 미달이어도 올인 레이즈(=maxR)는 가능
+      if (maxR <= affordable + 1e-9 && maxR > level + 1e-9) {
+        return { type: "POSTFLOP_RAISE", toLevelChips: maxR };
       }
     }
     if (r < raiseThresh + callThresh) return { type: "POSTFLOP_CALL" };

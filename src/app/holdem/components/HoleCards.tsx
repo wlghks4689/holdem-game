@@ -4,6 +4,7 @@ import * as React from "react";
 import type { CSSProperties } from "react";
 import {
   best5Of7,
+  bestFiveCardsFromSeven,
   compareHandValue,
   currentCompactHandLabel,
   madeHandFxTier,
@@ -110,6 +111,31 @@ export function HoleCards({
   const opp = other(viewer);
   const showdownReveal = state.phase === "showdown";
   const sdCmp = showdownCompare(state);
+  const showdownMade = React.useMemo(() => {
+    if (!showdownFxArmed || state.phase !== "showdown") return null;
+    const h0 = state.holes[0];
+    const h1 = state.holes[1];
+    if (!h0 || !h1) return null;
+    // 보드 5장이 모두 공개된 뒤에만 확실하게 "메이드 5장"을 보여준다.
+    if (state.boardRevealed < 5) return null;
+
+    const all0 = [...h0.hole, ...state.board];
+    const all1 = [...h1.hole, ...state.board];
+    const v0 = best5Of7(all0);
+    const v1 = best5Of7(all1);
+    const cmp = compareHandValue(v0, v1);
+    const key = (c: { rank: number; suit: string }) => `${c.rank}:${c.suit}`;
+
+    if (cmp === 0) {
+      const s0 = new Set(bestFiveCardsFromSeven(all0).map(key));
+      const s1 = new Set(bestFiveCardsFromSeven(all1).map(key));
+      return { kind: "tie" as const, winSeat: null, sets: [s0, s1] as const };
+    }
+    const winSeat = (cmp > 0 ? 0 : 1) as 0 | 1;
+    const winAll = winSeat === 0 ? all0 : all1;
+    const winSet = new Set(bestFiveCardsFromSeven(winAll).map(key));
+    return { kind: "win" as const, winSeat, winSet };
+  }, [showdownFxArmed, state.board, state.boardRevealed, state.holes, state.phase]);
   const turnPulse = useTurnPulse(
     state.phase !== "showdown" && state.phase !== "hand_over"
       ? state.toAct
@@ -285,6 +311,12 @@ export function HoleCards({
           showdownReveal ? ("compact" as const) : isMe ? ("hero" as const) : ("board" as const);
 
         const showdownCardClass = loserShowdown ? "opacity-55" : "";
+        const madeKey = (c: { rank: number; suit: string }) => `${c.rank}:${c.suit}`;
+        const holeMade =
+          showdownMade?.kind === "tie"
+            ? showdownMade.sets[p].has(madeKey(sel?.hole[0] ?? { rank: -1, suit: "s" })) ||
+              showdownMade.sets[p].has(madeKey(sel?.hole[1] ?? { rank: -1, suit: "s" }))
+            : showdownMade?.kind === "win" && showdownMade.winSeat === p;
 
         return (
           <div key={p} className={frameClass} style={frameStyle}>
@@ -362,18 +394,40 @@ export function HoleCards({
                               : undefined
                           }
                         >
-                          <PlayingCard
-                            card={c}
-                            size={cardSize}
-                            className={[
-                              showdownReveal ? showdownCardClass : "",
-                              madeFxTier > 0 && !showdownReveal
-                                ? MADE_FX_CARD_RING[madeFxTier] ?? ""
-                                : "",
-                            ]
-                              .filter(Boolean)
-                              .join(" ")}
-                          />
+                          {(() => {
+                            const inMade5 =
+                              showdownMade?.kind === "tie"
+                                ? showdownMade.sets[p].has(madeKey(c))
+                                : showdownMade?.kind === "win"
+                                  ? p === showdownMade.winSeat &&
+                                    showdownMade.winSet.has(madeKey(c))
+                                  : false;
+                            const dimNonMade =
+                              showdownMade != null &&
+                              (showdownMade.kind === "tie" || showdownMade.winSeat === p) &&
+                              !inMade5;
+                            const showRing = showdownMade != null && inMade5;
+                            return (
+                              <PlayingCard
+                                card={c}
+                                size={cardSize}
+                                className={[
+                                  showdownReveal ? showdownCardClass : "",
+                                  madeFxTier > 0 && !showdownReveal
+                                    ? MADE_FX_CARD_RING[madeFxTier] ?? ""
+                                    : "",
+                                  showRing
+                                    ? "ring-2 ring-amber-300/80 shadow-[0_0_22px_rgba(252,211,77,0.25)]"
+                                    : "",
+                                  dimNonMade
+                                    ? "opacity-35 brightness-[0.78] saturate-50 grayscale-[0.18]"
+                                    : "",
+                                ]
+                                  .filter(Boolean)
+                                  .join(" ")}
+                              />
+                            );
+                          })()}
                         </div>
                       ))}
                     </div>

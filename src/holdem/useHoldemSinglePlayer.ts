@@ -27,7 +27,7 @@ import {
   singlePlayerInitialChips,
 } from "./singlePlayerProgress";
 import { createInitialGameState, holdemReducer } from "./gameReducer";
-import type { GameAction, GameState, PlayerIndex } from "./types";
+import type { GameAction, GameState, HoldemGameMode, PlayerIndex } from "./types";
 
 // ─── 훅 반환 타입 ─────────────────────────────────────────────────────────────
 
@@ -47,18 +47,20 @@ export interface HoldemSinglePlayerResult {
 export function useHoldemSinglePlayer({
   difficulty,
   aiSeat = 1,
+  gameMode = "classic",
 }: {
   difficulty: Difficulty;
   aiSeat?: PlayerIndex;
+  gameMode?: HoldemGameMode;
 }): HoldemSinglePlayerResult {
   const humanSeat = (1 - aiSeat) as PlayerIndex;
 
   // ── 게임 상태 ──────────────────────────────────────────────────────────────
   const [state, rawDispatch] = React.useReducer(
     (s: GameState, a: GameAction) => holdemReducer(s, a),
-    { difficulty, aiSeat },
-    ({ difficulty: d, aiSeat: seat }) => {
-      const base = createInitialGameState();
+    { difficulty, aiSeat, gameMode },
+    ({ difficulty: d, aiSeat: seat, gameMode: mode }) => {
+      const base = createInitialGameState(mode);
       const chips = singlePlayerInitialChips(d, seat);
       base.chips[0] = chips[0]!;
       base.chips[1] = chips[1]!;

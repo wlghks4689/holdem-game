@@ -13,6 +13,8 @@ export type Street = "lobby" | "hand_select" | "preflop" | "flop" | "turn" | "ri
 
 export type PlayerIndex = 0 | 1;
 
+export type HoldemGameMode = "classic" | "cost";
+
 export type HandPoolTemplateKind = "pair" | "offsuit" | "suited";
 
 export type HandPoolTemplate = {
@@ -23,6 +25,7 @@ export type HandPoolTemplate = {
   /** 두 카드 랭크 (페어는 동일) — 숫자 2~14 (A=14) */
   ranks: [number, number];
   maxUses: number;
+  cost: number;
 };
 
 export type SelectedHand = {
@@ -87,6 +90,7 @@ export type GameMessage =
   | { t: "player_busted"; player: PlayerIndex };
 
 export type GameState = {
+  gameMode: HoldemGameMode;
   phase: Street;
   roundNumber: number;
   handBlinds: HandBlinds;
@@ -104,6 +108,8 @@ export type GameState = {
   potAwardFlash: [number, number] | null;
   /** 플레이어별 독립: 각 템플릿 남은 사용 횟수 (매치 동안만, NEW_HAND에서 리셋 없음) */
   handPoolRemaining: [Record<string, number>, Record<string, number>];
+  /** Hand-purchase resource, separate from chips/BB/IA costs. Does not regenerate during a match. */
+  handCostRemaining: [number, number];
   /** null 이면 아직 미선택 */
   holes: [SelectedHand | null, SelectedHand | null];
   /** 양쪽 제출 전까지 비공개. 확정 후 null */

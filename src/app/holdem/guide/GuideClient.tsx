@@ -147,18 +147,15 @@ export function GuideClient() {
             note={
               isEn ? (
                 <>
-                  <span className="font-semibold text-amber-300/90">Preflop pot cap </span>
-                  — Voluntary bets (excluding blinds) cannot push the pot above{" "}
-                  <Tag>{PREFLOP_MAX_POT_BB}bb</Tag>. Once the cap is reached, only
-                  call or fold is available and the raise slider is disabled.
+                  <span className="font-semibold text-amber-300/90">No pot cap (no-limit)</span>
+                  — Your bets/raises are limited only by your stack. You can go all-in
+                  at any time (including preflop).
                 </>
               ) : (
                 <>
-                  <span className="font-semibold text-amber-300/90">프리플랍 팟 상한 </span>
-                  — 프리플랍에서 자발 베팅으로 쌓이는 팟(블라인드 제외분)이{" "}
-                  <Tag>{PREFLOP_MAX_POT_BB}bb</Tag>를 초과하면 더 이상 레이즈할 수 없고
-                  콜·폴드만 가능합니다. 팟이 이미 상한에 도달한 상태에서는 슬라이더도
-                  비활성화됩니다.
+                  <span className="font-semibold text-amber-300/90">팟 상한 없음 (노리밋)</span>
+                  — 베팅/레이즈는 오직 내 스택만큼만 가능하며, 프리플랍에서도 언제든 전액
+                  올인을 할 수 있습니다.
                 </>
               )
             }
@@ -384,49 +381,42 @@ export function GuideClient() {
             </li>
             <li>
               <span className="font-medium text-zinc-200">
-                {isEn ? "Preflop pot cap" : "프리플랍 팟 상한"}
+                {isEn ? "No pot cap (stack-limited)" : "팟 상한 없음 (스택 한도)"}
               </span>{" "}
               —{" "}
               {isEn ? (
                 <>
-                  Voluntary bets (excluding blinds) cannot push the pot above{" "}
-                  <Tag>{PREFLOP_MAX_POT_BB}bb</Tag>.
+                  Voluntary bets are limited only by your stack (no pot cap).
                 </>
               ) : (
                 <>
-                  자발 베팅으로 쌓이는 팟(블라인드 제외분)이{" "}
-                  <Tag>{PREFLOP_MAX_POT_BB}bb</Tag>를 넘지 않도록 제한됩니다.
+                  자발 베팅은 팟 상한 없이, 스택이 허용하는 범위까지 자유롭게 진행됩니다.
                 </>
               )}
             </li>
             <li>
               <span className="font-medium text-zinc-200">
-                {isEn ? "Postflop max bet" : "포스트플랍 최대 베팅"}
+                {isEn ? "No max bet cap (stack-limited)" : "포스트플랍 상한 없음 (스택 한도)"}
               </span>{" "}
               —{" "}
               {isEn
-                ? "Maximum bet size is pot-sized (1× pot). Raises are capped at the pot at the time of the raise."
-                : "최대 베팅 금액은 팟 사이즈(1× 팟)입니다. 레이즈도 해당 시점 팟을 기준으로 제한됩니다."}
+                ? "Maximum bet/raise size is limited only by your stack."
+                : "최대 베팅/레이즈 금액은 팟이 아니라 내 스택으로만 제한됩니다."}
             </li>
             <li>
               <span className="font-medium text-zinc-200">
-                {isEn ? "Raise limit per street" : "스트리트당 레이즈 제한"}
+                {isEn ? "Unlimited raises" : "레이즈 횟수 제한 없음"}
               </span>{" "}
               —{" "}
               {isEn ? (
                 <>
-                  Up to <Tag>{MAX_RAISES_PER_STREET} raises</Tag> per street
-                  (preflop / flop / turn / river). The opening bet does not count
-                  as a raise. Once the cap is reached, only{" "}
-                  <strong className="text-zinc-200">call or fold</strong> is
-                  available.
+                  There is no raise cap per street. Betting ends when a bet is matched
+                  (or someone folds / all-in).
                 </>
               ) : (
                 <>
-                  프리플랍·플랍·턴·리버 각각에서{" "}
-                  <Tag>레이즈는 최대 {MAX_RAISES_PER_STREET}번</Tag>까지입니다.
-                  첫 베트(오픈)는 레이즈로 치지 않습니다. 상한 도달 후에는{" "}
-                  <strong className="text-zinc-200">콜·폴드만</strong> 가능합니다.
+                  프리플랍·플랍·턴·리버에서 레이즈 횟수에 제한이 없습니다.
+                  베팅은 콜되어 매칭되거나(또는 폴드 / 올인) 종료됩니다.
                 </>
               )}
             </li>
@@ -448,21 +438,13 @@ export function GuideClient() {
           <p className="text-zinc-400">
             {isEn ? (
               <>
-                When your stack drops to{" "}
-                <strong className="text-zinc-200">
-                  {PREFLOP_SHORT_STACK_ALL_IN_MAX_BB}bb or less
-                </strong>
-                , you may go all-in preflop (as long as the raise cap hasn&apos;t
-                been hit yet).
+                You can go all-in preflop at any stack size. After an all-in, the
+                remaining streets run out to showdown.
               </>
             ) : (
               <>
-                스택이{" "}
-                <strong className="text-zinc-200">
-                  {PREFLOP_SHORT_STACK_ALL_IN_MAX_BB}bb 이하
-                </strong>
-                로 줄어들면 프리플랍에서 레이즈 캡에 걸리지 않은 경우에 한해 전액
-                올인(레이즈)을 선택할 수 있습니다.
+                스택 크기와 상관없이 프리플랍에서 전액 올인을 선택할 수 있습니다.
+                올인 이후에는 남은 보드가 공개되어 쇼다운까지 진행됩니다.
               </>
             )}
           </p>

@@ -20,12 +20,16 @@ import {
 import { handBlindsFromRound, resolveHandBlinds } from "./blindLevels";
 import { dealAfterHoles } from "./deck";
 import {
-  findTemplate,
-  initialPoolRemaining,
+  getHandTemplateForMode,
+  getInitialHandPoolRemaining,
+  HAND_COST_STARTING_POINTS,
+  normalizeHandCostRemaining,
+  normalizeGameMode,
   normalizeHandPoolRemaining,
   resolvePendingHandPicks,
   selectedHandFrom,
   templateLabel,
+  canSelectHandTemplate,
 } from "./handPool";
 import { compareHandValue, best5Of7, handValueSummaryKorean } from "./pokerEval";
 import {
@@ -39,6 +43,7 @@ import type {
   GameAction,
   GameMessage,
   GameState,
+  HoldemGameMode,
   PlayerIndex,
   Street,
 } from "./types";
@@ -451,8 +456,10 @@ function done(s: GameState): GameState {
   return s;
 }
 
-export function createInitialGameState(): GameState {
+export function createInitialGameState(gameModeRaw: HoldemGameMode = "classic"): GameState {
+  const gameMode = normalizeGameMode(gameModeRaw);
   return {
+    gameMode,
     phase: "hand_select",
     roundNumber: 1,
     handBlinds: handBlindsFromRound(1),
@@ -460,7 +467,14 @@ export function createInitialGameState(): GameState {
     chips: [STARTING_CHIPS, STARTING_CHIPS],
     pot: 0,
     potAwardFlash: null,
-    handPoolRemaining: [initialPoolRemaining(), initialPoolRemaining()],
+    handPoolRemaining: [
+      getInitialHandPoolRemaining(gameMode),
+      getInitialHandPoolRemaining(gameMode),
+    ],
+    handCostRemaining:
+      gameMode === "cost"
+        ? [HAND_COST_STARTING_POINTS, HAND_COST_STARTING_POINTS]
+        : [0, 0],
     holes: [null, null],
     handPickPending: [null, null],
     board: [],
@@ -485,9 +499,9 @@ export function createInitialGameState(): GameState {
 }
 
 /** 멀티플레이 방 전용: 로비 단계(게임 시작 전 대기)로 초기화 */
-export function createRoomInitialGameState(): GameState {
+export function createRoomInitialGameState(gameMode: HoldemGameMode = "classic"): GameState {
   return {
-    ...createInitialGameState(),
+    ...createInitialGameState(gameMode),
     phase: "lobby",
     lastActionNote: "게임 시작 대기 중 — 호스트가 시작 버튼을 눌러 주세요",
   };
@@ -499,7 +513,7 @@ export function holdemReducer(
   random: () => number = rng(),
 ): GameState {
   if (action.type === "RESET_MATCH") {
-    const seeded = createInitialGameState();
+    const seeded = createInitialGameState(normalizeGameMode(state.gameMode));
     if (action.initialChips != null) {
       seeded.chips[0] = roundHalfChip(action.initialChips[0]);
       seeded.chips[1] = roundHalfChip(action.initialChips[1]);
@@ -507,9 +521,11 @@ export function holdemReducer(
     return holdemReducer(seeded, { type: "START_GAME" }, random);
   }
   const s: GameState = structuredClone(state);
+  s.gameMode = normalizeGameMode(s.gameMode);
   ensureHandBlinds(s);
   s.isAllIn = s.isAllIn ?? false;
-  s.handPoolRemaining = normalizeHandPoolRemaining(s.handPoolRemaining as unknown);
+  s.handPoolRemaining = normalizeHandPoolRemaining(s.handPoolRemaining as unknown, s.gameMode);
+  s.handCostRemaining = normalizeHandCostRemaining(s.handCostRemaining as unknown, s.gameMode);
   if (typeof s.iaPotRemovalTotal !== "number" || Number.isNaN(s.iaPotRemovalTotal)) {
     s.iaPotRemovalTotal = totalIaChipsRemovedFromLogs(s.logs);
   }
@@ -531,10 +547,10 @@ export function holdemReducer(
       if (s.phase !== "hand_select") return state;
       if (s.handSelectPhase === "done") return state;
       const p = action.player;
-      const tpl = findTemplate(action.templateId);
+      const tpl = getHandTemplateForMode(s.gameMode, action.templateId);
       if (!tpl) return state;
 
-      if ((s.handPoolRemaining[p]?.[action.templateId] ?? 0) <= 0) return state;
+      if (!canSelectHandTemplate(s, p, tpl)) return state;
 
       s.handPickPending[p] = { templateId: action.templateId };
 
@@ -552,7 +568,7 @@ export function holdemReducer(
         return done(s);
       }
 
-      const resolved = resolvePendingHandPicks(pending0, pending1, random);
+      const resolved = resolvePendingHandPicks(pending0, pending1, random, s.gameMode);
       if (!resolved.ok) {
         s.handPickPending = [null, null];
         s.holes = [null, null];
@@ -564,6 +580,9 @@ export function holdemReducer(
       }
 
       const { hole0, hole1, t0, t1 } = resolved;
+      if (!canSelectHandTemplate(s, 0, t0) || !canSelectHandTemplate(s, 1, t1)) {
+        return state;
+      }
       s.holes[0] = selectedHandFrom(t0, hole0);
       s.holes[1] = selectedHandFrom(t1, hole1);
       const pool0 = s.handPoolRemaining[0];
@@ -571,6 +590,10 @@ export function holdemReducer(
       if (pool0 && pool1) {
         pool0[t0.id] = (pool0[t0.id] ?? 0) - 1;
         pool1[t1.id] = (pool1[t1.id] ?? 0) - 1;
+      }
+      if (s.gameMode === "cost") {
+        s.handCostRemaining[0] = Math.max(0, s.handCostRemaining[0]! - t0.cost);
+        s.handCostRemaining[1] = Math.max(0, s.handCostRemaining[1]! - t1.cost);
       }
       s.handPickPending = [null, null];
       pushLog(s, { t: "hand_chosen", player: 0, label: templateLabel(t0) });
@@ -636,7 +659,6 @@ export function holdemReducer(
       if (s.phase !== "preflop" || s.toAct == null || s.preflopStage == null) return state;
       const p = s.toAct;
       if (!canActorPreflopRaise(s)) return state;
-      if (s.betting.raisesThisStreet >= MAX_RAISES_PER_STREET) return state;
 
       const target = roundHalfChip(action.toLevelChips);
       const cur = s.betting.contributed[p]!;
@@ -644,7 +666,6 @@ export function holdemReducer(
       if (!isLegalPreflopRaiseTarget(s, target)) return state;
 
       const potAfter = roundHalfChip(s.pot + add);
-      if (potAfter > preflopMaxPotChips(s) + 1e-9) return state;
 
       s.chips[p]! -= add;
       s.pot = potAfter;
@@ -669,7 +690,6 @@ export function holdemReducer(
     case "PREFLOP_ALL_IN": {
       if (s.phase !== "preflop" || s.toAct == null || s.preflopStage == null) return state;
       if (!canPreflopShortStackAllInShove(s)) return state;
-      if (s.betting.raisesThisStreet >= MAX_RAISES_PER_STREET) return state;
       const p = s.toAct;
       const cur = s.betting.contributed[p]!;
       const target = roundHalfChip(cur + s.chips[p]!);
@@ -722,15 +742,22 @@ export function holdemReducer(
       if (!bettingMatched(s.betting) || s.betting.raiseDone) return state;
       const amt = roundHalfChip(action.amount);
       const maxB = postflopMaxOpenBetForActor(s);
+      const stackBefore = s.chips[p]!;
+      const isAllInBetTarget = amt >= stackBefore - 1e-9;
       const bbUnit = resolveHandBlinds(s).bb;
       const relaxedOpen = headsUpSubBbVoluntaryEnabled(s);
       const minOpen = relaxedOpen ? SMALLEST_CHIP : bbUnit;
-      if (
-        amt < minOpen - 1e-9 ||
-        amt > maxB + 1e-9 ||
-        !isVoluntaryBetAmount(amt, bbUnit, relaxedOpen)
-      ) {
-        return state;
+      if (!isAllInBetTarget) {
+        if (
+          amt < minOpen - 1e-9 ||
+          amt > maxB + 1e-9 ||
+          !isVoluntaryBetAmount(amt, bbUnit, relaxedOpen)
+        ) {
+          return state;
+        }
+      } else {
+        // 올인 베트는 최소 베팅 단위 제한을 우회 (노리밋 룰)
+        if (amt <= 0 || amt > maxB + 1e-9) return state;
       }
       s.chips[p]! -= amt;
       s.pot = roundHalfChip(s.pot + amt);
@@ -772,23 +799,31 @@ export function holdemReducer(
       if (!(s.phase === "flop" || s.phase === "turn" || s.phase === "river")) return state;
       if (s.toAct == null) return state;
       const p = s.toAct;
-      if (s.betting.raisesThisStreet >= MAX_RAISES_PER_STREET) return state;
       const f = facingFor(p, s.betting);
       if (f <= 0) return state;
+
       const target = roundHalfChip(action.toLevelChips);
-      const cap = postflopRaiseTargetCappedByOpponent(s);
-      const minTarget = postflopMinRaiseTargetForActor(s);
-      const bbUnitPost = resolveHandBlinds(s).bb;
-      const relaxedRaise = headsUpSubBbVoluntaryEnabled(s);
-      if (
-        !isVoluntaryBetAmount(target, bbUnitPost, relaxedRaise) ||
-        target > cap + 1e-9 ||
-        target + 1e-9 < minTarget
-      ) {
-        return state;
-      }
-      const add = target - s.betting.contributed[p]!;
+      const contributed = s.betting.contributed[p]!;
+      const add = roundHalfChip(target - contributed);
+      if (add <= 1e-9) return state; // 레이즈는 "상대 현재 레벨 초과"여야 함
       if (add > s.chips[p]!) return state;
+
+      const level = levelFromContributions(s.betting);
+      if (target <= level + 1e-9) return state;
+
+      // 노리밋: 올인(남은 스택 전부)이라면 최소 레이즈 미만이어도 허용
+      const allInRaise = add >= s.chips[p]! - 1e-9;
+      if (!allInRaise) {
+        const minTarget = postflopMinRaiseTargetForActor(s);
+        const bbUnitPost = resolveHandBlinds(s).bb;
+        const relaxedRaise = headsUpSubBbVoluntaryEnabled(s);
+        if (
+          !isVoluntaryBetAmount(target, bbUnitPost, relaxedRaise) ||
+          target + 1e-9 < minTarget
+        ) {
+          return state;
+        }
+      }
       s.chips[p]! -= add;
       s.pot = roundHalfChip(s.pot + add);
       s.betting.contributed[p]! = target;
@@ -796,11 +831,11 @@ export function holdemReducer(
       s.betting.raiseDone = false;
       s.betting.checksThisStreet = 0;
       s.betting.raisesThisStreet += 1;
-      const allInRaise = s.chips[p]! <= 1e-9;
+      const allInRaiseLog = s.chips[p]! <= 1e-9;
       pushLog(s, {
         t: "postflop_action",
         player: p,
-        action: allInRaise ? "올인" : "레이즈",
+        action: allInRaiseLog ? "올인" : "레이즈",
         amount: target,
       });
       s.toAct = other(p);

@@ -4,6 +4,7 @@ import * as React from "react";
 import type { Difficulty } from "@/holdem/aiPlayer";
 import { HELL_UNLOCK_HARD_MATCH_WINS } from "@/holdem/constants";
 import { useHoldemI18n } from "@/holdem/i18n/HoldemLocaleProvider";
+import type { HoldemGameMode } from "@/holdem/types";
 import {
   getHardModeMatchWins,
   isHellModeUnlocked,
@@ -46,6 +47,7 @@ export default function SinglePlayerEntry() {
   const { locale, t } = useHoldemI18n();
   const isEn = locale === "en";
   const [difficulty, setDifficulty] = React.useState<Difficulty | null>(null);
+  const [gameMode, setGameMode] = React.useState<HoldemGameMode>("classic");
   const [hardWins, setHardWins] = React.useState(0);
 
   React.useEffect(() => {
@@ -58,7 +60,7 @@ export default function SinglePlayerEntry() {
   const hellUnlocked = isHellModeUnlocked();
 
   if (difficulty) {
-    return <HoldemSinglePlayerClient difficulty={difficulty} />;
+    return <HoldemSinglePlayerClient difficulty={difficulty} gameMode={gameMode} />;
   }
 
   return (
@@ -77,6 +79,23 @@ export default function SinglePlayerEntry() {
 
       {/* 난이도 선택 */}
       <div className="w-full max-w-sm space-y-3">
+        <div className="mb-4 grid grid-cols-2 gap-2 rounded-xl border border-zinc-700 bg-zinc-900/50 p-1.5">
+          {(["classic", "cost"] as HoldemGameMode[]).map((mode) => (
+            <button
+              key={mode}
+              type="button"
+              onClick={() => setGameMode(mode)}
+              className={[
+                "rounded-lg px-3 py-2 text-xs font-bold uppercase transition",
+                gameMode === mode
+                  ? "bg-emerald-600 text-white"
+                  : "text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100",
+              ].join(" ")}
+            >
+              {mode === "classic" ? "Classic" : "Cost"}
+            </button>
+          ))}
+        </div>
         {DIFFICULTIES.map(({ id, label, descKo, descEn, color }) => (
           <button
             key={id}

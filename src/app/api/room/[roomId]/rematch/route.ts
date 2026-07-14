@@ -1,6 +1,6 @@
 import { randomBytes } from "crypto";
 import { NextResponse } from "next/server";
-import { createInitialGameState, holdemReducer } from "@/holdem/gameReducer";
+import { holdemReducer } from "@/holdem/gameReducer";
 import { sanitizeGameStateForSeat } from "@/holdem/sanitizeGameStateForSeat";
 import type { PlayerIndex } from "@/holdem/types";
 import { assertValidRoomId, roomGet, roomSet } from "@/server/roomStore";
@@ -63,9 +63,9 @@ export async function POST(req: Request, ctx: Ctx) {
   const bothAccepted = blob.rematchAccepted[0] && blob.rematchAccepted[1];
 
   if (bothAccepted) {
-    // Reset the game: RESET_MATCH = createInitialGameState + START_GAME internally
+    // RESET_MATCH preserves the room game mode; legacy rooms fall back to classic.
     const rng = serverRng();
-    const newState = holdemReducer(createInitialGameState(), { type: "RESET_MATCH" }, rng);
+    const newState = holdemReducer(blob.state, { type: "RESET_MATCH" }, rng);
     blob.state = newState;
     blob.stateVersion = (blob.stateVersion ?? 0) + 1;
     blob.rematchAccepted = [false, false];

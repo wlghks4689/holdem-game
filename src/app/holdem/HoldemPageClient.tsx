@@ -6,23 +6,41 @@ import {
   loadRoomNickname,
   saveRoomNickname,
 } from "@/holdem/holdemPrefs";
+import { normalizeGameMode } from "@/holdem/handPool";
 import {
   DEFAULT_HOLDEM_DISPLAY_NAMES,
   loadHoldemDisplayNames,
   saveHoldemDisplayNames,
 } from "@/holdem/playerDisplayNames";
-import type { PlayerIndex } from "@/holdem/types";
+import type { HoldemGameMode, PlayerIndex } from "@/holdem/types";
 import { useHoldemGame } from "@/holdem/useHoldemGame";
 import { HoldemPlayUI } from "./HoldemPlayUI";
 
-export default function HoldemPageClient() {
+export default function HoldemPageClient({
+  initialGameMode = "classic",
+}: {
+  initialGameMode?: HoldemGameMode;
+}) {
+  const [gameMode, setGameMode] = React.useState<HoldemGameMode>(initialGameMode);
+
+  React.useEffect(() => {
+    const next = normalizeGameMode(
+      new URLSearchParams(window.location.search).get("mode"),
+    );
+    setGameMode(next);
+  }, []);
+
+  return <HoldemPageGame key={gameMode} gameMode={gameMode} />;
+}
+
+function HoldemPageGame({ gameMode }: { gameMode: HoldemGameMode }) {
   const {
     state,
     dispatch,
     actionTimerSecondsLeft,
     localPaused,
     toggleLocalPause,
-  } = useHoldemGame();
+  } = useHoldemGame(gameMode);
   const [viewer, setViewer] = React.useState<PlayerIndex>(1);
   const [playerNames, setPlayerNames] = React.useState<[string, string]>([
     DEFAULT_HOLDEM_DISPLAY_NAMES[0]!,
