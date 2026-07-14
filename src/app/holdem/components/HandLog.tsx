@@ -7,6 +7,7 @@ import { chipsAsBbLabel } from "@/holdem/formatBb";
 import {
   findTemplate,
   iaCategoryHandListText,
+  iaCategoryLabelKo,
   templateLabel,
 } from "@/holdem/handPool";
 import { best5Of7, handValueSummaryKorean } from "@/holdem/pokerEval";
@@ -245,7 +246,7 @@ function buildSections(
         pushPreflop();
         if (endLines == null) endLines = [];
         endLines.push(
-          `${pl(m.player)}: IA (−${chipsAsBbLabel(m.cost, logBlindBbUnit)}) → 상대 카테고리: ${m.revealedCategory} (${iaCategoryHandListText(m.revealedCategory)})`,
+          `${pl(m.player)}: IA (−${chipsAsBbLabel(m.cost, logBlindBbUnit)}) → 상대 카테고리: ${iaCategoryLabelKo(m.revealedCategory)} (${iaCategoryHandListText(m.revealedCategory)})`,
         );
         break;
       case "showdown": {

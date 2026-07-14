@@ -1,7 +1,11 @@
 "use client";
 
 import * as React from "react";
-import { iaCategoryHandListText } from "@/holdem/handPool";
+import {
+  iaCategoryHandListText,
+  iaCategoryLabelEn,
+  iaCategoryLabelKo,
+} from "@/holdem/handPool";
 import { useHoldemI18n } from "@/holdem/i18n/HoldemLocaleProvider";
 import type { GameState, OpponentHandCategory, PlayerIndex } from "@/holdem/types";
 
@@ -32,7 +36,7 @@ function IaRevealBlock({
     "로우파켓": "Low Pairs",
     "커넥터 수딧": "Suited Connectors",
   };
-  const categoryText = isEn ? categoryLabelEn[category] : category;
+  const categoryText = isEn ? iaCategoryLabelEn(category) : iaCategoryLabelKo(category);
   const imBuyer = viewer === buyer;
   if (imBuyer) {
     return (

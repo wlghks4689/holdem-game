@@ -14,7 +14,7 @@ import {
   loadMadeHandFxEnabled,
 } from "@/holdem/holdemPrefs";
 import { useHoldemI18n } from "@/holdem/i18n/HoldemLocaleProvider";
-import { iaCategoryHandListText } from "@/holdem/handPool";
+import { iaCategoryHandListText, iaCategoryLabelKo } from "@/holdem/handPool";
 import { headsUpPositionLabel } from "@/holdem/headsUpLabels";
 import type { GameState, PlayerIndex } from "@/holdem/types";
 import { useHoldemMotionMode } from "../HoldemMotionRuntime";
@@ -454,7 +454,7 @@ export function HoleCards({
                   <p className="mt-2 text-center text-[11px] leading-snug text-indigo-200/90 sm:text-left">
                     {t("hole.iaLearnedPrefix")}{" "}
                     <span className="font-semibold text-indigo-100">
-                      {iaOpponentLearnedAboutMe}
+                      {iaCategoryLabelKo(iaOpponentLearnedAboutMe)}
                     </span>
                     <span className="mt-0.5 block font-mono text-[10px] font-normal text-indigo-300/85">
                       {iaCategoryHandListText(iaOpponentLearnedAboutMe)}
@@ -472,7 +472,7 @@ export function HoleCards({
                   <p className="text-[11px] leading-snug text-indigo-200/90">
                     {t("hole.iaOppCategory")}{" "}
                     <span className="font-semibold text-indigo-100">
-                      {iaCategoryForOpp}
+                      {iaCategoryLabelKo(iaCategoryForOpp)}
                     </span>
                     <span className="mt-0.5 block font-mono text-[10px] text-indigo-100/85">
                       {iaCategoryHandListText(iaCategoryForOpp)}

@@ -359,6 +359,26 @@ export function templateLabel(t: HandPoolTemplate): string {
   return `${a}${b}o`;
 }
 
+export function iaCategoryLabelKo(cat: OpponentHandCategory): string {
+  if (cat === (CAT_HIGH_PAIR as OpponentHandCategory)) return "\ud558\uc774\ud30c\ucf13";
+  if (cat === (CAT_AX_OFFSUIT as OpponentHandCategory)) return "Ax \uc624\ud504\uc218\ud2b8";
+  if (cat === (CAT_BROADWAY_SUITED as OpponentHandCategory)) return "\ube0c\ub85c\ub4dc\uc6e8\uc774 \uc218\ub527";
+  if (cat === (CAT_MIDDLE_PAIR as OpponentHandCategory)) return "\ubbf8\ub4e4\ud30c\ucf13";
+  if (cat === (CAT_LOW_PAIR as OpponentHandCategory)) return "\ub85c\uc6b0\ud30c\ucf13";
+  if (cat === (CAT_SUITED_CONNECTOR as OpponentHandCategory)) return "\ucee4\ub125\ud130 \uc218\ub527";
+  return String(cat);
+}
+
+export function iaCategoryLabelEn(cat: OpponentHandCategory): string {
+  if (cat === (CAT_HIGH_PAIR as OpponentHandCategory)) return "High Pairs";
+  if (cat === (CAT_AX_OFFSUIT as OpponentHandCategory)) return "Ax Offsuit";
+  if (cat === (CAT_BROADWAY_SUITED as OpponentHandCategory)) return "Broadway Suited";
+  if (cat === (CAT_MIDDLE_PAIR as OpponentHandCategory)) return "Middle Pairs";
+  if (cat === (CAT_LOW_PAIR as OpponentHandCategory)) return "Low Pairs";
+  if (cat === (CAT_SUITED_CONNECTOR as OpponentHandCategory)) return "Suited Connectors";
+  return String(cat);
+}
+
 export function iaCategoryHandListText(cat: OpponentHandCategory): string {
   const labels: string[] = [];
   for (const t of CLASSIC_HAND_TEMPLATES) {

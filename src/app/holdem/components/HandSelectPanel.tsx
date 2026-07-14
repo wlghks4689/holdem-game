@@ -5,6 +5,8 @@ import {
   canSelectHandTemplate,
   getHandTemplateForMode,
   getHandTemplatesForMode,
+  iaCategoryLabelEn,
+  iaCategoryLabelKo,
   normalizeHandCostRemaining,
   normalizeHandPoolRemaining,
   templateLabel,
@@ -215,7 +217,7 @@ function HandPickerColumn({
                 ].join(" ")}
               >
                 <h4 className="text-[10px] font-bold uppercase tracking-wide text-zinc-100">
-                  {isEn ? CATEGORY_LABEL_EN[cat] : cat}
+                  {isEn ? iaCategoryLabelEn(cat) : iaCategoryLabelKo(cat)}
                 </h4>
                 {!compact ? (
                   <p className="mt-0.5 text-[11px] leading-snug text-zinc-400">
@@ -336,8 +338,10 @@ function HandPickerColumn({
               <p className="text-[11px] text-zinc-300">
                 <span className="text-zinc-500">{isEn ? "Category · " : "카테고리 · "}</span>
                 {categoryForPick != null && isEn
-                  ? CATEGORY_LABEL_EN[categoryForPick]
-                  : categoryForPick}
+                  ? iaCategoryLabelEn(categoryForPick)
+                  : categoryForPick != null
+                    ? iaCategoryLabelKo(categoryForPick)
+                    : null}
               </p>
               {isCostMode ? (
                 <p className="text-[11px] text-amber-100">
