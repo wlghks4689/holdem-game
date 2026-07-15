@@ -65,14 +65,21 @@ export function useAllInShowdownCinema(state: GameState) {
   const [activeStreet, setActiveStreet] =
     React.useState<AllInCinemaStreet | null>(null);
   const [showHandResult, setShowHandResult] = React.useState(true);
+  const [awardReleased, setAwardReleased] = React.useState(false);
 
   const timersRef = React.useRef<ReturnType<typeof setTimeout>[]>([]);
+  const awardTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
   const skippedRef = React.useRef(false);
   const startedRunKeyRef = React.useRef<string | null>(null);
 
   const clearTimers = React.useCallback(() => {
     for (const id of timersRef.current) clearTimeout(id);
     timersRef.current = [];
+  }, []);
+
+  const clearAwardTimer = React.useCallback(() => {
+    if (awardTimerRef.current != null) clearTimeout(awardTimerRef.current);
+    awardTimerRef.current = null;
   }, []);
 
   const resolveCinema = React.useCallback(() => {
@@ -82,7 +89,9 @@ export function useAllInShowdownCinema(state: GameState) {
     setPhase("showdown-resolve");
     setShowHandResult(true);
     playShowdownResultChime();
-  }, [clearTimers]);
+    clearAwardTimer();
+    awardTimerRef.current = setTimeout(() => setAwardReleased(true), 850);
+  }, [clearAwardTimer, clearTimers]);
 
   const skip = React.useCallback(() => {
     skippedRef.current = true;
@@ -96,6 +105,8 @@ export function useAllInShowdownCinema(state: GameState) {
       setVisualRevealed(0);
       setActiveStreet(null);
       setShowHandResult(true);
+      setAwardReleased(false);
+      clearAwardTimer();
       return;
     }
     skippedRef.current = false;
@@ -103,11 +114,12 @@ export function useAllInShowdownCinema(state: GameState) {
     setVisualRevealed(startRev);
     setActiveStreet(null);
     setShowHandResult(false);
+    setAwardReleased(false);
     if (startedRunKeyRef.current !== runKey) {
       startedRunKeyRef.current = runKey;
       playAllInImpact();
     }
-  }, [runKey, startRev]);
+  }, [clearAwardTimer, runKey, startRev]);
 
   React.useEffect(() => {
     clearTimers();
@@ -142,6 +154,8 @@ export function useAllInShowdownCinema(state: GameState) {
     return clearTimers;
   }, [runKey, timeline, clearTimers, resolveCinema]);
 
+  React.useEffect(() => clearAwardTimer, [clearAwardTimer]);
+
   const active = runKey != null;
   const blockingInput =
     active && phase !== "showdown-resolve" && phase !== "off";
@@ -163,6 +177,7 @@ export function useAllInShowdownCinema(state: GameState) {
     blockingInput,
     visualRevealed: active ? visualRevealed : null,
     showHandResult: active ? showHandResult : true,
+    holdAwardedChips: active && !awardReleased,
     boardStreetLabelKo,
     streetPulse:
       phase === "street-windup" ||

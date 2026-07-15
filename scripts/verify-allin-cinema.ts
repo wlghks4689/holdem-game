@@ -25,7 +25,7 @@ function assertOrdered(events: AllInCinemaTimelineEvent[]) {
 
 const preflopRunout = buildAllInCinemaTimeline(0);
 assert.deepEqual(reveals(preflopRunout), [1, 2, 3, 4, 5]);
-assert.equal(resolveAt(preflopRunout), 6_620);
+assert.equal(resolveAt(preflopRunout), 13_240);
 assertOrdered(preflopRunout);
 
 const afterFlop = buildAllInCinemaTimeline(3);
@@ -40,7 +40,7 @@ assertOrdered(afterTurn);
 
 const subtleRunout = buildAllInCinemaTimeline(0, true);
 assert.deepEqual(reveals(subtleRunout), [1, 2, 3, 4, 5]);
-assert.equal(resolveAt(subtleRunout), 2_290);
+assert.equal(resolveAt(subtleRunout), 4_580);
 assertOrdered(subtleRunout);
 
 assert.deepEqual(buildAllInCinemaTimeline(5), []);

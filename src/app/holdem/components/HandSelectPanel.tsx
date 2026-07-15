@@ -276,15 +276,6 @@ function HandPickerColumn({
       <h3 className="mb-2 flex flex-wrap items-baseline gap-x-2 gap-y-0.5 text-xs font-semibold text-zinc-50 sm:text-sm">
         <span>{titleName}</span>
         <span className="font-normal text-violet-200/90">({posLabel})</span>
-        {pending != null ? (
-          <span className="ml-auto rounded-full bg-emerald-600/35 px-2 py-px text-[10px] font-bold text-emerald-100">
-            {isEn ? "LOCKED" : "확정됨"}
-          </span>
-        ) : (
-          <span className="ml-auto rounded-full bg-amber-600/30 px-2 py-px text-[10px] font-bold text-amber-100">
-            {isEn ? "PICKING" : "선택 중"}
-          </span>
-        )}
       </h3>
       {isCostMode ? (
         <div className="mb-2 rounded-lg border border-amber-400/35 bg-amber-950/25 px-2.5 py-2 shadow-[inset_0_1px_0_rgba(251,191,36,0.12)]">

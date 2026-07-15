@@ -36,25 +36,6 @@ export function AllInShowdownCinemaOverlay({
     ? STREET_LABELS[activeStreet][isEn ? "en" : "ko"]
     : "RUNOUT";
   const title = impact ? "ALL-IN" : streetLabel;
-  const subtitle = impact
-    ? isEn
-      ? "No more betting. The board will run out."
-      : "베팅이 잠겼습니다. 남은 보드를 공개합니다."
-    : phase === "street-windup"
-      ? isEn
-        ? activeStreet === "river"
-          ? "One final card decides it."
-          : "The next street is coming."
-        : activeStreet === "river"
-          ? "마지막 한 장이 승부를 결정합니다."
-          : "다음 스트리트를 공개합니다."
-      : phase === "showdown-hold"
-        ? isEn
-          ? "Read the board."
-          : "공개된 보드를 확인하세요."
-        : isEn
-          ? `Community cards ${visualRevealed} / 5`
-          : `커뮤니티 카드 ${visualRevealed} / 5`;
 
   return (
     <div
@@ -89,10 +70,12 @@ export function AllInShowdownCinemaOverlay({
             impact ? "holdem-allin-impact-title" : "holdem-allin-phase-title",
           ].join(" ")}
         >
-          <div className="inline-flex items-center gap-2 rounded-full border border-rose-300/65 bg-rose-950/75 px-3 py-1 text-[10px] font-black uppercase tracking-[0.22em] text-rose-100 shadow-[0_0_28px_rgba(244,63,94,0.32)] backdrop-blur-sm">
-            <span className="h-1.5 w-1.5 rounded-full bg-rose-300 shadow-[0_0_10px_rgba(253,164,175,0.9)]" />
-            ALL-IN RUNOUT
-          </div>
+          {impact ? (
+            <div className="inline-flex items-center gap-2 rounded-full border border-rose-300/65 bg-rose-950/75 px-3 py-1 text-[10px] font-black uppercase tracking-[0.22em] text-rose-100 shadow-[0_0_28px_rgba(244,63,94,0.32)] backdrop-blur-sm">
+              <span className="h-1.5 w-1.5 rounded-full bg-rose-300 shadow-[0_0_10px_rgba(253,164,175,0.9)]" />
+              ALL-IN RUNOUT
+            </div>
+          ) : null}
           <p
             className={[
               "mt-3 font-black uppercase text-amber-100",
@@ -105,29 +88,10 @@ export function AllInShowdownCinemaOverlay({
           >
             {title}
           </p>
-          <p className="mx-auto mt-2 max-w-sm text-xs font-semibold leading-relaxed text-zinc-100/90 drop-shadow sm:text-sm">
-            {subtitle}
-          </p>
         </div>
       </div>
 
-      <div className="absolute inset-x-0 bottom-5 flex flex-col items-center gap-3 px-4 sm:bottom-7">
-        <div className="flex items-center gap-2 rounded-full border border-zinc-600/75 bg-zinc-950/75 px-3 py-2 shadow-[0_0_24px_rgba(0,0,0,0.4)] backdrop-blur-md">
-          {[1, 2, 3, 4, 5].map((cardNumber) => (
-            <span
-              key={cardNumber}
-              className={[
-                "h-1.5 rounded-full transition-all duration-300",
-                cardNumber <= visualRevealed
-                  ? "w-6 bg-amber-300 shadow-[0_0_10px_rgba(252,211,77,0.8)]"
-                  : cardNumber === visualRevealed + 1
-                    ? "w-4 bg-rose-400/90 shadow-[0_0_10px_rgba(251,113,133,0.65)]"
-                    : "w-3 bg-zinc-600",
-              ].join(" ")}
-              aria-hidden
-            />
-          ))}
-        </div>
+      <div className="absolute inset-x-0 bottom-5 flex justify-center px-4 sm:bottom-7">
         <button
           type="button"
           onClick={onSkip}

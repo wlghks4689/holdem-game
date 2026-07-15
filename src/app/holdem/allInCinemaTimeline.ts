@@ -84,5 +84,8 @@ export function buildAllInCinemaTimeline(
   }
 
   events.push({ atMs, kind: "resolve" });
-  return events;
+  const runtimeMultiplier = start === 0 ? 2 : 1;
+  return runtimeMultiplier === 1
+    ? events
+    : events.map((event) => ({ ...event, atMs: event.atMs * runtimeMultiplier }));
 }

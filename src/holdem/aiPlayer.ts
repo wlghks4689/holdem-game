@@ -42,6 +42,11 @@ import {
   scorePreflopActions,
 } from "./preflopAiPolicy";
 import type { GameAction, GameState, PlayerIndex } from "./types";
+import {
+  actionForAllInCallDecision,
+  debugAllInCallDecision,
+  evaluateAllInCall,
+} from "./allInCallPolicy";
 
 // ─── 공개 타입 ────────────────────────────────────────────────────────────────
 
@@ -508,6 +513,12 @@ export function computeAIBettingAction(
 ): GameAction | null {
   const tier = handStrengthTier(state.holes[aiSeat]?.templateId);
   const phase = state.phase;
+
+  const allInCall = evaluateAllInCall(state, aiSeat, difficulty);
+  if (allInCall != null) {
+    debugAllInCallDecision(allInCall);
+    return actionForAllInCallDecision(allInCall);
+  }
 
   if (phase === "preflop" && state.preflopStage != null) {
     return preflopAction(state, aiSeat, tier, difficulty, personality);

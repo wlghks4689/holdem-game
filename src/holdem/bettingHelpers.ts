@@ -284,6 +284,42 @@ export function canPreflopShortStackAllInShove(s: GameState): boolean {
   return true;
 }
 
+export type ActorAllInActionKind = "call" | "bet" | "raise";
+
+/**
+ * Classify an actor's full-stack action independently from normal raise bounds.
+ * A stack that cannot reach the current level is an all-in call, while a full
+ * stack that exceeds it is an all-in raise even when it is below min-raise.
+ */
+export function actorAllInActionKind(s: GameState): ActorAllInActionKind | null {
+  const p = s.toAct;
+  if (p == null || s.matchEnded) return null;
+  const preflop = s.phase === "preflop" && s.preflopStage != null;
+  const postflop = s.phase === "flop" || s.phase === "turn" || s.phase === "river";
+  if (!preflop && !postflop) return null;
+
+  const stack = s.chips[p]!;
+  if (stack <= 1e-9) return null;
+  const facing = facingFor(p, s.betting);
+  const level = levelFromContributions(s.betting);
+  const target = roundHalfChip(s.betting.contributed[p]! + stack);
+
+  if (facing > 1e-9) {
+    if (stack <= facing + 1e-9) return "call";
+    const opponent: PlayerIndex = p === 0 ? 1 : 0;
+    // No unmatched raise is allowed after the opponent has already exhausted
+    // their stack. The ordinary Call button remains available in that case.
+    if (s.chips[opponent]! <= 1e-9) return null;
+    return target > level + 1e-9 ? "raise" : "call";
+  }
+
+  if (s.isAllIn) return null;
+  if (preflop) {
+    return canActorPreflopRaise(s) && target > level + 1e-9 ? "raise" : null;
+  }
+  return bettingMatched(s.betting) ? "bet" : null;
+}
+
 export function preflopAllInTotalContribution(s: GameState): number {
   const p = s.toAct!;
   return roundHalfChip(s.betting.contributed[p]! + s.chips[p]!);
