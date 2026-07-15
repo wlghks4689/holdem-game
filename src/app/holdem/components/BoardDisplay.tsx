@@ -5,7 +5,10 @@ import type { GameState } from "@/holdem/types";
 import { bestFiveCardsFromSeven, best5Of7, compareHandValue } from "@/holdem/pokerEval";
 import { useHoldemMotionMode } from "../HoldemMotionRuntime";
 import { CardBack, PlayingCard } from "./Card";
-import { playBoardDealSoft } from "../showdownCinemaSounds";
+import {
+  playBoardDealSoft,
+  playShowdownBoardReveal,
+} from "../showdownCinemaSounds";
 
 const streetKo: Record<string, string> = {
   hand_select: "핸드 선택",
@@ -57,9 +60,15 @@ function buildEnterDeal(
   cinematicFlip: boolean,
   id: number,
 ): EnterDeal | null {
-  const normalDuration = cinematicFlip ? 540 : 620;
-  const subtleDuration = cinematicFlip ? 360 : 380;
-  const flipClass = subtle ? "holdem-board-flip-reveal-subtle" : "holdem-board-flip-reveal";
+  const cinemaStreet = slot < 3 ? "flop" : slot === 3 ? "turn" : "river";
+  const cinematicDuration = subtle
+    ? cinemaStreet === "flop" ? 300 : cinemaStreet === "turn" ? 360 : 440
+    : cinemaStreet === "flop" ? 520 : cinemaStreet === "turn" ? 620 : 760;
+  const normalDuration = cinematicFlip ? cinematicDuration : 620;
+  const subtleDuration = cinematicFlip ? cinematicDuration : 380;
+  const flipClass = subtle
+    ? `holdem-board-flip-reveal-${cinemaStreet}-subtle`
+    : `holdem-board-flip-reveal-${cinemaStreet}`;
   if (prevRev < 3 && nextRev >= 3 && slot < 3 && slot >= prevRev) {
     const order = slot - Math.max(0, prevRev);
     const animClass = cinematicFlip
@@ -114,6 +123,7 @@ export type BoardDisplayProps = {
   cinematicFlip?: boolean;
   /** 강조할 스트리트 — 해당 슬롯에 글로우 */
   cinemaStreetPulse?: "flop" | "turn" | "river" | null;
+  cinemaAnticipation?: "flop" | "turn" | "river" | null;
   /** 레빗 헌트(폴드 당사자만 active) */
   rabbitHunt?: BoardRabbitHuntUi | null;
 };
@@ -124,6 +134,7 @@ export function BoardDisplay({
   streetLabelOverride = null,
   cinematicFlip = false,
   cinemaStreetPulse = null,
+  cinemaAnticipation = null,
   rabbitHunt = null,
 }: BoardDisplayProps) {
   const motionMode = useHoldemMotionMode();
@@ -222,7 +233,13 @@ export function BoardDisplay({
         // SFX: 각 카드가 들어올 때 가볍게 "사사삭" 한 번
         const sfxDelay = deal.delayMs;
         const sfxTimer = window.setTimeout(() => {
-          playBoardDealSoft();
+          if (cinematicFlip) {
+            playShowdownBoardReveal(
+              deal.slot < 3 ? "flop" : deal.slot === 3 ? "turn" : "river",
+            );
+          } else {
+            playBoardDealSoft();
+          }
         }, sfxDelay);
         const t = window.setTimeout(() => {
           setEnterDeals((cur) => cur.filter((x) => x.id !== deal.id));
@@ -254,6 +271,7 @@ export function BoardDisplay({
         showdown
           ? "border-zinc-600/70 p-2 sm:p-3"
           : "border-amber-900/40 p-2.5 shadow-[0_0_40px_rgba(245,158,11,0.06)] sm:p-3.5 lg:p-4",
+        cinemaStreetPulse ? `holdem-board-cinema-${cinemaStreetPulse}` : "",
       ].join(" ")}
     >
       <div className={showdown ? "mb-1.5 text-center sm:mb-2" : "mb-2 text-center sm:mb-3"}>
@@ -352,7 +370,15 @@ export function BoardDisplay({
                 key={i}
                 className="transition-transform lg:origin-center lg:scale-[1.14]"
               >
-                <CardBack size="board" className="opacity-80" />
+                <CardBack
+                  size="board"
+                  className={[
+                    "opacity-80",
+                    cinemaAnticipation
+                      ? `holdem-allin-cardback-wait holdem-allin-cardback-${cinemaAnticipation}`
+                      : "",
+                  ].join(" ")}
+                />
               </div>
             ))
           : (

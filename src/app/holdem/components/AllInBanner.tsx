@@ -9,7 +9,7 @@ export type AllInBannerProps = {
 
 /** 올인·보드 자동 런아웃 중 안내 */
 export function AllInBanner({ state }: AllInBannerProps) {
-  if (state.matchWinner != null) return null;
+  if (state.matchEnded) return null;
   if (
     state.phase === "hand_select" ||
     state.phase === "showdown" ||

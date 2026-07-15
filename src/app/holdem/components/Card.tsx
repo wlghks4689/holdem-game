@@ -33,29 +33,32 @@ const sizeFrames = {
 export type CardSize = keyof typeof sizeFrames;
 
 const rankText: Record<CardSize, string> = {
-  compact: "text-base font-bold leading-none tracking-tight",
-  // 모바일: 현재 text-lg(18px) 대비 +8% → 1.22rem / sm+: 원래대로
-  board: "text-[1.22rem] font-bold leading-none tracking-tight sm:text-xl",
-  hero: "text-xl font-bold leading-none tracking-tight sm:text-2xl",
+  compact: "text-[1.2rem] font-bold leading-none tracking-tight",
+  board: "text-[1.46rem] font-bold leading-none tracking-tight sm:text-2xl",
+  hero: "text-2xl font-bold leading-none tracking-tight sm:text-[1.8rem]",
 };
 
 /** "10" 은 카드 폭이 좁아 약간 축소 */
 function rankClass(size: CardSize, narrow: boolean): string {
   if (!narrow) return rankText[size];
   if (size === "compact") {
-    return "text-sm font-bold leading-none tracking-tight";
+    return "text-[1.05rem] font-bold leading-none tracking-tight";
   }
-  // 모바일: 현재 text-base(16px) 대비 +8% → 1.08rem / sm+: 원래대로
   return size === "board"
-    ? "text-[1.08rem] font-bold leading-none tracking-tight sm:text-lg"
-    : "text-lg font-bold leading-none tracking-tight sm:text-xl";
+    ? "text-[1.3rem] font-bold leading-none tracking-tight sm:text-[1.35rem]"
+    : "text-[1.35rem] font-bold leading-none tracking-tight sm:text-2xl";
 }
 
 const suitText: Record<CardSize, string> = {
-  compact: "text-2xl leading-none",
-  // 모바일: 현재 text-3xl(30px) 대비 +8% → 2.025rem / sm+: 원래대로
-  board: "text-[2.025rem] leading-none sm:text-[2rem]",
-  hero: "text-4xl leading-none sm:text-[2.35rem]",
+  compact: "text-[1.8rem] leading-none",
+  board: "text-[2.3rem] leading-none sm:text-[2.4rem]",
+  hero: "text-[2.7rem] leading-none sm:text-[2.82rem]",
+};
+
+const contentOffset: Record<CardSize, string> = {
+  compact: "translate-y-[2px]",
+  board: "translate-y-px sm:translate-y-[2px]",
+  hero: "translate-y-[2px]",
 };
 
 export type PlayingCardProps = {
@@ -75,7 +78,8 @@ export function PlayingCard({
   const sym = SUIT_SYM[card.suit];
   const r = rankDisplay(card.rank);
   const narrow = r === "10";
-  const frame = `relative flex flex-col items-center justify-center gap-0.5 rounded-lg border bg-white shadow-sm ${sizeFrames[size]}`;
+  const contentGap = size === "board" ? "gap-0 sm:gap-0.5" : "gap-0.5";
+  const frame = `relative flex flex-col items-center justify-center ${contentGap} rounded-lg border bg-white shadow-sm ${sizeFrames[size]}`;
 
   return (
     <div
@@ -83,10 +87,10 @@ export function PlayingCard({
       style={style}
       aria-label={`${r}${sym}`}
     >
-      <span className={`${rankClass(size, narrow)} ${suitColorClass(card.suit)}`}>
+      <span className={`${rankClass(size, narrow)} ${contentOffset[size]} ${suitColorClass(card.suit)}`}>
         {r}
       </span>
-      <span className={`${suitText[size]} ${suitColorClass(card.suit)}`} aria-hidden>
+      <span className={`${suitText[size]} ${contentOffset[size]} ${suitColorClass(card.suit)}`} aria-hidden>
         {sym}
       </span>
     </div>

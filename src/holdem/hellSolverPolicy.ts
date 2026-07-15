@@ -3,16 +3,10 @@
  * (현재 값은 HUNL·EV 근사에 맞춘 플레이스홀더 — 실제 Pio/GTO+ 등에서 덮어쓰면 됨)
  */
 import {
-  canPreflopShortStackAllInShove,
   effectiveCallPay,
   facingFor,
   preflopHasLegalRaise,
-  preflopMaxRaiseTargetForActor,
-  preflopMinTotalRaiseForActor,
-  roundHalfChip,
 } from "./bettingHelpers";
-import { resolveHandBlinds } from "./blindLevels";
-import { SMALLEST_CHIP } from "./constants";
 import {
   hellEndgameBonuses,
   hellPotOddsCallBonus,
@@ -26,31 +20,20 @@ import {
   type RiverLineKind,
 } from "./riverEvAi";
 import type { GameAction, GameState, OpponentHandCategory, PlayerIndex } from "./types";
+import {
+  preflopAiAllInAllowed,
+  preflopAiRaiseTarget,
+  scorePreflopActions,
+} from "./preflopAiPolicy";
 
 const CHIP = 1e-6;
 
-function rng(lo: number, hi: number): number {
-  return lo + Math.random() * (hi - lo);
-}
-
-function clampChip(v: number, lo: number, hi: number): number {
-  return Math.max(lo, Math.min(hi, roundHalfChip(v)));
-}
-
-function hellPreflopRaiseTo(state: GameState, tier: number): number {
-  const minT = preflopMinTotalRaiseForActor(state);
-  const maxT = preflopMaxRaiseTargetForActor(state);
-  if (minT > maxT + CHIP) return roundHalfChip(maxT);
-  const bb = resolveHandBlinds(state).bb;
-  const pot = state.pot;
-  const target =
-    tier >= 5
-      ? pot * 0.82 + minT
-      : tier >= 4
-        ? pot * 0.58 + minT
-        : minT + rng(0, bb * 0.55);
-  const snapped = Math.round(target / SMALLEST_CHIP) * SMALLEST_CHIP;
-  return clampChip(snapped, minT, maxT);
+function hellPreflopRaiseTo(
+  state: GameState,
+  aiSeat: PlayerIndex,
+  templateId: string | null | undefined,
+): number {
+  return preflopAiRaiseTarget(state, aiSeat, templateId);
 }
 
 function tierIdx(tier: number): number {
@@ -104,23 +87,25 @@ export function hellPreflopSolverAction(
   state: GameState,
   aiSeat: PlayerIndex,
   tier: number,
+  templateId: string | null | undefined,
 ): GameAction {
   const facing = facingFor(aiSeat, state.betting);
   const callPay = effectiveCallPay(aiSeat, state);
   const canRaise = preflopHasLegalRaise(state);
-  const canAllIn = canPreflopShortStackAllInShove(state);
+  const canAllIn = preflopAiAllInAllowed(state, aiSeat, templateId);
+  const scores = scorePreflopActions(state, aiSeat, templateId, tier);
   const ti = tierIdx(tier);
   const r = Math.random();
 
   if (state.preflopStage === "button_acts" && aiSeat === state.button) {
-    if (canAllIn && tier >= 5 && r < 0.06) {
+    if (canAllIn && r < scores.allIn * 0.35) {
       return { type: "PREFLOP_ALL_IN" };
     }
     const pRaise = HELL_PF_SB_OPEN_RAISE[ti] ?? 0.5;
     if (canRaise && r < pRaise) {
       return {
         type: "PREFLOP_RAISE",
-        toLevelChips: hellPreflopRaiseTo(state, tier),
+        toLevelChips: hellPreflopRaiseTo(state, aiSeat, templateId),
       };
     }
     return { type: "PREFLOP_CALL" };
@@ -135,7 +120,7 @@ export function hellPreflopSolverAction(
       if (canRaise && r < pRaise) {
         return {
           type: "PREFLOP_RAISE",
-          toLevelChips: hellPreflopRaiseTo(state, tier),
+          toLevelChips: hellPreflopRaiseTo(state, aiSeat, templateId),
         };
       }
       return { type: "PREFLOP_CHECK" };
@@ -158,7 +143,7 @@ export function hellPreflopSolverAction(
     if (pick === 2 && canRaise) {
       return {
         type: "PREFLOP_RAISE",
-        toLevelChips: hellPreflopRaiseTo(state, tier),
+        toLevelChips: hellPreflopRaiseTo(state, aiSeat, templateId),
       };
     }
     if (pick === 0 && facing > 0 && callPay > 0) {
@@ -183,7 +168,7 @@ export function hellPreflopSolverAction(
     if (pick === 2 && canRaise) {
       return {
         type: "PREFLOP_RAISE",
-        toLevelChips: hellPreflopRaiseTo(state, tier),
+        toLevelChips: hellPreflopRaiseTo(state, aiSeat, templateId),
       };
     }
     if (pick === 0 && facing > 0) {

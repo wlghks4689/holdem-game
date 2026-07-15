@@ -39,6 +39,49 @@ function beep(freq: number, duration: number, type: OscillatorType = "sine", vol
   osc.stop(t0 + duration + 0.05);
 }
 
+/** ALL-IN 확정 순간의 저음 충격과 짧은 이중 박동. */
+export function playAllInImpact() {
+  beep(92, 0.24, "sawtooth", 0.085);
+  beep(184, 0.12, "triangle", 0.055);
+  window.setTimeout(() => beep(76, 0.2, "sine", 0.075), 170);
+}
+
+/** 다음 스트리트가 열리기 전의 예고음. 리버로 갈수록 길고 높아집니다. */
+export function playShowdownStreetWindup(
+  street: "flop" | "turn" | "river",
+) {
+  if (street === "flop") {
+    beep(146.83, 0.12, "sine", 0.045);
+    window.setTimeout(() => beep(196, 0.1, "triangle", 0.04), 180);
+    return;
+  }
+  if (street === "turn") {
+    beep(130.81, 0.16, "sine", 0.055);
+    window.setTimeout(() => beep(220, 0.14, "triangle", 0.05), 250);
+    return;
+  }
+  playShowdownRiverTension();
+  window.setTimeout(() => beep(440, 0.18, "sine", 0.065), 390);
+}
+
+/** 시네마틱 보드 카드 착지음. 턴·리버는 더 무겁게 구분합니다. */
+export function playShowdownBoardReveal(
+  street: "flop" | "turn" | "river",
+) {
+  if (street === "flop") {
+    playShowdownDealChirp();
+    return;
+  }
+  if (street === "turn") {
+    beep(620, 0.075, "triangle", 0.065);
+    window.setTimeout(() => beep(310, 0.09, "sine", 0.055), 55);
+    return;
+  }
+  beep(740, 0.09, "triangle", 0.075);
+  window.setTimeout(() => beep(370, 0.13, "sine", 0.07), 65);
+  window.setTimeout(() => beep(185, 0.16, "sine", 0.055), 130);
+}
+
 /** 카드 공개 / 딜 느낌 */
 export function playShowdownDealChirp() {
   beep(880, 0.06, "triangle", 0.055);

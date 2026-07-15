@@ -101,7 +101,7 @@ const KO: Record<MessageKey, string> = {
   "home.multiplayTitle": "멀티플레이",
   "home.multiplayDesc": "방 만들기, 방 참여, 비공개 방 선택 가능",
   "home.singleTitle": "싱글플레이",
-  "home.singleDesc": "AI 상대와 1:1 · Easy / Normal / Hard 난이도 선택.",
+  "home.singleDesc": "AI를 상대로 핸드를 선택하고 더 많은 칩을 확보하세요.",
   "home.settingsDesc": "닉네임, 메이드 연출, 언어, 사운드.",
   "home.feedbackDesc":
     "버그 제보, 개선 아이디어, 게임 평가를 남겨 주세요.",
@@ -181,7 +181,7 @@ const EN: Record<MessageKey, string> = {
   "home.multiplayTitle": "Multiplayer",
   "home.multiplayDesc": "Create, join, or set up a private room",
   "home.singleTitle": "Single-player",
-  "home.singleDesc": "1v1 vs AI · Easy / Normal / Hard.",
+  "home.singleDesc": "Choose your hands against the AI and secure more chips.",
   "home.settingsDesc": "Nickname, made-hand FX, language, sound.",
   "home.feedbackDesc": "Bugs, ideas, and ratings welcome.",
   "home.activeMatchTitle": "You have a game in progress",

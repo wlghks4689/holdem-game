@@ -305,7 +305,7 @@ export function ActionPanel({
 
   // ── 포스트플랍 싱크 키 ────────────────────────────────────────────────────
   const postFlopSyncKey = React.useMemo(() => {
-    if (state.matchWinner != null) return "";
+    if (state.matchEnded) return "";
     if (state.phase !== "flop" && state.phase !== "turn" && state.phase !== "river")
       return "";
     if (state.toAct == null) return "";
@@ -384,7 +384,7 @@ export function ActionPanel({
 
   // ── 다음 핸드 자동 시작 타이머 ────────────────────────────────────────────
   const inNextHandPause =
-    state.matchWinner == null &&
+    !state.matchEnded &&
     (phase === "showdown" || phase === "hand_over");
   const inAllInRunoutShowdown =
     phase === "showdown" &&
@@ -449,15 +449,17 @@ export function ActionPanel({
 
   // ── Early returns ─────────────────────────────────────────────────────────
 
-  if (state.matchWinner != null) {
+  if (state.matchEnded) {
     return (
       <div className="rounded-xl border border-emerald-600/50 bg-emerald-900/25 p-4 text-center">
         <p className="text-lg font-bold text-emerald-200">
           {isEn ? "Match over" : "매치 종료"}
         </p>
         <p className="mt-1 text-sm text-zinc-200">
-          {isEn ? "Winner:" : "승자:"}{" "}
-          <span className="font-mono text-emerald-100">{pl(state.matchWinner)}</span>
+          {state.matchWinner == null ? (isEn ? "Draw" : "무승부") : <>
+            {isEn ? "Winner:" : "승자:"}{" "}
+            <span className="font-mono text-emerald-100">{pl(state.matchWinner)}</span>
+          </>}
         </p>
       </div>
     );

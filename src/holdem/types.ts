@@ -14,6 +14,7 @@ export type Street = "lobby" | "hand_select" | "preflop" | "flop" | "turn" | "ri
 export type PlayerIndex = 0 | 1;
 
 export type HoldemGameMode = "classic" | "cost";
+export type HandAcquisitionType = "selected" | "mystery" | "forced-random";
 
 export type HandPoolTemplateKind = "pair" | "offsuit" | "suited";
 
@@ -29,15 +30,18 @@ export type HandPoolTemplate = {
 };
 
 export type SelectedHand = {
-  templateId: string;
+  templateId: string | null;
   hole: [Card, Card];
   iaCategory: OpponentHandCategory;
+  acquisitionType: HandAcquisitionType;
+  selectedHandKey: string | null;
 };
 
 /** 핸드 풀 선택 제출(확정 전). 문양은 `resolvePendingHandPicks`에서 균등 무작위 배정 */
-export type HandPickPending = {
-  templateId: string;
-};
+export type HandPickPending =
+  | { kind: "selected"; templateId: string }
+  | { kind: "mystery" }
+  | { kind: "forced-random" };
 
 export type BettingRoundMeta = {
   /**
@@ -76,7 +80,13 @@ export type GameMessage =
   | { t: "preflop_action"; player: PlayerIndex; action: string; amount?: number }
   | { t: "street_cards"; street: Street; cards: Card[]; pot: number }
   | { t: "postflop_action"; player: PlayerIndex; action: string; amount?: number }
-  | { t: "ia"; player: PlayerIndex; revealedCategory: OpponentHandCategory; cost: number }
+  | {
+      t: "ia";
+      player: PlayerIndex;
+      revealedCategory?: OpponentHandCategory;
+      acquisitionType: HandAcquisitionType;
+      cost: number;
+    }
   | {
       t: "showdown";
       winners: PlayerIndex[];
@@ -110,6 +120,7 @@ export type GameState = {
   handPoolRemaining: [Record<string, number>, Record<string, number>];
   /** Hand-purchase resource, separate from chips/BB/IA costs. Does not regenerate during a match. */
   handCostRemaining: [number, number];
+  mysteryHandUsed: [boolean, boolean];
   /** null 이면 아직 미선택 */
   holes: [SelectedHand | null, SelectedHand | null];
   /** 양쪽 제출 전까지 비공개. 확정 후 null */
@@ -140,11 +151,13 @@ export type GameState = {
   iaPotRemovalTotal: number;
   /** 상대 카테고리 공개 (IA 성공 시) */
   iaReveal: [OpponentHandCategory | null, OpponentHandCategory | null];
+  iaRevealType: [HandAcquisitionType | null, HandAcquisitionType | null];
   winner: PlayerIndex | null;
   /** 마지막 판 종료 방식 — 폴드 시 상대 홀 비공개 유지 */
   handEndMode: null | "showdown" | "fold";
   /** 전체 승자 (30라운드 후 또는 버스트) */
   matchWinner: PlayerIndex | null;
+  matchEnded: boolean;
   logs: GameMessage[];
   /** 마지막 액션 설명 (UI) */
   lastActionNote: string;
@@ -164,6 +177,8 @@ export type GameAction =
       player: PlayerIndex;
       templateId: string;
     }
+  | { type: "SELECT_MYSTERY_HAND"; player: PlayerIndex }
+  | { type: "SELECT_FORCED_RANDOM"; player: PlayerIndex }
   | { type: "PREFLOP_CALL" }
   /** BB 옵션: 버튼이 콜만 했을 때 추가 칩 없이 통과 */
   | { type: "PREFLOP_CHECK" }

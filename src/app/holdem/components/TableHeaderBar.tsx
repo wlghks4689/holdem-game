@@ -10,7 +10,7 @@ import {
   nextBlindTierStartRound,
   resolveHandBlinds,
 } from "@/holdem/blindLevels";
-import { TOTAL_ROUNDS } from "@/holdem/constants";
+import { totalRoundsForMode } from "@/holdem/gameModeRules";
 import { chipsAsBbLabel } from "@/holdem/formatBb";
 import {
   HEADS_UP_RULES_BLURB,
@@ -85,12 +85,12 @@ export function TableHeaderBar({ state, playerNames }: TableHeaderBarProps) {
   React.useEffect(() => {
     const r = state.roundNumber;
     const prev = prevRoundRef.current;
-    if (prev !== null && isBlindTierUpTransition(prev, r)) {
+    if (prev !== null && isBlindTierUpTransition(prev, r, state.gameMode)) {
       setBlindUpKey(Date.now());
       window.setTimeout(() => setBlindUpKey(null), BLIND_UP_TOAST_MS);
     }
     prevRoundRef.current = r;
-  }, [state.roundNumber]);
+  }, [state.roundNumber, state.gameMode]);
 
   const btnName = playerNames[state.button]!;
   const bbSeat: PlayerIndex = state.button === 0 ? 1 : 0;
@@ -103,12 +103,12 @@ export function TableHeaderBar({ state, playerNames }: TableHeaderBarProps) {
     bigBlind: hb.bb,
     ante: hb.ante,
   });
-  const nextR = nextBlindTierStartRound(state.roundNumber);
+  const nextR = nextBlindTierStartRound(state.roundNumber, state.gameMode);
   const nextBlindHint =
     nextR != null
       ? isEn
-        ? `from R${nextR}: ${formatBlindTriple(getBlindLevel(nextR))}`
-        : `${nextR}R부터 ${formatBlindTriple(getBlindLevel(nextR))}`
+        ? `from R${nextR}: ${formatBlindTriple(getBlindLevel(nextR, state.gameMode))}`
+        : `${nextR}R부터 ${formatBlindTriple(getBlindLevel(nextR, state.gameMode))}`
       : isEn
         ? "No further increase (final tier)"
         : "이후 상향 없음 (최종 티어)";
@@ -116,7 +116,7 @@ export function TableHeaderBar({ state, playerNames }: TableHeaderBarProps) {
   const blindTooltip = `${debugBlindLine(state.roundNumber, hb)}\n${isEn ? "Next" : "다음"}: ${nextBlindHint}\n${isEn ? "IA total" : "IA 누적"}: ${fmtChips(iaRemovedTotal)}${isEn ? " chips" : "칩"}`;
 
   /** 매치 승자 확정 시(버스트·30R·조기 종료 무관) 승/패 배너 구분 */
-  const matchDecided = state.matchWinner != null;
+  const matchDecided = state.matchEnded;
 
   return (
     <>
@@ -144,7 +144,7 @@ export function TableHeaderBar({ state, playerNames }: TableHeaderBarProps) {
           title={debugBlindLine(state.roundNumber, hb)}
         >
           {isEn ? "ROUND" : "라운드"} {state.roundNumber}
-          <span className="font-semibold text-zinc-400"> / {TOTAL_ROUNDS}</span>
+          <span className="font-semibold text-zinc-400"> / {totalRoundsForMode(state.gameMode)}</span>
         </span>
         <span className="hidden shrink-0 text-zinc-600 sm:inline" aria-hidden>
           ·
@@ -192,7 +192,7 @@ export function TableHeaderBar({ state, playerNames }: TableHeaderBarProps) {
       <div className="grid grid-cols-2 gap-1.5 sm:gap-2">
         {([0, 1] as PlayerIndex[]).map((p) => {
           const bettingUi =
-            state.matchWinner == null &&
+            !state.matchEnded &&
             state.phase !== "showdown" &&
             state.phase !== "hand_over" &&
             state.phase !== "hand_select";
@@ -200,9 +200,9 @@ export function TableHeaderBar({ state, playerNames }: TableHeaderBarProps) {
             bettingUi && state.toAct === p;
           const dimOpponentTurn = bettingUi && state.toAct !== p;
           const matchWinnerGlow =
-            matchDecided && p === state.matchWinner;
+            matchDecided && state.matchWinner != null && p === state.matchWinner;
           const matchLoserDim =
-            matchDecided && p !== state.matchWinner;
+            matchDecided && state.matchWinner != null && p !== state.matchWinner;
           const label = playerNames[p]!;
           const blindTagRaw = headsUpPositionLabel(state, p);
           const blindTag = isEn && blindTagRaw === HU_DEALER_SB_LABEL

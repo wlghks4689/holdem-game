@@ -160,7 +160,9 @@ export function preflopMinTotalRaiseForActor(s: GameState): number {
   // 특히 SB limp 이후 BB 옵션(facing=0)에서 총 2bb 미만(예: 1.1bb) 레이즈가 열리지 않도록 고정.
   const allowSub = facing > 1e-9 ? headsUpSubBbVoluntaryEnabled(s) : false;
   let minT = facing > 1e-9
-    ? pokerMinRaiseTotalToLevel(level, cur)
+    // Preflop uses the shared raise-to rule: a 2bb open requires at least 4bb,
+    // and each subsequent re-raise must reach at least twice the current level.
+    ? Math.max(pokerMinRaiseTotalToLevel(level, cur), roundHalfChip(level * 2))
     : roundHalfChip(level + bbUnit);
   if (minT <= level + 1e-9) {
     minT = preflopSmallestRaiseTotalAboveLevel(level, bbUnit, allowSub);
@@ -253,6 +255,14 @@ export function actorStackBb(s: GameState): number {
   const bb = resolveHandBlinds(s).bb;
   if (bb < 1e-9) return Infinity;
   return s.chips[p]! / bb;
+}
+
+/** Remaining effective stack for a heads-up decision, expressed in current-hand BB. */
+export function effectiveStackBb(s: GameState, hero: PlayerIndex): number {
+  const bb = resolveHandBlinds(s).bb;
+  if (bb < 1e-9) return Infinity;
+  const villain: PlayerIndex = hero === 0 ? 1 : 0;
+  return Math.min(s.chips[hero]!, s.chips[villain]!) / bb;
 }
 
 /**

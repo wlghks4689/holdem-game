@@ -89,7 +89,7 @@ export default function HoldemSinglePlayerClient({
       playMode="single"
       singleDifficulty={difficulty}
       singlePlayerResetChips={
-        difficulty === "hell"
+        gameMode === "classic" && difficulty === "hell"
           ? singlePlayerInitialChips(difficulty, AI_SEAT)
           : undefined
       }

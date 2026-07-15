@@ -4,7 +4,12 @@ import {
   IA_RIVER_ACTION_EXTRA_SECONDS,
 } from "./constants";
 import { facingFor } from "./bettingHelpers";
-import { canSelectHandTemplate, getHandTemplatesForMode } from "./handPool";
+import {
+  canSelectHandTemplate,
+  canUseMysteryHand,
+  getHandTemplatesForMode,
+  shouldForceRandomHand,
+} from "./handPool";
 import type { GameAction, GameState } from "./types";
 
 export { ACTION_TIMER_SECONDS, HAND_SELECT_TIMER_SECONDS };
@@ -24,9 +29,15 @@ function buildAutoSelectHand(state: GameState): GameAction | null {
   if (state.handSelectPhase === "done") return null;
   for (const player of [0, 1] as const) {
     if (state.handPickPending[player] != null) continue;
+    if (shouldForceRandomHand(state, player)) {
+      return { type: "SELECT_FORCED_RANDOM", player };
+    }
     const available = getHandTemplatesForMode(state.gameMode).filter((tpl) =>
       canSelectHandTemplate(state, player, tpl),
     );
+    if (available.length === 0 && canUseMysteryHand(state, player)) {
+      return { type: "SELECT_MYSTERY_HAND", player };
+    }
     if (available.length === 0) continue;
     const pick = shuffled(available)[0]!;
     return { type: "SELECT_HAND", player, templateId: pick.id };
@@ -34,12 +45,20 @@ function buildAutoSelectHand(state: GameState): GameAction | null {
   return null;
 }
 
+function pendingHandChoiceKey(state: GameState, player: 0 | 1): string | null {
+  const pending = state.handPickPending[player];
+  if (pending == null) return null;
+  return pending.kind === "selected"
+    ? `${pending.kind}:${pending.templateId}`
+    : pending.kind;
+}
+
 /**
  * 같은 값이면 동일 "액션 창" — 타이머 리셋 없음.
  * 팟·칩·IA·핸드 선택 진행 변경 시 새 제한 시간.
  */
 export function actionTimerSignature(state: GameState): string | null {
-  if (state.matchWinner != null) return null;
+  if (state.matchEnded) return null;
   if (state.phase === "showdown" || state.phase === "hand_over") return null;
 
   if (state.phase === "hand_select" && state.handSelectPhase !== "done") {
@@ -49,6 +68,8 @@ export function actionTimerSignature(state: GameState): string | null {
       kind: "hand_select",
       round: state.roundNumber,
       button: state.button,
+      pending0: pendingHandChoiceKey(state, 0),
+      pending1: pendingHandChoiceKey(state, 1),
     });
   }
 
@@ -90,7 +111,7 @@ export function actionTimerLimitMs(state: GameState): number | null {
 
 /** 초과 시 디스패치할 액션 (핸드 자동 선택 / 체크 / 폴드) */
 export function computeTimeoutAction(state: GameState): GameAction | null {
-  if (state.matchWinner != null) return null;
+  if (state.matchEnded) return null;
   if (state.phase === "showdown" || state.phase === "hand_over") return null;
 
   if (state.phase === "hand_select" && state.handSelectPhase !== "done") {

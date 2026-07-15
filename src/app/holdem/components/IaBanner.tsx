@@ -7,7 +7,7 @@ import {
   iaCategoryLabelKo,
 } from "@/holdem/handPool";
 import { useHoldemI18n } from "@/holdem/i18n/HoldemLocaleProvider";
-import type { GameState, OpponentHandCategory, PlayerIndex } from "@/holdem/types";
+import type { GameState, HandAcquisitionType, OpponentHandCategory, PlayerIndex } from "@/holdem/types";
 
 export type IaBannerProps = {
   state: GameState;
@@ -18,19 +18,33 @@ export type IaBannerProps = {
 function IaRevealBlock({
   buyer,
   category,
+  acquisitionType,
   viewer,
   pl,
   isEn,
 }: {
   buyer: PlayerIndex;
-  category: OpponentHandCategory;
+  category: OpponentHandCategory | null;
+  acquisitionType: HandAcquisitionType | null;
   viewer: PlayerIndex;
   pl: (p: PlayerIndex) => string;
   isEn: boolean;
 }) {
-  const categoryText = isEn ? iaCategoryLabelEn(category) : iaCategoryLabelKo(category);
   const imBuyer = viewer === buyer;
   if (imBuyer) {
+    if (acquisitionType === "mystery" || acquisitionType === "forced-random") {
+      return (
+        <div className="rounded-md px-1 -mx-1 ring-1 ring-indigo-400/30">
+          <p className="text-sm font-semibold text-indigo-50">
+            {acquisitionType === "mystery"
+              ? (isEn ? "Opponent has a Mystery Hand." : "상대는 Mystery Hand입니다.")
+              : (isEn ? "Opponent received a Random Hand. No category is provided." : "상대는 Random Hand를 지급받았습니다. 카테고리가 제공되지 않습니다.")}
+          </p>
+        </div>
+      );
+    }
+    if (category == null) return null;
+    const categoryText = isEn ? iaCategoryLabelEn(category) : iaCategoryLabelKo(category);
     return (
       <div
         className={[
@@ -73,6 +87,8 @@ export function IaBanner({ state, viewer, playerNames }: IaBannerProps) {
   const pl = (p: PlayerIndex) => playerNames[p] ?? `플레이어 ${p + 1}`;
   const r0 = state.iaReveal[0];
   const r1 = state.iaReveal[1];
+  const t0 = state.iaRevealType[0];
+  const t1 = state.iaRevealType[1];
 
   const iaKey = React.useMemo(() => {
     const idx = state.logs.findLastIndex((m) => m.t === "ia");
@@ -82,11 +98,11 @@ export function IaBanner({ state, viewer, playerNames }: IaBannerProps) {
     return `ia-banner-${idx}-${m.player}-${m.cost}`;
   }, [state.logs]);
 
-  if (r0 == null && r1 == null) return null;
+  if (!state.iaUsed[0] && !state.iaUsed[1]) return null;
 
-  const iUsedIa = (r0 != null && viewer === 0) || (r1 != null && viewer === 1);
+  const iUsedIa = state.iaUsed[viewer];
   const opponentUsedIa =
-    (r0 != null && viewer === 1) || (r1 != null && viewer === 0);
+    state.iaUsed[viewer === 0 ? 1 : 0];
 
   let heading: string;
   if (iUsedIa && opponentUsedIa) {
@@ -110,19 +126,21 @@ export function IaBanner({ state, viewer, playerNames }: IaBannerProps) {
         <p className="text-[10px] font-bold uppercase tracking-widest text-indigo-300/90">
           {heading}
         </p>
-        {r0 != null ? (
+        {state.iaUsed[0] ? (
           <IaRevealBlock
             buyer={0}
             category={r0}
+            acquisitionType={t0}
             viewer={viewer}
             pl={pl}
             isEn={isEn}
           />
         ) : null}
-        {r1 != null ? (
+        {state.iaUsed[1] ? (
           <IaRevealBlock
             buyer={1}
             category={r1}
+            acquisitionType={t1}
             viewer={viewer}
             pl={pl}
             isEn={isEn}

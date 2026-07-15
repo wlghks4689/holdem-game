@@ -38,10 +38,10 @@ export function HoldemOnlinePage(props: {
 
   /* 매치가 끝나면 재접속 기록 삭제 (다음 게임에서 묵은 배너가 뜨지 않도록) */
   React.useEffect(() => {
-    if (state?.matchWinner != null) {
+    if (state?.matchEnded) {
       clearLastActiveRoom();
     }
-  }, [state?.matchWinner]);
+  }, [state?.matchEnded]);
 
   /* 하이카드 드로우 오버레이: 매치 시작(하이카드 결정) 1회 표시 */
   const [showDrawOverlay, setShowDrawOverlay] = React.useState(false);
@@ -136,7 +136,7 @@ export function HoldemOnlinePage(props: {
   }, [opponentLeftActive, router]);
 
   const rematchLabel = React.useMemo(() => {
-    if (state?.matchWinner == null) return null;
+    if (!state?.matchEnded) return null;
     const meAccepted = rematchAccepted[mySeat];
     const oppAccepted = rematchAccepted[mySeat === 0 ? 1 : 0];
     if (meAccepted && oppAccepted) {
@@ -150,7 +150,7 @@ export function HoldemOnlinePage(props: {
     return isEn
       ? "Press Rematch to send a request"
       : "재경기 버튼을 누르면 상대에게 수락 요청이 전송됩니다";
-  }, [isEn, mySeat, rematchAccepted, state?.matchWinner]);
+  }, [isEn, mySeat, rematchAccepted, state?.matchEnded, state?.matchWinner]);
 
   if (loadError && state == null) {
     return (

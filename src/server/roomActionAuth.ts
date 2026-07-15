@@ -11,10 +11,12 @@ export function canSeatSendAction(
       return state.phase === "lobby" && seat === 0;
     case "NEW_HAND":
       return (
-        state.matchWinner == null &&
+        !state.matchEnded &&
         (state.phase === "showdown" || state.phase === "hand_over")
       );
     case "SELECT_HAND":
+    case "SELECT_MYSTERY_HAND":
+    case "SELECT_FORCED_RANDOM":
       return action.player === seat;
     case "USE_IA":
     case "FOLD":

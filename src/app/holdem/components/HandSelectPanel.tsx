@@ -1,8 +1,10 @@
 "use client";
 
 import * as React from "react";
+import { rankToChar, type Suit } from "@/holdem/cards";
 import {
   canSelectHandTemplate,
+  canUseMysteryHand,
   getHandTemplateForMode,
   getHandTemplatesForMode,
   HAND_COST_STARTING_POINTS,
@@ -20,6 +22,68 @@ import type {
   OpponentHandCategory,
   PlayerIndex,
 } from "@/holdem/types";
+import { MYSTERY_HAND_COST } from "@/holdem/gameModeRules";
+
+const PREVIEW_SUIT_SYMBOL: Record<Suit, string> = {
+  s: "♠",
+  h: "♥",
+  d: "♦",
+  c: "♣",
+};
+
+function previewSuitsForTemplate(
+  template: HandPoolTemplate,
+): readonly [Suit, Suit] {
+  return template.kind === "suited" ? ["s", "s"] : ["c", "h"];
+}
+
+function HandTemplateCardPreview({
+  template,
+}: {
+  template: HandPoolTemplate;
+}) {
+  const suits = previewSuitsForTemplate(template);
+
+  return (
+    <span
+      className="flex items-center justify-center gap-0.5"
+      data-hand-preview-kind={template.kind}
+      data-hand-preview-suits={suits.join("")}
+      aria-hidden
+    >
+      {template.ranks.map((rank, index) => {
+        const suit = suits[index]!;
+        const red = suit === "h" || suit === "d";
+        return (
+          <span
+            key={`${rank}-${suit}-${index}`}
+            className="flex h-10 w-[1.62rem] -translate-y-0.5 shrink-0 flex-col items-center justify-center rounded-[5px] border border-zinc-300 bg-gradient-to-br from-white to-zinc-100 shadow-[0_2px_5px_rgba(0,0,0,0.4)] ring-1 ring-amber-200/25 lg:h-11 lg:w-[1.7rem]"
+            data-hand-preview-card
+            data-preview-rank={rankToChar(rank)}
+            data-preview-suit={suit}
+          >
+            <span
+              className={[
+                "flex h-[13px] w-full items-center justify-center text-center font-mono text-[13px] font-black leading-none tabular-nums lg:h-[14px] lg:text-[14px]",
+                red ? "text-red-600" : "text-zinc-950",
+              ].join(" ")}
+            >
+              {rankToChar(rank)}
+            </span>
+            <span
+              className={[
+                "mt-px flex h-[17.25px] w-full items-center justify-center text-center text-[17.25px] leading-none lg:h-[18.375px] lg:text-[18.375px]",
+                red ? "text-red-600" : "text-zinc-950",
+              ].join(" ")}
+            >
+              {PREVIEW_SUIT_SYMBOL[suit]}
+            </span>
+          </span>
+        );
+      })}
+    </span>
+  );
+}
 
 const CATEGORY_ORDER: OpponentHandCategory[] = [
   "하이파켓",
@@ -104,6 +168,7 @@ export type HandSelectPanelProps = {
   /** 온라인 방: 내 좌석만 선택 UI 표시 */
   mySeat?: PlayerIndex;
   onSelect: (player: PlayerIndex, templateId: string) => void;
+  onMystery: (player: PlayerIndex) => void;
 };
 
 type ColumnProps = {
@@ -112,7 +177,10 @@ type ColumnProps = {
   titleName: string;
   /** 좁은 뷰·2열 레이아웃용 밀도 높은 그리드 */
   compact: boolean;
+  /** 한 좌석만 표시할 때 넓은 데스크톱 그리드를 사용 */
+  wideLayout: boolean;
   onSelect: (player: PlayerIndex, templateId: string) => void;
+  onMystery: (player: PlayerIndex) => void;
 };
 
 function HandPickerColumn({
@@ -120,7 +188,9 @@ function HandPickerColumn({
   player,
   titleName,
   compact,
+  wideLayout,
   onSelect,
+  onMystery,
 }: ColumnProps) {
   const { locale } = useHoldemI18n();
   const isEn = locale === "en";
@@ -183,21 +253,21 @@ function HandPickerColumn({
   };
 
   const catGridClass = compact
-    ? "grid grid-cols-2 gap-1.5"
+    ? wideLayout
+      ? "grid grid-cols-1 items-start gap-2 md:grid-cols-2 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1.35fr)]"
+      : "grid grid-cols-1 items-start gap-2 md:grid-cols-2"
     : "grid grid-cols-2 gap-2 lg:grid-cols-3";
-  const handGridClass = compact
-    ? "grid grid-cols-4 gap-1"
-    : "grid grid-cols-3 gap-1.5 sm:grid-cols-4";
-  const btnMinH = compact ? "min-h-[3.05rem]" : "min-h-[3.75rem]";
-  const monoSize = compact ? "text-xs" : "text-sm";
+  const handGridClass = "flex min-w-0 flex-wrap content-start gap-1.5";
+  const btnMinH = compact ? "min-h-[4.25rem] lg:min-h-[4.65rem]" : "min-h-[4.5rem]";
   const hasAvailableHand = templatesForMode.some((t) =>
     canSelectHandTemplate(state, player, t),
   );
+  const mysteryAvailable = canUseMysteryHand(state, player);
 
   return (
     <div
       className={[
-        "rounded-xl border p-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] transition-[box-shadow,border-color,background-color] duration-300",
+        "rounded-xl border p-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] transition-[box-shadow,border-color,background-color] duration-300 lg:p-3",
         pending != null
           ? "border-emerald-500/45 bg-emerald-950/25 shadow-[0_0_24px_rgba(52,211,153,0.12)]"
           : "border-amber-500/40 bg-amber-950/15 shadow-[0_0_22px_rgba(251,191,36,0.12)] ring-1 ring-amber-400/25",
@@ -235,9 +305,29 @@ function HandPickerColumn({
           </p>
         </div>
       ) : null}
-      {isCostMode && !hasAvailableHand ? (
+      {isCostMode ? (
+        <button
+          type="button"
+          disabled={!mysteryAvailable || pending != null}
+          onClick={() => onMystery(player)}
+          className={[
+            "mb-2 w-full rounded-lg border px-3 py-2 text-left text-xs font-semibold",
+            mysteryAvailable && pending == null
+              ? "border-fuchsia-400/55 bg-fuchsia-950/35 text-fuchsia-100 hover:bg-fuchsia-900/45"
+              : "cursor-not-allowed border-zinc-700 bg-zinc-900/45 text-zinc-500",
+          ].join(" ")}
+        >
+          <span className="flex items-center justify-between gap-2">
+            <span>Mystery Hand · {MYSTERY_HAND_COST} COST · {isEn ? "once per match" : "경기당 1회"}</span>
+            <span>{state.mysteryHandUsed[player] ? (isEn ? "Used" : "사용 완료") : !mysteryAvailable ? (isEn ? "Not enough Cost" : "Cost 부족") : ""}</span>
+          </span>
+        </button>
+      ) : null}
+      {isCostMode && !hasAvailableHand && !mysteryAvailable ? (
         <div className="mb-2 rounded-md border border-red-500/35 bg-red-950/25 px-2 py-1 text-[10px] font-semibold text-red-100">
-          {isEn ? "No affordable hands remain." : "No affordable hands remain."}
+          {costForActor === 0
+            ? (isEn ? "Cost is depleted. A Random Hand is assigned automatically." : "Cost를 모두 소진하여 Random Hand가 자동 지급됩니다.")
+            : (isEn ? "No selectable hand remains. A Random Hand is assigned automatically." : "선택 가능한 핸드가 없어 Random Hand가 자동 지급됩니다.")}
         </div>
       ) : null}
 
@@ -249,7 +339,7 @@ function HandPickerColumn({
               key={cat}
               title={categoryBlurbForMode(cat, isEn, isCostMode)}
               className={[
-                "rounded-md border border-zinc-600/70 bg-zinc-800/55",
+                "min-w-0 rounded-md border border-zinc-600/70 bg-zinc-800/55",
                 compact ? "p-1.5" : "p-2",
               ].join(" ")}
             >
@@ -309,12 +399,12 @@ function HandPickerColumn({
                             }`
                       }
                       className={[
-                        "group relative flex flex-col items-center justify-center rounded-md border px-0.5 py-1 text-center transition-all",
+                        "group relative flex w-[3.75rem] flex-none flex-col items-center justify-center rounded-md border px-0.5 py-1 text-center transition-all",
                         btnMinH,
                         dead && isCostMode
                           ? usedUp
-                            ? "cursor-not-allowed border-zinc-700/80 bg-zinc-950/55 opacity-65"
-                            : "cursor-not-allowed border-rose-900/70 bg-rose-950/20 opacity-65"
+                            ? "cursor-not-allowed border-zinc-600/70 bg-zinc-800/45 opacity-80"
+                            : "cursor-not-allowed border-zinc-700/80 bg-zinc-800/35 opacity-75"
                           : dead
                             ? "cursor-not-allowed border-zinc-700/80 bg-zinc-800/35 opacity-50 grayscale"
                           : sel
@@ -322,24 +412,15 @@ function HandPickerColumn({
                             : "border-zinc-500/90 bg-zinc-700/55 hover:border-violet-500/55 hover:bg-zinc-600/65",
                       ].join(" ")}
                     >
-                      <span
-                        className={[
-                          "font-mono font-bold leading-none tracking-tight",
-                          isCostMode && !compact ? "text-base" : monoSize,
-                          dead ? "text-zinc-500" : sel ? "text-violet-50" : "text-zinc-50",
-                        ].join(" ")}
-                      >
-                        {templateLabel(t)}
-                      </span>
+                      <HandTemplateCardPreview template={t} />
+                      <span className="sr-only">{templateLabel(t)}</span>
                       {isCostMode ? (
                         <span
                           className={[
-                            "mt-1 font-semibold leading-none",
-                            compact ? "text-[9px]" : "text-[10px]",
+                            "mt-1.5 inline-flex h-3 items-center justify-center font-bold leading-none",
+                            compact ? "text-[11px]" : "text-xs",
                             dead
-                              ? tooExpensive
-                                ? "text-rose-300/70"
-                                : "text-zinc-500"
+                              ? "text-zinc-400"
                               : sel
                                 ? "text-amber-100"
                                 : "text-amber-200/90",
@@ -358,18 +439,6 @@ function HandPickerColumn({
                       >
                         ×{left}
                       </span>
-                      {isCostMode && dead ? (
-                        <span
-                          className={[
-                            "mt-1 max-w-full truncate rounded-sm px-1 py-0.5 text-[8px] font-bold leading-none",
-                            tooExpensive
-                              ? "bg-rose-950/70 text-rose-200"
-                              : "bg-zinc-900/80 text-zinc-400",
-                          ].join(" ")}
-                        >
-                          {disabledReason}
-                        </span>
-                      ) : null}
                     </button>
                   );
                 })}
@@ -381,7 +450,8 @@ function HandPickerColumn({
 
       <div
         className={[
-          "mt-2 space-y-2 rounded-lg border border-zinc-600/80 bg-zinc-800/55",
+          "mt-2 rounded-lg border border-zinc-600/80 bg-zinc-800/55",
+          wideLayout ? "space-y-2 lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(17rem,22rem)] lg:items-center lg:gap-4 lg:space-y-0" : "space-y-2",
           compact ? "p-2" : "p-2.5",
         ].join(" ")}
       >
@@ -390,49 +460,50 @@ function HandPickerColumn({
             {isEn ? "Current Pick" : "현재 선택"}
           </div>
           {tpl ? (
-            <div className="mt-1 space-y-0.5 text-xs">
-              <p className="text-zinc-50">
-                <span className="text-zinc-400">{isEn ? "Hand · " : "핸드 · "}</span>
-                <span className="font-mono font-semibold text-amber-100">
-                  {templateLabel(tpl)}
-                </span>
-                <span className="text-zinc-400">
-                  {" "}
-                  (
-                  {isEn
-                    ? tpl.kind === "pair"
-                      ? "pair"
-                      : tpl.kind === "suited"
-                        ? "suited"
-                        : "offsuit"
-                    : kindLabelKo(tpl)}
-                  )
-                </span>
-              </p>
-              <p className="text-[11px] text-zinc-300">
-                <span className="text-zinc-500">{isEn ? "Category · " : "카테고리 · "}</span>
-                {categoryForPick != null && isEn
-                  ? categoryLabelForMode(categoryForPick, isEn, isCostMode)
-                  : categoryForPick != null
+            <div className="mt-1 flex min-w-0 items-start gap-2 text-xs">
+              <HandTemplateCardPreview template={tpl} />
+              <div className="min-w-0 flex-1 space-y-0.5">
+                <p className="text-zinc-50">
+                  <span className="text-zinc-400">{isEn ? "Hand · " : "핸드 · "}</span>
+                  <span className="font-mono font-semibold text-amber-100">
+                    {templateLabel(tpl)}
+                  </span>
+                  <span className="text-zinc-400">
+                    {" "}
+                    (
+                    {isEn
+                      ? tpl.kind === "pair"
+                        ? "pair"
+                        : tpl.kind === "suited"
+                          ? "suited"
+                          : "offsuit"
+                      : kindLabelKo(tpl)}
+                    )
+                  </span>
+                </p>
+                <p className="text-[11px] text-zinc-300">
+                  <span className="text-zinc-500">{isEn ? "Category · " : "카테고리 · "}</span>
+                  {categoryForPick != null
                     ? categoryLabelForMode(categoryForPick, isEn, isCostMode)
                     : null}
-              </p>
-              {isCostMode ? (
-                <div className="mt-1 grid min-w-0 gap-1 rounded-md border border-amber-400/25 bg-amber-950/20 px-2 py-1.5 text-[11px] text-amber-50">
-                  <p className="flex min-w-0 flex-wrap items-center justify-between gap-x-2 gap-y-0.5">
-                    <span className="min-w-0 text-amber-200/75">{isEn ? "Selected hand" : "선택 핸드"}</span>
-                    <span className="font-mono font-bold">{templateLabel(tpl)}</span>
-                  </p>
-                  <p className="flex min-w-0 flex-wrap items-center justify-between gap-x-2 gap-y-0.5">
-                    <span className="min-w-0 text-amber-200/75">{isEn ? "Cost" : "소모 코스트"}</span>
-                    <span className="font-mono font-bold">{tpl.cost}</span>
-                  </p>
-                  <p className="flex min-w-0 flex-wrap items-center justify-between gap-x-2 gap-y-0.5">
-                    <span className="min-w-0 text-amber-200/75">{isEn ? "After pick" : "선택 후 남은 코스트"}</span>
-                    <span className="font-mono font-bold">{selectedAfterCost}</span>
-                  </p>
-                </div>
-              ) : null}
+                </p>
+                {isCostMode ? (
+                  <div className="mt-1 grid min-w-0 gap-1 rounded-md border border-amber-400/25 bg-amber-950/20 px-2 py-1.5 text-[11px] text-amber-50">
+                    <p className="flex min-w-0 flex-wrap items-center justify-between gap-x-2 gap-y-0.5">
+                      <span className="min-w-0 text-amber-200/75">{isEn ? "Selected hand" : "선택 핸드"}</span>
+                      <span className="font-mono font-bold">{templateLabel(tpl)}</span>
+                    </p>
+                    <p className="flex min-w-0 flex-wrap items-center justify-between gap-x-2 gap-y-0.5">
+                      <span className="min-w-0 text-amber-200/75">{isEn ? "Cost" : "소모 코스트"}</span>
+                      <span className="font-mono font-bold">{tpl.cost}</span>
+                    </p>
+                    <p className="flex min-w-0 flex-wrap items-center justify-between gap-x-2 gap-y-0.5">
+                      <span className="min-w-0 text-amber-200/75">{isEn ? "After pick" : "선택 후 남은 코스트"}</span>
+                      <span className="font-mono font-bold">{selectedAfterCost}</span>
+                    </p>
+                  </div>
+                ) : null}
+              </div>
             </div>
           ) : (
             <p className="mt-1 text-[11px] text-zinc-400">
@@ -471,6 +542,7 @@ export function HandSelectPanel({
   playerNames,
   mySeat,
   onSelect,
+  onMystery,
 }: HandSelectPanelProps) {
   const { locale } = useHoldemI18n();
   const isEn = locale === "en";
@@ -481,13 +553,15 @@ export function HandSelectPanel({
 
   if (mySeat !== undefined) {
     return (
-      <div className="rounded-xl border border-violet-600/45 bg-violet-900/18 p-2 sm:p-3">
+      <div className="rounded-xl border border-violet-600/45 bg-violet-900/18 p-2 sm:p-3 lg:p-4">
         <HandPickerColumn
           state={state}
           player={mySeat}
           titleName={playerNames[mySeat]!}
           compact={compact}
+          wideLayout
           onSelect={onSelect}
+          onMystery={onMystery}
         />
       </div>
     );
@@ -512,20 +586,24 @@ export function HandSelectPanel({
           player={0}
           titleName={playerNames[0]!}
           compact={compact}
+          wideLayout={false}
           onSelect={onSelect}
+          onMystery={onMystery}
         />
         <HandPickerColumn
           state={state}
           player={1}
           titleName={playerNames[1]!}
           compact={compact}
+          wideLayout={false}
           onSelect={onSelect}
+          onMystery={onMystery}
         />
       </div>
       <p className="mt-3 rounded-md border border-zinc-600/70 bg-zinc-800/45 px-2.5 py-2 text-[10px] leading-snug text-zinc-400">
         {isEn
-          ? "Pair/suited/offsuit are selected without suits. Suits are assigned randomly to avoid card collisions in the 52-card deck."
-          : "페어·수딧·오프는 문양 없이 고릅니다. 같은 핸드여도 52장에 겹치지 않게 문양이 무작위로 배정됩니다."}
+          ? "Card suits are a visual preview: suited hands use ♠♠, while pairs and offsuit hands use ♣♥. Actual suits are assigned separately to avoid deck collisions."
+          : "카드 문양은 미리보기입니다. 수딧은 ♠♠, 페어·오프수딧은 ♣♥로 표시되며 실제 문양은 카드 충돌을 피하도록 별도로 배정됩니다."}
       </p>
     </div>
   );

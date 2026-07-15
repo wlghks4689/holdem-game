@@ -1,4 +1,4 @@
-import type { Card, Suit } from "./cards";
+import { makeDeck, removeCards, shuffle, type Card, type Suit } from "./cards";
 import type {
   GameState,
   HandPickPending,
@@ -8,6 +8,7 @@ import type {
   PlayerIndex,
   SelectedHand,
 } from "./types";
+import { MYSTERY_HAND_COST } from "./gameModeRules";
 
 export const SUITS: Suit[] = ["c", "d", "h", "s"];
 export const HAND_COST_STARTING_POINTS = 100;
@@ -348,7 +349,47 @@ export function holeFromTemplate(
 }
 
 export function selectedHandFrom(t: HandPoolTemplate, hole: [Card, Card]): SelectedHand {
-  return { templateId: t.id, hole, iaCategory: t.iaCategory };
+  return {
+    templateId: t.id,
+    hole,
+    iaCategory: t.iaCategory,
+    acquisitionType: "selected",
+    selectedHandKey: t.id,
+  };
+}
+
+export function canUseMysteryHand(
+  state: Pick<GameState, "gameMode" | "handCostRemaining" | "mysteryHandUsed">,
+  player: PlayerIndex,
+): boolean {
+  return state.gameMode === "cost" && !state.mysteryHandUsed[player] &&
+    state.handCostRemaining[player]! >= MYSTERY_HAND_COST;
+}
+
+export function shouldForceRandomHand(
+  state: Pick<
+    GameState,
+    "gameMode" | "handPoolRemaining" | "handCostRemaining" | "mysteryHandUsed"
+  >,
+  player: PlayerIndex,
+): boolean {
+  if (state.gameMode !== "cost") return false;
+  if (state.handCostRemaining[player]! <= 0) return true;
+  const normalAvailable = COST_HAND_TEMPLATES.some((t) => canSelectHandTemplate(state, player, t));
+  return !normalAvailable && !canUseMysteryHand(state, player);
+}
+
+function randomSelectedHand(
+  hole: [Card, Card],
+  acquisitionType: "mystery" | "forced-random",
+): SelectedHand {
+  return {
+    templateId: null,
+    hole,
+    iaCategory: COST_HAND_TEMPLATES[0]!.iaCategory,
+    acquisitionType,
+    selectedHandKey: null,
+  };
 }
 
 export function templateLabel(t: HandPoolTemplate): string {
@@ -438,30 +479,53 @@ export function resolvePendingHandPicks(
   rng: () => number,
   gameModeRaw: unknown = "classic",
 ):
-  | { ok: true; hole0: [Card, Card]; hole1: [Card, Card]; t0: HandPoolTemplate; t1: HandPoolTemplate }
+  | {
+      ok: true;
+      hands: [SelectedHand, SelectedHand];
+      templates: [HandPoolTemplate | null, HandPoolTemplate | null];
+    }
   | { ok: false } {
   const gameMode = normalizeGameMode(gameModeRaw);
-  const t0 = getHandTemplateForMode(gameMode, p0.templateId);
-  const t1 = getHandTemplateForMode(gameMode, p1.templateId);
-  if (!t0 || !t1) return { ok: false };
+  const t0 = p0.kind === "selected" ? getHandTemplateForMode(gameMode, p0.templateId) : null;
+  const t1 = p1.kind === "selected" ? getHandTemplateForMode(gameMode, p1.templateId) : null;
+  if ((p0.kind === "selected" && !t0) || (p1.kind === "selected" && !t1)) return { ok: false };
 
-  const opts0 = allConcreteHolesForTemplate(t0);
-  const opts1 = allConcreteHolesForTemplate(t1);
-  if (opts0.length === 0 || opts1.length === 0) return { ok: false };
-
-  const candidates: { hole0: [Card, Card]; hole1: [Card, Card] }[] = [];
-  for (const h0 of opts0) {
-    for (const h1 of opts1) {
-      if (disjointHoles(h0, h1)) candidates.push({ hole0: h0, hole1: h1 });
+  let hole0: [Card, Card];
+  let hole1: [Card, Card];
+  if (t0 && t1) {
+    const candidates: { hole0: [Card, Card]; hole1: [Card, Card] }[] = [];
+    for (const h0 of allConcreteHolesForTemplate(t0)) {
+      for (const h1 of allConcreteHolesForTemplate(t1)) {
+        if (disjointHoles(h0, h1)) candidates.push({ hole0: h0, hole1: h1 });
+      }
     }
+    if (candidates.length === 0) return { ok: false };
+    const picked = candidates[Math.floor(rng() * candidates.length)]!;
+    hole0 = picked.hole0;
+    hole1 = picked.hole1;
+  } else if (t0) {
+    const opts = allConcreteHolesForTemplate(t0);
+    hole0 = opts[Math.floor(rng() * opts.length)]!;
+    const deck = shuffle(removeCards(makeDeck(), hole0), rng);
+    hole1 = [deck[0]!, deck[1]!];
+  } else if (t1) {
+    const opts = allConcreteHolesForTemplate(t1);
+    hole1 = opts[Math.floor(rng() * opts.length)]!;
+    const deck = shuffle(removeCards(makeDeck(), hole1), rng);
+    hole0 = [deck[0]!, deck[1]!];
+  } else {
+    const deck = shuffle(makeDeck(), rng);
+    hole0 = [deck[0]!, deck[1]!];
+    hole1 = [deck[2]!, deck[3]!];
   }
-  if (candidates.length === 0) return { ok: false };
-  const picked = candidates[Math.floor(rng() * candidates.length)]!;
-  return {
-    ok: true,
-    hole0: picked.hole0,
-    hole1: picked.hole1,
-    t0,
-    t1,
-  };
+
+  const h0 = t0 ? selectedHandFrom(t0, hole0) : randomSelectedHand(
+    hole0,
+    p0.kind === "mystery" ? "mystery" : "forced-random",
+  );
+  const h1 = t1 ? selectedHandFrom(t1, hole1) : randomSelectedHand(
+    hole1,
+    p1.kind === "mystery" ? "mystery" : "forced-random",
+  );
+  return { ok: true, hands: [h0, h1], templates: [t0 ?? null, t1 ?? null] };
 }

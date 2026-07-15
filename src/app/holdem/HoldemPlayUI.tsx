@@ -5,8 +5,10 @@ import Link from "next/link";
 import {
   HELL_AI_EXTRA_STARTING_CHIPS,
   STARTING_CHIPS,
-  TOTAL_ROUNDS,
 } from "@/holdem/constants";
+import { resolveHandBlinds } from "@/holdem/blindLevels";
+import { chipsAsBbLabel } from "@/holdem/formatBb";
+import { startingChipsForMode, totalRoundsForMode } from "@/holdem/gameModeRules";
 import type { RoomPauseState } from "@/holdem/roomPause";
 import type { GameAction, GameState, PlayerIndex, SelectedHand } from "@/holdem/types";
 import { HEADS_UP_RULES_BLURB } from "@/holdem/headsUpLabels";
@@ -80,7 +82,6 @@ export function HoldemPlayUI({
   playMode,
   singleDifficulty,
   singlePlayerResetChips,
-  onlineMeta,
   localPause,
   onlinePause,
   onMatchRematch,
@@ -90,6 +91,9 @@ export function HoldemPlayUI({
   const { t, locale } = useHoldemI18n();
   const isEn = locale === "en";
   const gameModeLabel = state.gameMode === "cost" ? "Cost" : "Classic";
+  const configuredStartingChips = startingChipsForMode(state.gameMode);
+  const configuredTotalRounds = totalRoundsForMode(state.gameMode);
+  const selecting = state.phase === "hand_select";
   const isHellSingle =
     playMode === "single" && singleDifficulty === "hell";
 
@@ -196,7 +200,7 @@ export function HoldemPlayUI({
   const [endMenuOpen, setEndMenuOpen] = React.useState(false);
   const endMenuDelayArmedRef = React.useRef<string | null>(null);
   React.useEffect(() => {
-    if (state.matchWinner == null) {
+    if (!state.matchEnded) {
       setEndMenuOpen(false);
       endMenuDelayArmedRef.current = null;
       return;
@@ -206,12 +210,13 @@ export function HoldemPlayUI({
       (state.phase === "showdown" &&
         (!showdownCinema.active || showdownCinema.phase === "showdown-resolve"));
     if (!resultSettled) return;
-    const armKey = `${state.roundNumber}-${state.matchWinner}`;
+    const armKey = `${state.roundNumber}-${state.matchWinner ?? "draw"}`;
     if (endMenuDelayArmedRef.current === armKey) return;
     endMenuDelayArmedRef.current = armKey;
     const t = window.setTimeout(() => setEndMenuOpen(true), 15000);
     return () => window.clearTimeout(t);
   }, [
+    state.matchEnded,
     state.matchWinner,
     state.phase,
     state.roundNumber,
@@ -246,7 +251,12 @@ export function HoldemPlayUI({
           : "bg-gradient-to-b from-zinc-800 via-zinc-800 to-zinc-900",
       ].join(" ")}
     >
-      <div className="relative mx-auto max-w-3xl px-3 py-4 pb-14 sm:px-4 sm:py-5 sm:pb-16 lg:max-w-6xl lg:px-8 lg:py-6 lg:pb-8">
+      <div
+        className={[
+          "relative mx-auto max-w-3xl px-3 py-4 pb-14 sm:px-4 sm:py-5 sm:pb-16 lg:py-6 lg:pb-8",
+          selecting ? "lg:max-w-[1280px] lg:px-6" : "lg:max-w-6xl lg:px-8",
+        ].join(" ")}
+      >
         {showPauseChrome ? (
           <div className="pointer-events-auto absolute right-3 top-3 z-40 flex max-w-[min(19rem,calc(100%-1.5rem))] flex-col items-end gap-2 sm:right-5 sm:top-5">
             {onlinePause != null &&
@@ -343,13 +353,13 @@ export function HoldemPlayUI({
               >
                 <span className="sm:hidden">
                   {isEn
-                    ? `${TOTAL_ROUNDS}R · ${STARTING_CHIPS} chips · 1bb=1 chip`
-                    : `${TOTAL_ROUNDS}R · ${STARTING_CHIPS}칩 · 1bb=1칩`}
+                    ? `${configuredTotalRounds}R · ${configuredStartingChips} chips · 1bb=1 chip`
+                    : `${configuredTotalRounds}R · ${configuredStartingChips}칩 · 1bb=1칩`}
                 </span>
                 <span className="hidden sm:inline">
                   {isEn
-                    ? `${TOTAL_ROUNDS} rounds · start ${STARTING_CHIPS} chips (1bb=1 chip) · Heads-up hold'em: dealer is SB, opponent is BB. Dealer button alternates each hand. · names saved locally`
-                    : `${TOTAL_ROUNDS}라운드 · 시작 ${STARTING_CHIPS}칩 (1bb=1칩) · ${HEADS_UP_RULES_BLURB} · 이름 로컬 저장`}
+                    ? `${configuredTotalRounds} rounds · start ${configuredStartingChips} chips (1bb=1 chip) · Heads-up hold'em: dealer is SB, opponent is BB. Dealer button alternates each hand. · names saved locally`
+                    : `${configuredTotalRounds}라운드 · 시작 ${configuredStartingChips}칩 (1bb=1칩) · ${HEADS_UP_RULES_BLURB} · 이름 로컬 저장`}
                 </span>
               </p>
             ) : playMode === "single" ? (
@@ -446,8 +456,17 @@ export function HoldemPlayUI({
           </div>
         </header>
 
-        <div className="mb-3 space-y-2 lg:mb-4 lg:grid lg:grid-cols-1 lg:gap-3">
-          <TableHeaderBar state={state} playerNames={playerNames} />
+        <div className={selecting ? "mb-2 lg:mb-3" : "mb-3 space-y-2 lg:mb-4 lg:grid lg:grid-cols-1 lg:gap-3"}>
+          {selecting ? (
+            <HandSelectStatusBar
+              state={state}
+              playerNames={playerNames}
+              mySeat={mySeat}
+              actionTimerSecondsLeft={actionTimerSecondsLeft}
+            />
+          ) : (
+            <TableHeaderBar state={state} playerNames={playerNames} />
+          )}
         </div>
 
         <section
@@ -456,17 +475,23 @@ export function HoldemPlayUI({
             isHellSingle
               ? "border-fuchsia-500/35 bg-gradient-to-b from-fuchsia-950/25 via-zinc-800/45 to-zinc-950/90 shadow-[0_0_44px_rgba(147,51,234,0.14),inset_0_1px_0_rgba(244,114,182,0.06)]"
               : "border-zinc-600/80 bg-zinc-800/35 shadow-[0_0_40px_rgba(0,0,0,0.2)]",
-            state.phase === "showdown"
-              ? "space-y-2 sm:space-y-2.5 lg:space-y-3"
-              : "space-y-3 sm:space-y-4",
-            "lg:mx-auto lg:mb-6 lg:max-w-5xl lg:rounded-[2rem] lg:p-6",
+            selecting
+              ? "space-y-0"
+              : state.phase === "showdown"
+                ? "space-y-2 sm:space-y-2.5 lg:space-y-3"
+                : "space-y-3 sm:space-y-4",
+            selecting
+              ? "lg:mx-auto lg:mb-5 lg:max-w-none lg:rounded-[1.5rem] lg:p-4"
+              : "lg:mx-auto lg:mb-6 lg:max-w-5xl lg:rounded-[2rem] lg:p-6",
             isHellSingle
               ? "lg:border-fuchsia-800/45 lg:bg-gradient-to-b lg:from-fuchsia-950/30 lg:via-zinc-800/95 lg:to-zinc-950/92 lg:shadow-[0_0_88px_rgba(126,34,206,0.22),inset_0_1px_0_rgba(232,121,249,0.08)]"
               : "lg:border-zinc-700/70 lg:bg-gradient-to-b lg:from-zinc-800 lg:via-zinc-800/95 lg:to-zinc-900/90 lg:shadow-[0_0_80px_rgba(0,0,0,0.45)]",
             showdownCinema.blockingInput ? "pointer-events-none select-none" : "",
             showdownCinema.active ? "holdem-cinema-active" : "",
             showdownCinema.phase === "allin-lock" ? "holdem-allin-lock" : "",
+            showdownCinema.phase === "street-windup" ? "holdem-street-windup" : "",
             showdownCinema.phase === "showdown-reveal" ? "holdem-showdown-reveal" : "",
+            showdownCinema.phase === "showdown-hold" ? "holdem-showdown-hold" : "",
             showdownCinema.phase === "showdown-resolve" ? "holdem-showdown-resolve" : "",
           ].join(" ")}
           data-allin-cinema-phase={showdownCinema.active ? showdownCinema.phase : "off"}
@@ -485,7 +510,7 @@ export function HoldemPlayUI({
             </div>
           ) : null}
           {/* 상대 카드 — 쇼다운·핸드오버: 전체 공개, 평시: compact 한 줄 배너 */}
-          {state.phase === "showdown" || state.phase === "hand_over" ? (
+          {!selecting ? state.phase === "showdown" || state.phase === "hand_over" ? (
             <div
               className={[
                 "hidden space-y-2 transition-opacity duration-500 lg:block",
@@ -524,16 +549,9 @@ export function HoldemPlayUI({
                 <IaBanner state={state} viewer={viewer} playerNames={playerNames} />
               </div>
             </div>
-          )}
-
-          <AllInBanner state={state} />
-          {showdownCinema.active &&
-          (showdownCinema.phase === "allin-lock" ||
-            showdownCinema.phase === "showdown-reveal") ? (
-            <div className="pointer-events-none absolute left-1/2 top-2 z-30 -translate-x-1/2 rounded-full border border-rose-300/70 bg-rose-900/70 px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-rose-50 shadow-[0_0_20px_rgba(244,63,94,0.3)]">
-              ALL-IN
-            </div>
           ) : null}
+
+          {!selecting ? <AllInBanner state={state} /> : null}
           {showResultBannerSlot ? (
             <HandResultBanner
               state={state}
@@ -557,56 +575,59 @@ export function HoldemPlayUI({
             </div>
           ) : null}
 
-          <div
-            className={[
-              "mx-auto w-full max-w-3xl lg:max-w-2xl",
-              state.phase === "showdown" ? "-mt-0.5 pt-0" : "",
-            ].join(" ")}
-          >
-            <BoardDisplay
-              state={state}
-              visualRevealedOverride={showdownCinema.visualRevealed}
-              streetLabelOverride={showdownCinema.boardStreetLabelKo}
-              cinematicFlip={showdownCinema.active && showdownCinema.phase === "showdown-reveal"}
-              cinemaStreetPulse={showdownCinema.streetPulse}
-              rabbitHunt={rabbitBoardUi}
-            />
-          </div>
+          {!selecting ? (
+            <div
+              className={[
+                "mx-auto w-full max-w-3xl lg:max-w-2xl",
+                state.phase === "showdown" ? "-mt-0.5 pt-0" : "",
+              ].join(" ")}
+            >
+              <BoardDisplay
+                state={state}
+                visualRevealedOverride={showdownCinema.visualRevealed}
+                streetLabelOverride={showdownCinema.boardStreetLabelKo}
+                cinematicFlip={showdownCinema.active && showdownCinema.phase === "showdown-reveal"}
+                cinemaStreetPulse={showdownCinema.streetPulse}
+                cinemaAnticipation={showdownCinema.activeStreet}
+                rabbitHunt={rabbitBoardUi}
+              />
+            </div>
+          ) : null}
 
-          <div
-            className={[
-              "mx-auto w-full max-w-3xl transition-opacity duration-500 lg:max-w-2xl",
-              showdownCinema.active && showdownCinema.phase !== "showdown-resolve"
-                ? "opacity-85"
-                : "",
-            ].join(" ")}
-          >
-            <PlayAreaPotBetting
-              state={state}
-              viewer={viewer}
-              playerNames={playerNames}
-            />
-          </div>
+          {!selecting ? (
+            <div
+              className={[
+                "mx-auto w-full max-w-3xl transition-opacity duration-500 lg:max-w-2xl",
+                showdownCinema.active && showdownCinema.phase !== "showdown-resolve"
+                  ? "opacity-85"
+                  : "",
+              ].join(" ")}
+            >
+              <PlayAreaPotBetting
+                state={state}
+                viewer={viewer}
+                playerNames={playerNames}
+              />
+            </div>
+          ) : null}
 
-          <div
-            className={[
-              "mx-auto max-w-lg transition-opacity duration-500 lg:max-w-xl",
-              showdownCinema.active && showdownCinema.phase !== "showdown-resolve"
-                ? "opacity-55"
-                : "",
-            ].join(" ")}
-          >
-            <HandSelectPanel
-              state={state}
-              playerNames={playerNames}
-              mySeat={mySeat}
-              onSelect={(player, templateId) =>
-                void dispatch({ type: "SELECT_HAND", player, templateId })
-              }
-            />
-          </div>
+          {selecting ? (
+            <div className="mx-auto w-full max-w-none">
+              <HandSelectPanel
+                state={state}
+                playerNames={playerNames}
+                mySeat={mySeat}
+                onSelect={(player, templateId) =>
+                  void dispatch({ type: "SELECT_HAND", player, templateId })
+                }
+                onMystery={(player) =>
+                  void dispatch({ type: "SELECT_MYSTERY_HAND", player })
+                }
+              />
+            </div>
+          ) : null}
 
-          <div
+          {!selecting ? <div
             className={[
               "space-y-3 transition-opacity duration-500 lg:hidden",
               showdownCinema.active && showdownCinema.phase !== "showdown-resolve"
@@ -653,9 +674,9 @@ export function HoldemPlayUI({
               </>
             )}
             <IaBanner state={state} viewer={viewer} playerNames={playerNames} />
-          </div>
+          </div> : null}
 
-          <div
+          {!selecting ? <div
             className={[
               "mt-2 hidden gap-8 transition-opacity duration-500 lg:mt-8 lg:grid lg:grid-cols-2 lg:items-start lg:gap-10",
               showdownCinema.active && showdownCinema.phase !== "showdown-resolve"
@@ -687,16 +708,21 @@ export function HoldemPlayUI({
                 actionTimerSecondsLeft={actionTimerSecondsLeft}
               />
             </div>
-          </div>
+          </div> : null}
         </section>
 
         {showdownCinema.active ? (
           <AllInShowdownCinemaOverlay
             phase={showdownCinema.phase}
+            activeStreet={showdownCinema.activeStreet}
+            visualRevealed={showdownCinema.visualRevealed ?? state.boardRevealed}
+            isEn={isEn}
+            subtleMotion={showdownCinema.subtleMotion}
+            onSkip={showdownCinema.skip}
           />
         ) : null}
 
-        {state.matchWinner != null && endMenuOpen ? (
+        {state.matchEnded && endMenuOpen ? (
           <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 p-4 backdrop-blur-[2px]">
             <div className="w-full max-w-sm rounded-2xl border border-zinc-600/70 bg-zinc-900/95 p-4 shadow-2xl">
               <p className="text-center text-lg font-extrabold text-zinc-50">
@@ -742,16 +768,109 @@ export function HoldemPlayUI({
         ) : null}
 
 
-        <div className="mx-auto max-w-4xl lg:max-w-5xl">
-          <HandLog
-            logs={state.logs}
-            playerNames={playerNames}
-            showdownHoleCtx={playMode === "online" || playMode === "single" ? null : showdownHoleCtx}
-            playMode={playMode}
-          />
-        </div>
+        {!selecting ? (
+          <div className="mx-auto max-w-4xl lg:max-w-5xl">
+            <HandLog
+              logs={state.logs}
+              playerNames={playerNames}
+              showdownHoleCtx={playMode === "online" || playMode === "single" ? null : showdownHoleCtx}
+              playMode={playMode}
+              gameMode={state.gameMode}
+            />
+          </div>
+        ) : null}
       </div>
     </div>
+  );
+}
+
+function HandSelectStatusBar({
+  state,
+  playerNames,
+  mySeat,
+  actionTimerSecondsLeft,
+}: {
+  state: GameState;
+  playerNames: [string, string];
+  mySeat?: PlayerIndex;
+  actionTimerSecondsLeft: number | null;
+}) {
+  const { locale } = useHoldemI18n();
+  const isEn = locale === "en";
+  const bbUnit = resolveHandBlinds(state).bb;
+
+  return (
+    <section
+      className="rounded-xl border border-zinc-600/80 bg-zinc-800/65 px-2.5 py-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] sm:px-3 lg:flex lg:items-center lg:gap-3"
+      aria-label={isEn ? "Hand selection status" : "핸드 선택 상태"}
+    >
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-zinc-600/60 pb-2 lg:shrink-0 lg:border-b-0 lg:pb-0">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="font-mono text-sm font-bold text-zinc-50 sm:text-base">
+            {isEn ? "Round" : "라운드"} {state.roundNumber}
+            <span className="text-zinc-400"> / {totalRoundsForMode(state.gameMode)}</span>
+          </span>
+          <span className="rounded-full border border-violet-400/35 bg-violet-950/40 px-2 py-0.5 text-[10px] font-bold text-violet-100 sm:text-[11px]">
+            {isEn ? "HAND SELECT" : "핸드 선택"}
+          </span>
+        </div>
+        {actionTimerSecondsLeft != null ? (
+          <span
+            className={[
+              "rounded-md px-2.5 py-1 font-mono text-sm font-bold tabular-nums",
+              actionTimerSecondsLeft <= 10
+                ? "bg-rose-900/65 text-rose-100 ring-1 ring-rose-500/50"
+                : "bg-zinc-950/75 text-amber-100 ring-1 ring-amber-400/25",
+            ].join(" ")}
+          >
+            {isEn ? "Time" : "남은 시간"} {actionTimerSecondsLeft}s
+          </span>
+        ) : null}
+      </div>
+
+      <div className="mt-2 grid grid-cols-2 gap-2 lg:mt-0 lg:min-w-0 lg:flex-1">
+        {([0, 1] as PlayerIndex[]).map((player) => {
+          const position = headsUpPositionLabel(state, player);
+          const locked = state.handPickPending[player] != null;
+          return (
+            <div
+              key={player}
+              className="flex min-w-0 items-center gap-2 rounded-lg border border-zinc-700/70 bg-zinc-900/35 px-2.5 py-1.5"
+            >
+              <div className="min-w-0 flex-1">
+                <div className="flex min-w-0 items-center gap-1.5">
+                  <span className="truncate text-xs font-semibold text-zinc-100 sm:text-sm">
+                    {playerNames[player]}
+                  </span>
+                  {mySeat === player ? (
+                    <span className="shrink-0 rounded bg-emerald-900/55 px-1.5 py-0.5 text-[8px] font-bold text-emerald-200 sm:text-[9px]">
+                      {isEn ? "YOU" : "내 좌석"}
+                    </span>
+                  ) : null}
+                </div>
+                <p className="mt-0.5 text-[10px] text-violet-200/85 sm:text-[11px]">
+                  {isEn && position === HU_DEALER_SB_LABEL ? "Dealer · SB" : position}
+                </p>
+              </div>
+              <div className="shrink-0 text-right">
+                <p className="font-mono text-xs font-bold text-zinc-100 sm:text-sm">
+                  {isEn ? "Stack " : "스택 "}{chipsAsBbLabel(state.chips[player], bbUnit)}
+                </p>
+                <p className={locked ? "text-[9px] font-semibold text-emerald-300" : "text-[9px] text-zinc-500"}>
+                  {locked
+                    ? isEn
+                      ? "Locked"
+                      : "확정됨"
+                    : isEn
+                      ? "Choosing"
+                      : "선택 중"}
+                </p>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </section>
   );
 }
 
@@ -774,7 +893,7 @@ function OpponentCompactBanner({
     state.phase === "flop" ||
     state.phase === "turn" ||
     state.phase === "river";
-  const isToAct = state.toAct === opp && bettingLive && state.matchWinner == null;
+  const isToAct = state.toAct === opp && bettingLive && !state.matchEnded;
   const selecting = state.phase === "hand_select";
   const isHandPickChoosing = selecting && state.handPickPending[opp] == null && state.holes[opp] == null;
   const isHandPickSubmitted = selecting && state.handPickPending[opp] != null && state.holes[opp] == null;

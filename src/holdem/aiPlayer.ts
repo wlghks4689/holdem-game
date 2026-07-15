@@ -4,7 +4,6 @@
  * ─ React 의존 없음 — useHoldemSinglePlayer 훅에서 호출
  */
 import {
-  canPreflopShortStackAllInShove,
   effectiveCallPay,
   facingFor,
   iaAppliedCostFromStack,
@@ -13,8 +12,6 @@ import {
   headsUpSubBbVoluntaryEnabled,
   postflopMinRaiseTargetForActor,
   preflopHasLegalRaise,
-  preflopMaxRaiseTargetForActor,
-  preflopMinTotalRaiseForActor,
   roundHalfChip,
   streetRaiseCapReached,
 } from "./bettingHelpers";
@@ -36,6 +33,14 @@ import {
 import type { HellAdaptation } from "./hellUserPattern";
 import { canSelectHandTemplate, getHandTemplatesForMode } from "./handPool";
 import { pickBestRiverEvAction } from "./riverEvAi";
+import {
+  buildPreflopAiContext,
+  isPremiumJamHand,
+  isPremiumOpeningHand,
+  preflopAiAllInAllowed,
+  preflopAiRaiseTarget,
+  scorePreflopActions,
+} from "./preflopAiPolicy";
 import type { GameAction, GameState, PlayerIndex } from "./types";
 
 // ─── 공개 타입 ────────────────────────────────────────────────────────────────
@@ -192,38 +197,10 @@ function personalityBonus(p: AIPersonality): { agg: number; loose: number } {
 
 function preflopRaiseTo(
   state: GameState,
-  tier: number,
-  difficulty: Difficulty,
+  aiSeat: PlayerIndex,
+  templateId: string | null | undefined,
 ): number {
-  const minT = preflopMinTotalRaiseForActor(state);
-  const maxT = preflopMaxRaiseTargetForActor(state);
-  if (minT > maxT + 1e-9) return roundHalfChip(maxT);
-
-  const bb = resolveHandBlinds(state).bb;
-  let target: number;
-
-  if (difficulty === "easy") {
-    target = minT + rng(0, bb * 2);
-  } else if (difficulty === "normal") {
-    target = tier >= 4 ? minT + rng(bb, bb * 2.5) : minT + rng(0, bb);
-  } else if (difficulty === "hell") {
-    const pot = state.pot;
-    target =
-      tier >= 5 ? pot * 0.82 + minT :
-      tier >= 4 ? pot * 0.58 + minT :
-                  minT + rng(0, bb * 0.55);
-  } else {
-    // hard: pot-appropriate
-    const pot = state.pot;
-    target =
-      tier >= 5 ? pot * 0.75 + minT :
-      tier >= 4 ? pot * 0.5 + minT :
-                  minT + rng(0, bb * 0.8);
-  }
-
-  // 최소 SMALLEST_CHIP 단위 스냅
-  const snapped = Math.round(target / SMALLEST_CHIP) * SMALLEST_CHIP;
-  return clamp(snapped, minT, maxT);
+  return preflopAiRaiseTarget(state, aiSeat, templateId);
 }
 
 // ─── 프리플랍 베팅 결정 ───────────────────────────────────────────────────────
@@ -238,22 +215,45 @@ function preflopAction(
   const facing = facingFor(aiSeat, state.betting);
   const callPay = effectiveCallPay(aiSeat, state);
   const canRaise = preflopHasLegalRaise(state);
-  const canAllIn = canPreflopShortStackAllInShove(state);
+  const templateId = state.holes[aiSeat]?.templateId;
+  const canAllIn = preflopAiAllInAllowed(state, aiSeat, templateId);
+  const context = buildPreflopAiContext(state, aiSeat);
+  const scores = scorePreflopActions(state, aiSeat, templateId, tier);
   const { agg, loose } = personalityBonus(p);
+
+  // Deep/medium premium opens are always standard raises, never open jams.
+  if (
+    state.preflopStage === "button_acts" &&
+    aiSeat === state.button &&
+    context.effectiveStackBb > 20 &&
+    canRaise &&
+    isPremiumOpeningHand(templateId)
+  ) {
+    return { type: "PREFLOP_RAISE", toLevelChips: preflopRaiseTo(state, aiSeat, templateId) };
+  }
+  if (
+    state.preflopStage === "facing_raise" &&
+    context.effectiveStackBb >= 40 &&
+    canRaise &&
+    isPremiumJamHand(templateId) &&
+    Math.random() < 0.7
+  ) {
+    return { type: "PREFLOP_RAISE", toLevelChips: preflopRaiseTo(state, aiSeat, templateId) };
+  }
 
   // ── Easy: 확률 위주 ──────────────────────────────────────────────────────
   if (difficulty === "easy") {
     const r = Math.random();
     if (state.preflopStage === "button_acts") {
       if (canRaise && r < 0.35 + tier * 0.07) {
-        return { type: "PREFLOP_RAISE", toLevelChips: preflopRaiseTo(state, tier, difficulty) };
+        return { type: "PREFLOP_RAISE", toLevelChips: preflopRaiseTo(state, aiSeat, templateId) };
       }
       return { type: "PREFLOP_CALL" };
     }
     if (state.preflopStage === "bb_option") {
       if (facing === 0) {
         if (canRaise && r < 0.20 + tier * 0.05) {
-          return { type: "PREFLOP_RAISE", toLevelChips: preflopRaiseTo(state, tier, difficulty) };
+          return { type: "PREFLOP_RAISE", toLevelChips: preflopRaiseTo(state, aiSeat, templateId) };
         }
         return { type: "PREFLOP_CHECK" };
       }
@@ -261,7 +261,7 @@ function preflopAction(
     if (state.preflopStage === "facing_raise") {
       if (aiSeat === state.button) {
         if (canRaise && r < 0.14 + tier * 0.03) {
-          return { type: "PREFLOP_RAISE", toLevelChips: preflopRaiseTo(state, tier, difficulty) };
+          return { type: "PREFLOP_RAISE", toLevelChips: preflopRaiseTo(state, aiSeat, templateId) };
         }
         const r2 = Math.random();
         if (r2 < 0.58) return { type: "PREFLOP_CALL" };
@@ -276,12 +276,16 @@ function preflopAction(
 
   // ── Hell: 프리플랍 솔버 테이블 (`hellSolverPolicy` — 실제 솔버로 교체 가능) ──
   if (difficulty === "hell") {
-    return hellPreflopSolverAction(state, aiSeat, tier);
+    return hellPreflopSolverAction(state, aiSeat, tier, templateId);
   }
 
   // ── Normal / Hard: 티어 기반 ───────────────────────────────────────────────
   const raisePBase = [0, 0.10, 0.20, 0.42, 0.68, 0.88][tier] ?? 0.35;
-  const raiseP = clamp(raisePBase + agg + p.raiseFreq * 0.18, 0, 0.95);
+  const raiseP = clamp(
+    raisePBase + agg + p.raiseFreq * 0.18 + scores.raise * 0.12 - scores.call * 0.04,
+    0,
+    0.95,
+  );
 
   const foldPBase = [0, 0.55, 0.48, 0.28, 0.10, 0.04][tier] ?? 0.35;
   const foldP = clamp(foldPBase - agg - loose, 0.03, 0.92);
@@ -290,9 +294,14 @@ function preflopAction(
 
   // button_acts — 폴드 불가
   if (state.preflopStage === "button_acts" && aiSeat === state.button) {
-    if (canAllIn && tier >= 5) return { type: "PREFLOP_ALL_IN" };
+    if (canAllIn && context.effectiveStackBb <= 15 && Math.random() < scores.allIn) {
+      return { type: "PREFLOP_ALL_IN" };
+    }
+    if (canRaise && isPremiumOpeningHand(templateId)) {
+      return { type: "PREFLOP_RAISE", toLevelChips: preflopRaiseTo(state, aiSeat, templateId) };
+    }
     if (canRaise && r < raiseP) {
-      return { type: "PREFLOP_RAISE", toLevelChips: preflopRaiseTo(state, tier, difficulty) };
+      return { type: "PREFLOP_RAISE", toLevelChips: preflopRaiseTo(state, aiSeat, templateId) };
     }
     return { type: "PREFLOP_CALL" };
   }
@@ -302,7 +311,7 @@ function preflopAction(
     if (facing === 0) {
       if (canAllIn && tier >= 5 && r < 0.55) return { type: "PREFLOP_ALL_IN" };
       if (canRaise && r < raiseP * 0.72) {
-        return { type: "PREFLOP_RAISE", toLevelChips: preflopRaiseTo(state, tier, difficulty) };
+        return { type: "PREFLOP_RAISE", toLevelChips: preflopRaiseTo(state, aiSeat, templateId) };
       }
       return { type: "PREFLOP_CHECK" };
     }
@@ -310,22 +319,24 @@ function preflopAction(
 
   // facing_raise — BB 리레이즈 응답
   if (state.preflopStage === "facing_raise" && aiSeat !== state.button) {
-    if (canAllIn && tier >= 5 && r < 0.48) return { type: "PREFLOP_ALL_IN" };
-    if (canRaise && r < raiseP * 0.48) {
-      return { type: "PREFLOP_RAISE", toLevelChips: preflopRaiseTo(state, tier, difficulty) };
+    if (canAllIn && tier >= 4 && r < scores.allIn * 0.65) return { type: "PREFLOP_ALL_IN" };
+    const reraiseThreshold = raiseP * (isPremiumJamHand(templateId) ? 0.75 : 0.48);
+    if (canRaise && r < reraiseThreshold) {
+      return { type: "PREFLOP_RAISE", toLevelChips: preflopRaiseTo(state, aiSeat, templateId) };
     }
-    if (r < raiseP * 0.48 + (1 - foldP) * 0.9) return { type: "PREFLOP_CALL" };
+    if (r < reraiseThreshold + (1 - foldP) * 0.9) return { type: "PREFLOP_CALL" };
     if (facing > 0 && callPay > 0) return { type: "FOLD" };
     return { type: "PREFLOP_CALL" };
   }
 
   // facing_raise — 버튼 4-bet+·콜·폴드
   if (state.preflopStage === "facing_raise" && aiSeat === state.button) {
-    if (canAllIn && tier >= 5 && r < 0.2) return { type: "PREFLOP_ALL_IN" };
-    if (canRaise && r < raiseP * 0.38) {
-      return { type: "PREFLOP_RAISE", toLevelChips: preflopRaiseTo(state, tier, difficulty) };
+    if (canAllIn && tier >= 4 && r < scores.allIn * 0.45) return { type: "PREFLOP_ALL_IN" };
+    const reraiseThreshold = raiseP * (isPremiumJamHand(templateId) ? 0.65 : 0.38);
+    if (canRaise && r < reraiseThreshold) {
+      return { type: "PREFLOP_RAISE", toLevelChips: preflopRaiseTo(state, aiSeat, templateId) };
     }
-    if (facing > 0 && r < raiseP * 0.38 + foldP) return { type: "FOLD" };
+    if (facing > 0 && r < reraiseThreshold + foldP) return { type: "FOLD" };
     return { type: "PREFLOP_CALL" };
   }
 

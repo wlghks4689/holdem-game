@@ -11,7 +11,7 @@ import {
   templateLabel,
 } from "@/holdem/handPool";
 import { best5Of7, handValueSummaryKorean } from "@/holdem/pokerEval";
-import type { GameMessage, PlayerIndex, SelectedHand, Street } from "@/holdem/types";
+import type { GameMessage, HoldemGameMode, PlayerIndex, SelectedHand, Street } from "@/holdem/types";
 
 type Pl = (p: PlayerIndex) => string;
 
@@ -117,6 +117,7 @@ function buildSections(
   playerNames: [string, string],
   showdownHoleCtx: { holes: [SelectedHand, SelectedHand]; board: Card[] } | null,
   playMode: "local" | "online" | "single" | undefined,
+  gameMode: HoldemGameMode,
 ): Section[] {
   const pl = (p: PlayerIndex) => playerNames[p] ?? `플레이어 ${p + 1}`;
   const lastSd = lastShowdownIn(logs);
@@ -126,7 +127,7 @@ function buildSections(
   let streetPost: { title: string; lines: string[] } | null = null;
   let endLines: string[] | null = null;
   /** 로그 상 해당 시점 라운드의 BB 칩 크기(금액→bb 표기용) */
-  let logBlindBbUnit = getBlindLevel(1).bigBlind;
+  let logBlindBbUnit = getBlindLevel(1, gameMode).bigBlind;
 
   const pushStreet = () => {
     if (streetPost != null && streetPost.lines.length > 0) {
@@ -177,8 +178,10 @@ function buildSections(
     const board = showdownHoleCtx.board;
     for (const p of [0, 1] as const) {
       const sel = p === 0 ? h0 : h1;
-      const t = findTemplate(sel.templateId);
-      const pool = t ? templateLabel(t) : sel.templateId;
+      const t = sel.templateId ? findTemplate(sel.templateId) : null;
+      const pool = t
+        ? templateLabel(t)
+        : sel.acquisitionType === "mystery" ? "Mystery Hand" : "Random Hand";
       const v = best5Of7([...sel.hole, ...board]);
       endLines!.push(
         `${pl(p)} 핸드: 풀 ${pool} · 홀 ${sel.hole.map(cardLabel).join(" ")} — ${handValueSummaryKorean(v)}`,
@@ -193,7 +196,7 @@ function buildSections(
         pushEnd();
         pushStreet();
         pushPreflop();
-        logBlindBbUnit = getBlindLevel(m.round).bigBlind;
+        logBlindBbUnit = getBlindLevel(m.round, gameMode).bigBlind;
         setup = [`라운드 ${m.round} 시작`];
         break;
       case "hand_pick_conflict":
@@ -246,7 +249,11 @@ function buildSections(
         pushPreflop();
         if (endLines == null) endLines = [];
         endLines.push(
-          `${pl(m.player)}: IA (−${chipsAsBbLabel(m.cost, logBlindBbUnit)}) → 상대 카테고리: ${iaCategoryLabelKo(m.revealedCategory)} (${iaCategoryHandListText(m.revealedCategory)})`,
+          m.acquisitionType === "mystery"
+            ? `${pl(m.player)}: IA (−${chipsAsBbLabel(m.cost, logBlindBbUnit)}) → 상대는 Mystery Hand입니다.`
+            : m.acquisitionType === "forced-random"
+              ? `${pl(m.player)}: IA (−${chipsAsBbLabel(m.cost, logBlindBbUnit)}) → 상대는 Random Hand를 지급받았습니다. 카테고리가 제공되지 않습니다.`
+              : `${pl(m.player)}: IA (−${chipsAsBbLabel(m.cost, logBlindBbUnit)}) → 상대 카테고리: ${iaCategoryLabelKo(m.revealedCategory!)} (${iaCategoryHandListText(m.revealedCategory!)})`,
         );
         break;
       case "showdown": {
@@ -306,6 +313,7 @@ export type HandLogProps = {
   showdownHoleCtx?: { holes: [SelectedHand, SelectedHand]; board: Card[] } | null;
   /** 온라인: 풀 핸드 라벨·홀 상세 로그 비표시(동일 기기 공유 시 정보 누출 방지). */
   playMode?: "local" | "online" | "single";
+  gameMode?: HoldemGameMode;
 };
 
 export function HandLog({
@@ -313,12 +321,13 @@ export function HandLog({
   playerNames,
   showdownHoleCtx = null,
   playMode = "local",
+  gameMode = "classic",
 }: HandLogProps) {
   const [open, setOpen] = React.useState(true);
   const recent = React.useMemo(() => logs.slice(-140), [logs]);
   const sections = React.useMemo(
-    () => buildSections(recent, playerNames, showdownHoleCtx ?? null, playMode),
-    [recent, playerNames, showdownHoleCtx, playMode],
+    () => buildSections(recent, playerNames, showdownHoleCtx ?? null, playMode, gameMode),
+    [recent, playerNames, showdownHoleCtx, playMode, gameMode],
   );
   const tail = sections.slice(-10);
 

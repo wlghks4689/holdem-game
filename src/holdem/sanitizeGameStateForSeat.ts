@@ -26,14 +26,33 @@ export function sanitizeGameStateForSeat(
     out.handCostRemaining as unknown,
     out.gameMode,
   );
+  out.mysteryHandUsed = Array.isArray(out.mysteryHandUsed)
+    ? [Boolean(out.mysteryHandUsed[0]), Boolean(out.mysteryHandUsed[1])]
+    : [false, false];
+  out.matchEnded = Boolean(out.matchEnded || out.matchWinner != null);
+  out.iaRevealType = Array.isArray(out.iaRevealType)
+    ? [out.iaRevealType[0] ?? null, out.iaRevealType[1] ?? null]
+    : [null, null];
 
   // Seat-based minimum disclosure:
   // - hide opponent future resource info
   // - hide unrevealed board cards from API payload
   out.handPoolRemaining[opp] = {};
-  if (out.gameMode === "cost") out.handCostRemaining[opp] = 0;
+  if (out.gameMode === "cost") {
+    out.handCostRemaining[opp] = 0;
+    out.mysteryHandUsed[opp] = false;
+  }
   const visibleBoard = Math.max(0, Math.min(out.boardRevealed, out.board.length));
   out.board = out.board.slice(0, visibleBoard);
+  out.iaReveal[opp] = null;
+  out.iaRevealType[opp] = null;
+  if (out.phase !== "showdown") {
+    out.logs = out.logs.map((message) =>
+      message.t === "hand_chosen" && message.player === opp
+        ? { ...message, label: "Hidden Hand" }
+        : message
+    );
+  }
 
   if (out.phase !== "showdown") {
     out.holes[opp] = null;

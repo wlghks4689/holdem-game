@@ -27,18 +27,24 @@ import {
   normalizeGameMode,
   normalizeHandPoolRemaining,
   resolvePendingHandPicks,
-  selectedHandFrom,
   templateLabel,
   canSelectHandTemplate,
+  canUseMysteryHand,
+  shouldForceRandomHand,
 } from "./handPool";
 import { compareHandValue, best5Of7, handValueSummaryKorean } from "./pokerEval";
 import {
   ALL_IN_RUNOUT_LAST_NOTE,
   MAX_RAISES_PER_STREET,
   SMALLEST_CHIP,
-  STARTING_CHIPS,
-  TOTAL_ROUNDS,
 } from "./constants";
+import {
+  COST_MAX,
+  COST_ROUND_RECOVERY,
+  MYSTERY_HAND_COST,
+  startingChipsForMode,
+  totalRoundsForMode,
+} from "./gameModeRules";
 import type {
   GameAction,
   GameMessage,
@@ -59,7 +65,7 @@ function ensureHandBlinds(s: GameState): void {
     Number.isNaN(s.handBlinds.bb) ||
     s.handBlinds.bb < 1e-9
   ) {
-    s.handBlinds = handBlindsFromRound(s.roundNumber);
+    s.handBlinds = handBlindsFromRound(s.roundNumber, s.gameMode);
   }
 }
 
@@ -82,17 +88,20 @@ function bustCheck(s: GameState): boolean {
   const c1 = s.chips[1]!;
   if (c0 <= 1e-9 && c1 <= 1e-9) {
     s.matchWinner = c0 >= c1 ? 0 : 1;
+    s.matchEnded = true;
     pushLog(s, { t: "player_busted", player: 0 });
     pushLog(s, { t: "player_busted", player: 1 });
     return true;
   }
   if (c0 <= 1e-9) {
     s.matchWinner = 1;
+    s.matchEnded = true;
     pushLog(s, { t: "player_busted", player: 0 });
     return true;
   }
   if (c1 <= 1e-9) {
     s.matchWinner = 0;
+    s.matchEnded = true;
     pushLog(s, { t: "player_busted", player: 1 });
     return true;
   }
@@ -357,6 +366,52 @@ function startPreflopAfterHands(s: GameState, deckRng: () => number): void {
   s.lastActionNote = "프리플랍 — 딜러·SB (콜/레이즈)";
 }
 
+function prepareForcedRandomChoices(s: GameState): void {
+  if (s.gameMode !== "cost" || s.phase !== "hand_select") return;
+  for (const p of [0, 1] as const) {
+    if (s.handPickPending[p] == null && shouldForceRandomHand(s, p)) {
+      s.handPickPending[p] = { kind: "forced-random" };
+    }
+  }
+}
+
+function resolveReadyHandChoices(s: GameState, random: () => number): boolean {
+  const pending0 = s.handPickPending[0];
+  const pending1 = s.handPickPending[1];
+  if (pending0 == null || pending1 == null) return false;
+  const resolved = resolvePendingHandPicks(pending0, pending1, random, s.gameMode);
+  if (!resolved.ok) {
+    s.handPickPending = [null, null];
+    prepareForcedRandomChoices(s);
+    s.holes = [null, null];
+    s.handSelectPhase = "open";
+    pushLog(s, { t: "hand_pick_conflict" });
+    s.lastActionNote = "선택 충돌 — 다시 선택해 주세요";
+    return false;
+  }
+
+  s.holes = resolved.hands;
+  for (const p of [0, 1] as const) {
+    const pending = p === 0 ? pending0 : pending1;
+    const tpl = resolved.templates[p];
+    if (pending.kind === "selected" && tpl) {
+      s.handPoolRemaining[p]![tpl.id] = (s.handPoolRemaining[p]![tpl.id] ?? 0) - 1;
+      if (s.gameMode === "cost") {
+        s.handCostRemaining[p] = Math.max(0, s.handCostRemaining[p]! - tpl.cost);
+      }
+      pushLog(s, { t: "hand_chosen", player: p, label: templateLabel(tpl) });
+    } else if (pending.kind === "mystery") {
+      s.handCostRemaining[p] = Math.max(0, s.handCostRemaining[p]! - MYSTERY_HAND_COST);
+      s.mysteryHandUsed[p] = true;
+      pushLog(s, { t: "hand_chosen", player: p, label: "Mystery Hand" });
+    } else {
+      pushLog(s, { t: "hand_chosen", player: p, label: "Random Hand" });
+    }
+  }
+  startPreflopAfterHands(s, random);
+  return true;
+}
+
 function syncIsAllInFlag(s: GameState): void {
   if (
     s.phase === "showdown" ||
@@ -373,7 +428,7 @@ function syncIsAllInFlag(s: GameState): void {
 function settleZeroStackAutoActions(s: GameState): void {
   let guard = 0;
   while (guard++ < 64) {
-    if (s.matchWinner != null) return;
+    if (s.matchEnded) return;
     if (
       s.phase === "showdown" ||
       s.phase === "hand_over" ||
@@ -428,7 +483,7 @@ function settleZeroStackAutoActions(s: GameState): void {
  * 베팅이 맞았는데 한쪽 이상 스택 0 — 더 이상 베팅 없이 보드만 깔고 쇼다운.
  */
 function maybeRunOutAfterAllInMatch(s: GameState): void {
-  if (s.matchWinner != null) return;
+  if (s.matchEnded) return;
   if (
     s.phase !== "preflop" &&
     s.phase !== "flop" &&
@@ -443,7 +498,7 @@ function maybeRunOutAfterAllInMatch(s: GameState): void {
 }
 
 function postProcessLiveHand(s: GameState): void {
-  if (s.matchWinner != null) return;
+  if (s.matchEnded) return;
   settleZeroStackAutoActions(s);
   maybeRunOutAfterAllInMatch(s);
   settleZeroStackAutoActions(s);
@@ -458,13 +513,14 @@ function done(s: GameState): GameState {
 
 export function createInitialGameState(gameModeRaw: HoldemGameMode = "classic"): GameState {
   const gameMode = normalizeGameMode(gameModeRaw);
+  const startingChips = startingChipsForMode(gameMode);
   return {
     gameMode,
     phase: "hand_select",
     roundNumber: 1,
-    handBlinds: handBlindsFromRound(1),
+    handBlinds: handBlindsFromRound(1, gameMode),
     button: 0,
-    chips: [STARTING_CHIPS, STARTING_CHIPS],
+    chips: [startingChips, startingChips],
     pot: 0,
     potAwardFlash: null,
     handPoolRemaining: [
@@ -475,6 +531,7 @@ export function createInitialGameState(gameModeRaw: HoldemGameMode = "classic"):
       gameMode === "cost"
         ? [HAND_COST_STARTING_POINTS, HAND_COST_STARTING_POINTS]
         : [0, 0],
+    mysteryHandUsed: [false, false],
     holes: [null, null],
     handPickPending: [null, null],
     board: [],
@@ -488,9 +545,11 @@ export function createInitialGameState(gameModeRaw: HoldemGameMode = "classic"):
     iaUsed: [false, false],
     iaPotRemovalTotal: 0,
     iaReveal: [null, null],
+    iaRevealType: [null, null],
     winner: null,
     handEndMode: null,
     matchWinner: null,
+    matchEnded: false,
     logs: [{ t: "round_start", round: 1 }],
     lastActionNote: "양쪽 핸드 선택 (동시)",
     isAllIn: false,
@@ -526,6 +585,13 @@ export function holdemReducer(
   s.isAllIn = s.isAllIn ?? false;
   s.handPoolRemaining = normalizeHandPoolRemaining(s.handPoolRemaining as unknown, s.gameMode);
   s.handCostRemaining = normalizeHandCostRemaining(s.handCostRemaining as unknown, s.gameMode);
+  s.mysteryHandUsed = Array.isArray(s.mysteryHandUsed)
+    ? [Boolean(s.mysteryHandUsed[0]), Boolean(s.mysteryHandUsed[1])]
+    : [false, false];
+  s.matchEnded = Boolean(s.matchEnded || s.matchWinner != null);
+  s.iaRevealType = Array.isArray(s.iaRevealType)
+    ? [s.iaRevealType[0] ?? null, s.iaRevealType[1] ?? null]
+    : [null, null];
   if (typeof s.iaPotRemovalTotal !== "number" || Number.isNaN(s.iaPotRemovalTotal)) {
     s.iaPotRemovalTotal = totalIaChipsRemovedFromLogs(s.logs);
   }
@@ -536,7 +602,7 @@ export function holdemReducer(
       s.toAct = null;
     }
   }
-  if (s.matchWinner != null) return state;
+  if (s.matchEnded) return state;
 
   if (typeof s.betting.raisesThisStreet !== "number") {
     s.betting.raisesThisStreet = 0;
@@ -552,7 +618,8 @@ export function holdemReducer(
 
       if (!canSelectHandTemplate(s, p, tpl)) return state;
 
-      s.handPickPending[p] = { templateId: action.templateId };
+      s.handPickPending[p] = { kind: "selected", templateId: action.templateId };
+      prepareForcedRandomChoices(s);
 
       const pending0 = s.handPickPending[0];
       const pending1 = s.handPickPending[1];
@@ -579,26 +646,53 @@ export function holdemReducer(
         return done(s);
       }
 
-      const { hole0, hole1, t0, t1 } = resolved;
-      if (!canSelectHandTemplate(s, 0, t0) || !canSelectHandTemplate(s, 1, t1)) {
+      const [t0, t1] = resolved.templates;
+      if ((t0 && !canSelectHandTemplate(s, 0, t0)) || (t1 && !canSelectHandTemplate(s, 1, t1))) {
         return state;
       }
-      s.holes[0] = selectedHandFrom(t0, hole0);
-      s.holes[1] = selectedHandFrom(t1, hole1);
+      s.holes = resolved.hands;
       const pool0 = s.handPoolRemaining[0];
       const pool1 = s.handPoolRemaining[1];
       if (pool0 && pool1) {
-        pool0[t0.id] = (pool0[t0.id] ?? 0) - 1;
-        pool1[t1.id] = (pool1[t1.id] ?? 0) - 1;
+        if (t0) pool0[t0.id] = (pool0[t0.id] ?? 0) - 1;
+        if (t1) pool1[t1.id] = (pool1[t1.id] ?? 0) - 1;
       }
       if (s.gameMode === "cost") {
-        s.handCostRemaining[0] = Math.max(0, s.handCostRemaining[0]! - t0.cost);
-        s.handCostRemaining[1] = Math.max(0, s.handCostRemaining[1]! - t1.cost);
+        if (pending0.kind === "selected" && t0) {
+          s.handCostRemaining[0] = Math.max(0, s.handCostRemaining[0]! - t0.cost);
+        } else if (pending0.kind === "mystery") {
+          s.handCostRemaining[0] = Math.max(0, s.handCostRemaining[0]! - MYSTERY_HAND_COST);
+        }
+        if (pending1.kind === "selected" && t1) {
+          s.handCostRemaining[1] = Math.max(0, s.handCostRemaining[1]! - t1.cost);
+        } else if (pending1.kind === "mystery") {
+          s.handCostRemaining[1] = Math.max(0, s.handCostRemaining[1]! - MYSTERY_HAND_COST);
+        }
+        if (pending0.kind === "mystery") s.mysteryHandUsed[0] = true;
+        if (pending1.kind === "mystery") s.mysteryHandUsed[1] = true;
       }
       s.handPickPending = [null, null];
-      pushLog(s, { t: "hand_chosen", player: 0, label: templateLabel(t0) });
-      pushLog(s, { t: "hand_chosen", player: 1, label: templateLabel(t1) });
+      pushLog(s, { t: "hand_chosen", player: 0, label: t0 ? templateLabel(t0) : pending0.kind === "mystery" ? "Mystery Hand" : "Random Hand" });
+      pushLog(s, { t: "hand_chosen", player: 1, label: t1 ? templateLabel(t1) : pending1.kind === "mystery" ? "Mystery Hand" : "Random Hand" });
       startPreflopAfterHands(s, random);
+      return done(s);
+    }
+
+    case "SELECT_MYSTERY_HAND": {
+      if (s.gameMode !== "cost" || s.phase !== "hand_select" || s.handSelectPhase === "done") return state;
+      if (!canUseMysteryHand(s, action.player)) return state;
+      s.handPickPending[action.player] = { kind: "mystery" };
+      prepareForcedRandomChoices(s);
+      resolveReadyHandChoices(s, random);
+      return done(s);
+    }
+
+    case "SELECT_FORCED_RANDOM": {
+      if (s.gameMode !== "cost" || s.phase !== "hand_select" || s.handSelectPhase === "done") return state;
+      if (!shouldForceRandomHand(s, action.player)) return state;
+      s.handPickPending[action.player] = { kind: "forced-random" };
+      prepareForcedRandomChoices(s);
+      resolveReadyHandChoices(s, random);
       return done(s);
     }
 
@@ -856,41 +950,63 @@ export function holdemReducer(
       s.iaPotRemovalTotal = roundHalfChip(s.iaPotRemovalTotal + cost);
       s.iaUsed[p] = true;
       const opp = other(p);
-      s.iaReveal[p] = s.holes[opp]!.iaCategory;
-      pushLog(s, { t: "ia", player: p, revealedCategory: s.holes[opp]!.iaCategory, cost });
+      const opponentHand = s.holes[opp]!;
+      s.iaReveal[p] = opponentHand.acquisitionType === "selected"
+        ? opponentHand.iaCategory
+        : null;
+      s.iaRevealType[p] = opponentHand.acquisitionType;
+      pushLog(s, {
+        t: "ia",
+        player: p,
+        ...(opponentHand.acquisitionType === "selected" && {
+          revealedCategory: opponentHand.iaCategory,
+        }),
+        acquisitionType: opponentHand.acquisitionType,
+        cost,
+      });
       s.lastActionNote = `IA 완료`;
       return done(s);
     }
 
     case "NEW_HAND": {
-      if (s.matchWinner != null) return state;
+      if (s.matchEnded) return state;
       if (!(s.phase === "showdown" || s.phase === "hand_over")) return state;
       const c0n = s.chips[0]!;
       const c1n = s.chips[1]!;
       if (c0n <= 1e-9 || c1n <= 1e-9) {
         if (c0n <= 1e-9 && c1n <= 1e-9) {
           s.matchWinner = c0n >= c1n ? 0 : 1;
+          s.matchEnded = true;
           pushLog(s, { t: "player_busted", player: 0 });
           pushLog(s, { t: "player_busted", player: 1 });
         } else if (c0n <= 1e-9) {
           s.matchWinner = 1;
+          s.matchEnded = true;
           pushLog(s, { t: "player_busted", player: 0 });
         } else {
           s.matchWinner = 0;
+          s.matchEnded = true;
           pushLog(s, { t: "player_busted", player: 1 });
         }
         s.isAllIn = false;
         s.potAwardFlash = null;
         return done(s);
       }
-      if (s.roundNumber >= TOTAL_ROUNDS) {
-        s.matchWinner = s.chips[0]! >= s.chips[1]! ? 0 : 1;
+      if (s.roundNumber >= totalRoundsForMode(s.gameMode)) {
+        s.matchWinner = s.chips[0]! === s.chips[1]!
+          ? null
+          : s.chips[0]! > s.chips[1]! ? 0 : 1;
+        s.matchEnded = true;
         s.isAllIn = false;
         s.potAwardFlash = null;
         return done(s);
       }
+      if (s.gameMode === "cost") {
+        s.handCostRemaining[0] = Math.min(COST_MAX, s.handCostRemaining[0]! + COST_ROUND_RECOVERY);
+        s.handCostRemaining[1] = Math.min(COST_MAX, s.handCostRemaining[1]! + COST_ROUND_RECOVERY);
+      }
       s.roundNumber += 1;
-      s.handBlinds = handBlindsFromRound(s.roundNumber);
+      s.handBlinds = handBlindsFromRound(s.roundNumber, s.gameMode);
       s.button = other(s.button);
       s.phase = "hand_select";
       s.handSelectPhase = "open";
@@ -909,8 +1025,11 @@ export function holdemReducer(
       s.handEndMode = null;
       s.iaUsed = [false, false];
       s.iaReveal = [null, null];
+      s.iaRevealType = [null, null];
       pushLog(s, { t: "round_start", round: s.roundNumber });
       s.lastActionNote = "양쪽 핸드 선택 (동시)";
+      prepareForcedRandomChoices(s);
+      resolveReadyHandChoices(s, random);
       s.isAllIn = false;
       return done(s);
     }

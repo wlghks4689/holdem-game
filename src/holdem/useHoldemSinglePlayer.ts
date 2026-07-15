@@ -27,6 +27,7 @@ import {
   singlePlayerInitialChips,
 } from "./singlePlayerProgress";
 import { createInitialGameState, holdemReducer } from "./gameReducer";
+import { canUseMysteryHand, shouldForceRandomHand } from "./handPool";
 import type { GameAction, GameState, HoldemGameMode, PlayerIndex } from "./types";
 
 // ─── 훅 반환 타입 ─────────────────────────────────────────────────────────────
@@ -61,9 +62,11 @@ export function useHoldemSinglePlayer({
     { difficulty, aiSeat, gameMode },
     ({ difficulty: d, aiSeat: seat, gameMode: mode }) => {
       const base = createInitialGameState(mode);
-      const chips = singlePlayerInitialChips(d, seat);
-      base.chips[0] = chips[0]!;
-      base.chips[1] = chips[1]!;
+      if (mode === "classic") {
+        const chips = singlePlayerInitialChips(d, seat);
+        base.chips[0] = chips[0]!;
+        base.chips[1] = chips[1]!;
+      }
       return base;
     },
   );
@@ -131,7 +134,7 @@ export function useHoldemSinglePlayer({
   // Hard 매치 승리 누적 → Hell 잠금 해제 조건
   const recordedHardWinRef = React.useRef(false);
   React.useEffect(() => {
-    if (state.matchWinner == null) {
+    if (!state.matchEnded) {
       recordedHardWinRef.current = false;
       return;
     }
@@ -197,6 +200,10 @@ export function useHoldemSinglePlayer({
       const templateId = pickAIHandTemplateId(cur, aiSeat, difficulty);
       if (templateId) {
         dispatchRef.current({ type: "SELECT_HAND", player: aiSeat, templateId });
+      } else if (canUseMysteryHand(cur, aiSeat)) {
+        dispatchRef.current({ type: "SELECT_MYSTERY_HAND", player: aiSeat });
+      } else if (shouldForceRandomHand(cur, aiSeat)) {
+        dispatchRef.current({ type: "SELECT_FORCED_RANDOM", player: aiSeat });
       }
     }, delay);
 

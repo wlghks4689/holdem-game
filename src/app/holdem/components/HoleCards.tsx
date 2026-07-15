@@ -171,7 +171,7 @@ export function HoleCards({
 
         const isToAct =
           state.toAct === p &&
-          state.matchWinner == null &&
+          !state.matchEnded &&
           state.phase !== "showdown" &&
           state.phase !== "hand_over";
 
@@ -184,7 +184,7 @@ export function HoleCards({
           bettingLive &&
           state.toAct != null &&
           state.toAct !== p &&
-          state.matchWinner == null;
+          !state.matchEnded;
 
         const showFaces =
           sel != null &&
