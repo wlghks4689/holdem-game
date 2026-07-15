@@ -15,7 +15,7 @@ export async function POST(req: Request) {
     return NextResponse.json(
       {
         error: "온라인 방 저장소가 없습니다.",
-        hint: "Vercel에 Redis(Upstash)를 연결했다면 UPSTASH_REDIS_REST_URL / UPSTASH_REDIS_REST_TOKEN(또는 TCP용 UPSTASH_REDIS_URL)이 자동으로 들어옵니다. 수동으로는 KV_REST_API_* 또는 HOLDEM_LIMIT_GAME_REDIS_URL / REDIS_URL을 맞추세요.",
+        hint: "Vercel Redis를 프로젝트에 연결한 뒤 REDIS_URL 또는 STORAGE_URL이 Production 환경에 등록됐는지 확인하고 다시 배포하세요.",
       },
       { status: 503 },
     );
@@ -53,8 +53,19 @@ export async function POST(req: Request) {
       createdAt: Date.now(),
     }),
   };
-  await roomSet(roomId, blob);
-  if (isPublic) await lobbyAdd(roomId);
+  try {
+    await roomSet(roomId, blob);
+    if (isPublic) await lobbyAdd(roomId);
+  } catch (error) {
+    console.error("[holdem-room-create] persistence failed", error);
+    return NextResponse.json(
+      {
+        error: "온라인 방 저장소 연결에 실패했습니다.",
+        hint: "Vercel 프로젝트의 Redis 연결과 REDIS_URL 또는 STORAGE_URL 환경변수를 확인한 뒤 다시 배포하세요.",
+      },
+      { status: 503 },
+    );
+  }
 
   return NextResponse.json({
     roomId,

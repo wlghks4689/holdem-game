@@ -50,11 +50,12 @@ function redisUrl(): string | undefined {
   const u =
     process.env.HOLDEM_LIMIT_GAME_REDIS_URL?.trim() ||
     process.env.REDIS_URL?.trim() ||
+    process.env.STORAGE_URL?.trim() ||
     process.env.UPSTASH_REDIS_URL?.trim();
   return u && u.length > 0 ? u : undefined;
 }
 
-function useRedis(): boolean {
+function hasRedisConfig(): boolean {
   return Boolean(redisUrl());
 }
 
@@ -72,7 +73,7 @@ function kvRestToken(): string | undefined {
   return t && t.length > 0 ? t : undefined;
 }
 
-function useKv(): boolean {
+function hasKvConfig(): boolean {
   return Boolean(kvRestUrl() && kvRestToken());
 }
 
@@ -111,16 +112,16 @@ function getRedis(): Redis {
 /** 프로덕션(Vercel)에서 영구 저장소: Redis URL 또는 Vercel KV */
 export function isRoomPersistenceConfigured(): boolean {
   if (process.env.VERCEL === "1") {
-    return useRedis() || useKv();
+    return hasRedisConfig() || hasKvConfig();
   }
   return true;
 }
 
 export async function roomGet(roomId: string): Promise<RoomBlob | null> {
   let raw: string | null = null;
-  if (useRedis()) {
+  if (hasRedisConfig()) {
     raw = await getRedis().get(key(roomId));
-  } else if (useKv()) {
+  } else if (hasKvConfig()) {
     raw = (await getKvClient().get(key(roomId))) as string | null;
   } else {
     raw = devMem.get(key(roomId)) ?? null;
@@ -149,9 +150,9 @@ export async function roomGet(roomId: string): Promise<RoomBlob | null> {
 
 export async function roomSet(roomId: string, blob: RoomBlob): Promise<void> {
   const raw = JSON.stringify(blob);
-  if (useRedis()) {
+  if (hasRedisConfig()) {
     await getRedis().set(key(roomId), raw, "EX", ROOM_TTL_SEC);
-  } else if (useKv()) {
+  } else if (hasKvConfig()) {
     await getKvClient().set(key(roomId), raw, { ex: ROOM_TTL_SEC });
   } else {
     devMem.set(key(roomId), raw);
@@ -172,9 +173,9 @@ const LOBBY_KEY = "holdem:lobby";
 
 /** 공개 방 인덱스에 roomId 추가 */
 export async function lobbyAdd(roomId: string): Promise<void> {
-  if (useRedis()) {
+  if (hasRedisConfig()) {
     await getRedis().sadd(LOBBY_KEY, roomId);
-  } else if (useKv()) {
+  } else if (hasKvConfig()) {
     await (getKvClient() as unknown as { sadd: (key: string, ...members: string[]) => Promise<unknown> }).sadd(LOBBY_KEY, roomId);
   } else {
     devMemGlobal.__holdemDevLobby!.add(roomId);
@@ -183,9 +184,9 @@ export async function lobbyAdd(roomId: string): Promise<void> {
 
 /** 공개 방 인덱스에서 roomId 제거 */
 export async function lobbyRemove(roomId: string): Promise<void> {
-  if (useRedis()) {
+  if (hasRedisConfig()) {
     await getRedis().srem(LOBBY_KEY, roomId);
-  } else if (useKv()) {
+  } else if (hasKvConfig()) {
     await (getKvClient() as unknown as { srem: (key: string, ...members: string[]) => Promise<unknown> }).srem(LOBBY_KEY, roomId);
   } else {
     devMemGlobal.__holdemDevLobby!.delete(roomId);
@@ -195,9 +196,9 @@ export async function lobbyRemove(roomId: string): Promise<void> {
 /** 현재 대기 중인 공개 방 목록 반환 (게스트 미입장 + 호스트 연결 중 기준) */
 export async function lobbyList(): Promise<PublicRoomMeta[]> {
   let ids: string[];
-  if (useRedis()) {
+  if (hasRedisConfig()) {
     ids = await getRedis().smembers(LOBBY_KEY);
-  } else if (useKv()) {
+  } else if (hasKvConfig()) {
     ids = (await (getKvClient() as unknown as { smembers: (key: string) => Promise<string[]> }).smembers(LOBBY_KEY)) ?? [];
   } else {
     ids = Array.from(devMemGlobal.__holdemDevLobby ?? []);
