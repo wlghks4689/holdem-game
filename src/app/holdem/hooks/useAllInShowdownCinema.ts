@@ -37,7 +37,7 @@ function computeCinemaMeta(state: GameState): CinemaMeta {
     return { runKey: null, startRev: 0 };
   }
   const startRev = runoutStartRev(state);
-  if (state.runoutUiStartRevealed == null || startRev >= 5) {
+  if (state.runoutUiStartRevealed == null) {
     return { runKey: null, startRev };
   }
   const showdownIndex = state.logs.findLastIndex((log) => log.t === "showdown");

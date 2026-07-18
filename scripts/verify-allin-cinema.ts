@@ -43,6 +43,9 @@ assert.deepEqual(reveals(subtleRunout), [1, 2, 3, 4, 5]);
 assert.equal(resolveAt(subtleRunout), 4_580);
 assertOrdered(subtleRunout);
 
-assert.deepEqual(buildAllInCinemaTimeline(5), []);
+const riverAllIn = buildAllInCinemaTimeline(5);
+assert.deepEqual(reveals(riverAllIn), []);
+assert.equal(resolveAt(riverAllIn), 3_100);
+assertOrdered(riverAllIn);
 
 console.log("All-in cinema verification passed.");

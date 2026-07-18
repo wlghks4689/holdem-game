@@ -167,9 +167,6 @@ function BetAmountInput({
   return (
     <div className="w-full space-y-2.5">
       <div>
-        <label className="mb-1 block text-[10px] font-semibold uppercase tracking-widest text-zinc-400">
-          {isEn ? "Amount (BB)" : "베팅 금액 (BB)"}
-        </label>
         <div className="flex items-stretch gap-1.5">
           <button
             type="button"
@@ -216,8 +213,12 @@ function BetAmountInput({
             +0.5
           </button>
         </div>
-        <div className="mt-1 flex items-start justify-between gap-2 text-[10px] text-zinc-500">
-          <span>{formatBb(min)}–{formatBb(max)} BB</span>
+        <div className="mt-2 flex items-start justify-between gap-2 text-sm font-medium text-zinc-300">
+          <span>
+            {isEn
+              ? `Min ${formatBb(min)}BB · Max ${formatBb(max)}BB`
+              : `최소 ${formatBb(min)}BB · 최대 ${formatBb(max)}BB`}
+          </span>
           {message ? (
             <span id="bet-amount-message" className="text-right text-amber-300">{message}</span>
           ) : null}
@@ -756,10 +757,7 @@ export function ActionPanel({
   // ── 프리플랍 레이즈 입력 블록 ─────────────────────────────────────────────
   const preflopRaiseBlock =
     showPreflopRaise && preflopRange != null && !hideReraiseStreet ? (
-      <div className="space-y-2 rounded-lg border border-zinc-600/45 bg-zinc-800/30 px-3 pb-3 pt-2.5">
-        <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-400">
-          Raise
-        </p>
+      <div className="space-y-2 rounded-lg border border-zinc-600/45 bg-zinc-800/30 p-3">
         <BetAmountInput
           value={preflopRaiseClamped}
           min={preflopRange.min}
@@ -1046,10 +1044,7 @@ export function ActionPanel({
 
           {/* Raise 입력 */}
           {canPostflopRaise && !hideReraiseStreet ? (
-            <div className="space-y-2 rounded-lg border border-zinc-600/45 bg-zinc-800/30 px-3 pb-3 pt-2.5">
-              <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-400">
-                Raise
-              </p>
+            <div className="space-y-2 rounded-lg border border-zinc-600/45 bg-zinc-800/30 p-3">
               <BetAmountInput
                 value={postRaiseClamped}
                 min={postRaiseMin}

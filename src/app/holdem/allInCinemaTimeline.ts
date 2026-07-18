@@ -48,7 +48,17 @@ export function buildAllInCinemaTimeline(
   subtleMotion = false,
 ): AllInCinemaTimelineEvent[] {
   const start = Math.min(5, Math.max(0, Math.round(startRevealed)));
-  if (start >= 5) return [];
+  if (start >= 5) {
+    const pacing = subtleMotion ? SUBTLE_PACING : NORMAL_PACING;
+    return [
+      { atMs: pacing.impact, kind: "windup", street: "river" },
+      { atMs: pacing.impact + pacing.windup.river, kind: "hold", street: "river" },
+      {
+        atMs: pacing.impact + pacing.windup.river + pacing.hold.river,
+        kind: "resolve",
+      },
+    ];
+  }
 
   const pacing = subtleMotion ? SUBTLE_PACING : NORMAL_PACING;
   const events: AllInCinemaTimelineEvent[] = [];

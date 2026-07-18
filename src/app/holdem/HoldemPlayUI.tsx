@@ -118,6 +118,7 @@ export function HoldemPlayUI({
     return {
       ...heldState,
       winner: hiddenResolution ? null : heldState.winner,
+      holes: hiddenResolution ? [null, null] : heldState.holes,
       matchEnded: false,
       matchWinner: null,
       potAwardFlash: null,
@@ -539,7 +540,7 @@ export function HoldemPlayUI({
               </p>
             </div>
           ) : null}
-          {/* 상대 카드 — 쇼다운·핸드오버: 전체 공개, 평시: compact 한 줄 배너 */}
+          {/* 쇼다운 카드는 결과 비교 UI에서 함께 공개한다. */}
           {!selecting ? state.phase === "showdown" || state.phase === "hand_over" ? (
             <div
               className={[
@@ -560,25 +561,7 @@ export function HoldemPlayUI({
                 </div>
               ) : null}
             </div>
-          ) : (
-            <div
-              className={[
-                "hidden transition-opacity duration-500 lg:block",
-                showdownCinema.active && showdownCinema.phase !== "showdown-resolve"
-                  ? "opacity-55"
-                  : "",
-              ].join(" ")}
-            >
-              <OpponentCompactBanner
-                state={state}
-                viewer={viewer}
-                oppName={playerNames[other(viewer)]!}
-              />
-              <div className="mt-2">
-                <IaBanner state={state} viewer={viewer} playerNames={playerNames} />
-              </div>
-            </div>
-          ) : null}
+          ) : null : null}
 
           {!selecting && !showdownCinema.blockingInput ? <AllInBanner state={state} /> : null}
           {showResultBannerSlot ? (
@@ -685,13 +668,7 @@ export function HoldemPlayUI({
                 />
               </div>
             ) : (
-              <>
-                <OpponentCompactBanner
-                  state={state}
-                  viewer={viewer}
-                  oppName={playerNames[other(viewer)]!}
-                />
-                <div className="rounded-xl border border-zinc-600/90 bg-zinc-700/40 p-3">
+              <div className="rounded-xl border border-zinc-600/90 bg-zinc-700/40 p-3">
                   <HoleCards
                     state={cinemaDisplayState}
                     viewer={viewer}
@@ -700,8 +677,7 @@ export function HoldemPlayUI({
                     cinematicWinnerPulse={winnerCinematicPulse}
                     showdownFxArmed={showdownFxArmed}
                   />
-                </div>
-              </>
+              </div>
             )}
             {!showdownCinema.blockingInput ? (
               <IaBanner state={state} viewer={viewer} playerNames={playerNames} />

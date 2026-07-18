@@ -9,6 +9,7 @@ import { totalIaDeductedFromPotThisHand } from "@/holdem/bettingHelpers";
 import { resolveHandBlinds } from "@/holdem/blindLevels";
 import { chipsAsBbLabel } from "@/holdem/formatBb";
 import type { GameState, PlayerIndex } from "@/holdem/types";
+import { PlayingCard } from "./Card";
 
 export type HandResultBannerProps = {
   state: GameState;
@@ -78,11 +79,12 @@ export function HandResultBanner({
           <p className="leading-snug sm:leading-snug">
             <span className="text-2xl font-bold tracking-tight text-zinc-50 sm:text-3xl">
               {split ? (
-                <>👉 무승부</>
+                <>SPLIT POT</>
               ) : (
                 <>
-                  👉 <span className="text-zinc-100">{pl(state.winner!)}</span>
-                  <span className="font-semibold text-zinc-400"> 승리</span>
+                  <span className="text-amber-300">WINNER</span>{" · "}
+                  <span className="text-zinc-100">{pl(state.winner!)}</span>
+                  <span className="font-semibold text-zinc-300"> WIN</span>
                 </>
               )}
             </span>
@@ -106,11 +108,19 @@ export function HandResultBanner({
           ) : null}
         </div>
 
-        <div className="mt-3 grid gap-2 sm:grid-cols-2 sm:gap-2.5">
+        <div className="mt-3 grid gap-2 sm:grid-cols-[1fr_auto_1fr] sm:items-center sm:gap-3">
           <div className={panel0}>
-            <div className="text-[10px] font-medium text-zinc-500">{pl(0)}</div>
+            <div className="flex items-center justify-between gap-2">
+              <div className="text-xs font-bold text-zinc-200">{pl(0)}</div>
+              <span className={`text-[10px] font-black tracking-wider ${split ? "text-emerald-300" : highlight0 ? "text-amber-300" : "text-zinc-500"}`}>
+                {split ? "SPLIT POT" : highlight0 ? "WINNER" : "LOSE"}
+              </span>
+            </div>
+            <div className="mt-2 flex justify-center gap-2">
+              {h0.hole.map((card, index) => <PlayingCard key={`${card.rank}-${card.suit}-${index}`} card={card} size="compact" />)}
+            </div>
             <p
-              className={`mt-0.5 font-mono text-xs ${
+              className={`mt-2 text-center font-mono text-sm font-semibold ${
                 split
                   ? "text-emerald-100"
                   : highlight0
@@ -121,10 +131,19 @@ export function HandResultBanner({
               {handValueShowdownConciseKorean(v0)}
             </p>
           </div>
+          <div className="text-center text-xs font-black tracking-[0.2em] text-zinc-500">VS</div>
           <div className={panel1}>
-            <div className="text-[10px] font-medium text-zinc-500">{pl(1)}</div>
+            <div className="flex items-center justify-between gap-2">
+              <div className="text-xs font-bold text-zinc-200">{pl(1)}</div>
+              <span className={`text-[10px] font-black tracking-wider ${split ? "text-emerald-300" : highlight1 ? "text-violet-300" : "text-zinc-500"}`}>
+                {split ? "SPLIT POT" : highlight1 ? "WINNER" : "LOSE"}
+              </span>
+            </div>
+            <div className="mt-2 flex justify-center gap-2">
+              {h1.hole.map((card, index) => <PlayingCard key={`${card.rank}-${card.suit}-${index}`} card={card} size="compact" />)}
+            </div>
             <p
-              className={`mt-0.5 font-mono text-xs ${
+              className={`mt-2 text-center font-mono text-sm font-semibold ${
                 split
                   ? "text-emerald-100"
                   : highlight1
