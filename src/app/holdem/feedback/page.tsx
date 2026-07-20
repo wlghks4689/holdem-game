@@ -1,16 +1,11 @@
-import Link from "next/link";
 import FeedbackClient from "./FeedbackClient";
+import { BackHomeLink } from "../components/BackHomeLink";
 
 export default function FeedbackPage() {
   return (
     <div className="min-h-dvh bg-zinc-900 text-zinc-50">
       <div className="mx-auto max-w-lg px-4 py-10 pb-20">
-        <Link
-          href="/holdem"
-          className="text-sm font-medium text-sky-400 hover:text-sky-300 hover:underline"
-        >
-          ← 홈으로
-        </Link>
+        <BackHomeLink />
 
         <div className="mt-6 mb-8">
           <h1 className="text-2xl font-bold tracking-tight text-zinc-50">

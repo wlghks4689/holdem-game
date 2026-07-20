@@ -33,26 +33,26 @@ const sizeFrames = {
 export type CardSize = keyof typeof sizeFrames;
 
 const rankText: Record<CardSize, string> = {
-  compact: "text-[1.2rem] font-bold leading-none tracking-tight",
-  board: "text-[1.46rem] font-bold leading-none tracking-tight sm:text-2xl",
-  hero: "text-2xl font-bold leading-none tracking-tight sm:text-[1.8rem]",
+  compact: "text-[1.3rem] font-bold leading-none tracking-tight",
+  board: "text-[1.58rem] font-bold leading-none tracking-tight sm:text-[1.62rem]",
+  hero: "text-[1.62rem] font-bold leading-none tracking-tight sm:text-[1.94rem]",
 };
 
 /** "10" 은 카드 폭이 좁아 약간 축소 */
 function rankClass(size: CardSize, narrow: boolean): string {
   if (!narrow) return rankText[size];
   if (size === "compact") {
-    return "text-[1.05rem] font-bold leading-none tracking-tight";
+    return "text-[1.13rem] font-bold leading-none tracking-tight";
   }
   return size === "board"
-    ? "text-[1.3rem] font-bold leading-none tracking-tight sm:text-[1.35rem]"
-    : "text-[1.35rem] font-bold leading-none tracking-tight sm:text-2xl";
+    ? "text-[1.4rem] font-bold leading-none tracking-tight sm:text-[1.46rem]"
+    : "text-[1.46rem] font-bold leading-none tracking-tight sm:text-[1.62rem]";
 }
 
 const suitText: Record<CardSize, string> = {
-  compact: "text-[1.8rem] leading-none",
-  board: "text-[2.3rem] leading-none sm:text-[2.4rem]",
-  hero: "text-[2.7rem] leading-none sm:text-[2.82rem]",
+  compact: "text-[1.94rem] leading-none",
+  board: "text-[2.48rem] leading-none sm:text-[2.59rem]",
+  hero: "text-[2.92rem] leading-none sm:text-[3.05rem]",
 };
 
 const contentOffset: Record<CardSize, string> = {

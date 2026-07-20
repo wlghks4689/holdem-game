@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import type { GameState } from "@/holdem/types";
+import { useHoldemI18n } from "@/holdem/i18n/HoldemLocaleProvider";
 import { bestFiveCardsFromSeven, best5Of7, compareHandValue } from "@/holdem/pokerEval";
 import { useHoldemMotionMode } from "../HoldemMotionRuntime";
 import { CardBack, PlayingCard } from "./Card";
@@ -18,6 +19,16 @@ const streetKo: Record<string, string> = {
   river: "리버",
   showdown: "쇼다운",
   hand_over: "종료",
+};
+
+const streetEn: Record<string, string> = {
+  hand_select: "HAND SELECT",
+  preflop: "PREFLOP",
+  flop: "FLOP",
+  turn: "TURN",
+  river: "RIVER",
+  showdown: "SHOWDOWN",
+  hand_over: "COMPLETE",
 };
 
 /** 플랍/턴 폴드 후 레빗 — 미공개 슬롯에 오버레이·공개 시 동일 보드 줄에 표시 */
@@ -45,11 +56,12 @@ const BOARD_GAP = "gap-2 sm:gap-5 lg:gap-7";
 function rabbitSlotLabel(
   i: number,
   revealedAtFold: 3 | 4,
+  isEn: boolean,
 ): string {
   if (revealedAtFold === 3) {
-    return i === 3 ? "턴" : "리버";
+    return i === 3 ? (isEn ? "TURN" : "턴") : isEn ? "RIVER" : "리버";
   }
-  return "리버";
+  return isEn ? "RIVER" : "리버";
 }
 
 function buildEnterDeal(
@@ -63,7 +75,7 @@ function buildEnterDeal(
   const cinemaStreet = slot < 3 ? "flop" : slot === 3 ? "turn" : "river";
   const cinematicDuration = subtle
     ? cinemaStreet === "flop" ? 300 : cinemaStreet === "turn" ? 360 : 440
-    : cinemaStreet === "flop" ? 520 : cinemaStreet === "turn" ? 620 : 760;
+    : cinemaStreet === "flop" ? 806 : cinemaStreet === "turn" ? 806 : 900;
   const normalDuration = cinematicFlip ? cinematicDuration : 620;
   const subtleDuration = cinematicFlip ? cinematicDuration : 380;
   const flipClass = subtle
@@ -137,6 +149,8 @@ export function BoardDisplay({
   cinemaAnticipation = null,
   rabbitHunt = null,
 }: BoardDisplayProps) {
+  const { locale } = useHoldemI18n();
+  const isEn = locale === "en";
   const motionMode = useHoldemMotionMode();
   const subtleMotion = motionMode === "subtle";
   const rev =
@@ -144,9 +158,15 @@ export function BoardDisplay({
       ? visualRevealedOverride
       : state.boardRevealed;
   const slots = [0, 1, 2, 3, 4] as const;
+  const overrideLabel =
+    isEn && streetLabelOverride != null
+      ? ({ 쇼다운: "SHOWDOWN", 플랍: "FLOP", 턴: "TURN", 리버: "RIVER" }[
+          streetLabelOverride
+        ] ?? streetLabelOverride)
+      : streetLabelOverride;
   const label =
-    streetLabelOverride ??
-    streetKo[state.phase] ??
+    overrideLabel ??
+    (isEn ? streetEn[state.phase] : streetKo[state.phase]) ??
     state.phase;
   const showdown = state.phase === "showdown";
 
@@ -181,6 +201,7 @@ export function BoardDisplay({
 
   const [enterDeals, setEnterDeals] = React.useState<EnterDeal[]>([]);
   const prevRevRef = React.useRef(rev);
+  const enterDealRoundRef = React.useRef(state.roundNumber);
   const dealSeqRef = React.useRef(1);
   const clearTimersRef = React.useRef<number[]>([]);
 
@@ -209,6 +230,14 @@ export function BoardDisplay({
   }, []);
 
   React.useEffect(() => {
+    if (enterDealRoundRef.current !== state.roundNumber) {
+      setEnterDeals([]);
+      prevRevRef.current = rev;
+      enterDealRoundRef.current = state.roundNumber;
+      for (const t of clearTimersRef.current) window.clearTimeout(t);
+      clearTimersRef.current = [];
+      return;
+    }
     const prev = prevRevRef.current;
     if (rev <= prev) {
       prevRevRef.current = rev;
@@ -253,13 +282,6 @@ export function BoardDisplay({
     prevRevRef.current = rev;
   }, [rev, state.board, state.roundNumber, cinematicFlip, subtleMotion]);
 
-  React.useEffect(() => {
-    setEnterDeals([]);
-    prevRevRef.current = rev;
-    for (const t of clearTimersRef.current) window.clearTimeout(t);
-    clearTimersRef.current = [];
-  }, [state.roundNumber]); // new hand safety reset
-
   const tailIndices = slots.filter((i) => i >= rev && i < 5);
   const rabbitTail = rabbitHunt?.active === true && tailIndices.length > 0;
   const rabbitSingleTail = rabbitTail && tailIndices.length === 1;
@@ -276,7 +298,7 @@ export function BoardDisplay({
     >
       <div className={showdown ? "mb-1.5 text-center sm:mb-2" : "mb-2 text-center sm:mb-3"}>
         <div className="text-[11px] font-semibold uppercase tracking-wider text-amber-500/85 sm:text-xs lg:text-sm">
-          <span className="text-zinc-500">보드</span>
+          <span className="text-zinc-500">{isEn ? "BOARD" : "보드"}</span>
           <span className="mx-1.5 text-zinc-600" aria-hidden>
             ·
           </span>
@@ -313,7 +335,10 @@ export function BoardDisplay({
             return (
               <div
                 key={i}
-                className="relative transition-transform lg:origin-center lg:scale-[1.14]"
+                className={[
+                  "relative transition-[transform,opacity,filter] duration-300 lg:origin-center lg:scale-[1.14]",
+                  madeOnWinner ? "z-10 scale-[1.04] lg:scale-[1.2]" : "",
+                ].join(" ")}
               >
                 <PlayingCard
                   card={c}
@@ -321,10 +346,10 @@ export function BoardDisplay({
                   className={[
                     showdown ? "drop-shadow-sm" : "drop-shadow-md",
                     madeOnWinner
-                      ? "ring-2 ring-amber-300/75 shadow-[0_0_22px_rgba(252,211,77,0.28)]"
+                      ? "brightness-[1.2] contrast-[1.12] saturate-[1.15] ring-[3px] ring-amber-200/95 shadow-[0_0_34px_rgba(253,224,71,0.58),0_0_12px_rgba(255,255,255,0.34)]"
                       : "",
                     dimNonMade
-                      ? "opacity-35 brightness-[0.78] saturate-50 grayscale-[0.18]"
+                      ? "opacity-20 brightness-[0.48] contrast-75 saturate-[0.28] grayscale-[0.58]"
                       : "",
                     hasEnterDeal ? "opacity-0" : "opacity-100",
                   ].join(" ")}
@@ -349,10 +374,10 @@ export function BoardDisplay({
                         className={[
                           "drop-shadow-lg",
                           madeOnWinner
-                            ? "ring-2 ring-amber-300/80 shadow-[0_0_26px_rgba(252,211,77,0.32)]"
+                            ? "brightness-[1.2] contrast-[1.12] saturate-[1.15] ring-[3px] ring-amber-200/95 shadow-[0_0_36px_rgba(253,224,71,0.62),0_0_12px_rgba(255,255,255,0.36)]"
                             : "",
                           dimNonMade
-                            ? "opacity-35 brightness-[0.78] saturate-50 grayscale-[0.18]"
+                            ? "opacity-20 brightness-[0.48] contrast-75 saturate-[0.28] grayscale-[0.58]"
                             : "",
                         ].join(" ")}
                       />
@@ -410,14 +435,24 @@ export function BoardDisplay({
                           rabbitHunt.onToggle();
                         }
                       }}
-                      aria-label={showRabbitCard ? "레빗 카드 닫기" : "레빗 카드 공개"}
+                      aria-label={
+                        showRabbitCard
+                          ? isEn
+                            ? "Hide rabbit card"
+                            : "레빗 카드 닫기"
+                          : isEn
+                            ? "Reveal rabbit card"
+                            : "레빗 카드 공개"
+                      }
                     >
                       {showRabbitCard ? (
                         <>
                           <span className="whitespace-nowrap text-[9px] font-medium text-cyan-200/85">
                             {rabbitSingleTail
-                              ? "레빗"
-                              : rabbitSlotLabel(i, rabbitHunt.revealedAtFold)}
+                              ? isEn
+                                ? "RABBIT"
+                                : "레빗"
+                              : rabbitSlotLabel(i, rabbitHunt.revealedAtFold, isEn)}
                           </span>
                           <PlayingCard
                             card={c}

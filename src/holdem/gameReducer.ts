@@ -733,7 +733,9 @@ export function holdemReducer(
       const actionLabel = wentAllIn ? "올인 콜" : "콜";
       pushLog(s, { t: "preflop_action", player: p, action: actionLabel, amount: pay });
 
-      if (wentAllIn) {
+      // 콜러가 커버하더라도 상대가 이미 올인이면 현재 스트리트부터
+      // 런아웃 UI를 시작한다. 팟·승패 계산은 기존 runOut 경로와 동일하다.
+      if (wentAllIn || s.chips[other(p)]! <= 1e-9) {
         runOutBoardToShowdown(s);
         return done(s);
       }
@@ -881,7 +883,8 @@ export function holdemReducer(
       if (pay <= 0) return state;
       const actionLabel = wentAllIn ? "올인 콜" : "콜";
       pushLog(s, { t: "postflop_action", player: p, action: actionLabel, amount: pay });
-      if (wentAllIn) {
+      // 커버 콜도 다음 스트리트로 먼저 넘기지 않고 현재 공개 장수를 보존한다.
+      if (wentAllIn || s.chips[other(p)]! <= 1e-9) {
         runOutBoardToShowdown(s);
         return done(s);
       }

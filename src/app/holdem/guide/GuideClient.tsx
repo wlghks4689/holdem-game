@@ -349,7 +349,7 @@ export function GuideClient() {
           <p>
             {isEn ? (
               <>
-                Each round one player is the <Tag>Dealer (SB)</Tag> and the other
+                Each round one player is the <Tag>BTN (SB)</Tag> and the other
                 is the <Tag>BB</Tag>.
               </>
             ) : (
@@ -367,7 +367,7 @@ export function GuideClient() {
               </span>{" "}
               —{" "}
               {isEn
-                ? "Dealer (SB) acts first. Options: call · raise · fold (fold may be restricted when facing a bet)."
+                ? "BTN (SB) acts first. Options: call · raise · fold (fold may be restricted when facing a bet)."
                 : "딜러(SB)가 먼저 베팅합니다. 콜·레이즈·폴드 중 선택(맞춰야 할 상황에서는 폴드가 막힐 수 있음)."}
             </li>
             <li>
@@ -431,7 +431,7 @@ export function GuideClient() {
             </li>
             <li>
               {isEn
-                ? "The dealer button switches every round."
+                ? "The BTN switches every round."
                 : "매 라운드가 끝날 때마다 딜러 역할이 바뀝니다."}
             </li>
           </ul>

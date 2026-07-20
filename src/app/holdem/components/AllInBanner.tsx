@@ -1,6 +1,7 @@
 'use client';
 
 import { facingFor } from "@/holdem/bettingHelpers";
+import { useHoldemI18n } from "@/holdem/i18n/HoldemLocaleProvider";
 import type { GameState } from "@/holdem/types";
 
 export type AllInBannerProps = {
@@ -9,6 +10,8 @@ export type AllInBannerProps = {
 
 /** 올인·보드 자동 런아웃 중 안내 */
 export function AllInBanner({ state }: AllInBannerProps) {
+  const { locale } = useHoldemI18n();
+  const isEn = locale === "en";
   if (state.matchEnded) return null;
   if (
     state.phase === "hand_select" ||
@@ -26,11 +29,19 @@ export function AllInBanner({ state }: AllInBannerProps) {
     facingFor(act, state.betting) > 1e-9;
 
   const title = mustRespond
-    ? "상대 올인 — 응답 필요"
-    : "보드 자동 공개 · 쇼다운 진행";
+    ? isEn
+      ? "Opponent all-in — response required"
+      : "상대 올인 — 응답 필요"
+    : isEn
+      ? "Automatic runout · showdown in progress"
+      : "보드 자동 공개 · 쇼다운 진행";
   const sub = mustRespond
-    ? "폴드하거나 스택 전부로 콜하세요. 추가 베팅은 없습니다."
-    : "추가 베팅 없이 남은 카드가 공개되고 쇼다운으로 넘어갑니다.";
+    ? isEn
+      ? "Fold or call with your remaining stack. No further betting is possible."
+      : "폴드하거나 스택 전부로 콜하세요. 추가 베팅은 없습니다."
+    : isEn
+      ? "The remaining board will be revealed with no further betting."
+      : "추가 베팅 없이 남은 카드가 공개되고 쇼다운으로 넘어갑니다.";
 
   return (
     <div className="flex flex-col gap-1 rounded-xl border border-amber-500/50 bg-amber-950/30 px-4 py-3 shadow-[0_0_20px_rgba(245,158,11,0.12)] sm:flex-row sm:items-center sm:justify-between">

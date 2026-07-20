@@ -6,6 +6,7 @@
 # 변경 사항:
 #   - assetPrefix "./" → ./_next/... 상대경로 생성
 #   - HTML 포스트 처리: favicon 및 인라인 RSC 페이로드 절대경로 수정
+#   - Next.js 절대 라우트 링크를 정적 HTML 파일로 연결하는 itch 내비게이션 추가
 #   - 빌드 완료 후 itch-build.zip 자동 생성
 #
 # 사용법: npm run build:itch
@@ -28,6 +29,7 @@ $routeFiles = @(
     "src\app\api\room\[roomId]\pause\route.ts",
     "src\app\api\room\[roomId]\rematch\route.ts",
     "src\app\api\room\[roomId]\status\route.ts",
+    "src\app\holdem\rooms\page.tsx",
     "src\app\holdem\room\[roomId]\page.tsx"
 )
 
@@ -74,6 +76,7 @@ try {
     Write-Host "[ 3 / 4 ] Post-processing HTML paths for relative embedding..." -ForegroundColor DarkGray
 
     $outDir = Join-Path $root "out"
+    Copy-Item -LiteralPath (Join-Path $root "scripts\itch-navigation.js") -Destination (Join-Path $outDir "itch-navigation.js") -Force
 
     Get-ChildItem $outDir -Recurse -Filter "*.html" -File | ForEach-Object {
         $file    = $_
@@ -93,6 +96,7 @@ try {
             $fixed = $fixed -replace '(?<!\.)/_next/', './_next/'
             # favicon: public 폴더 자산은 assetPrefix 가 건드리지 않음
             $fixed = $fixed -replace '"/favicon\.ico', '"./favicon.ico'
+            $itchNavSrc = "./itch-navigation.js"
         } else {
             # ─ 서브디렉토리 HTML (holdem/*.html 등) ───────────────────────────
             # <link>/<script> 에 assetPrefix 가 이미 "./_next/" 로 만들었지만
@@ -105,7 +109,14 @@ try {
             $fixed = $fixed -replace '(?<!\.)/_next/', ($up + '_next/')
             # 3) favicon
             $fixed = $fixed -replace '"/favicon\.ico', ('"' + $up + 'favicon.ico')
+            $itchNavSrc = $up + "itch-navigation.js"
         }
+
+        # Next Link는 정적 export에서도 /holdem/... 절대 경로를 생성합니다.
+        # itch.io는 업로드물을 CDN 하위 경로에 호스팅하므로, 조기 로드되는
+        # 내비게이션 어댑터가 링크를 실제 *.html 상대 파일로 연결합니다.
+        $navTag = '<script src="' + $itchNavSrc + '"></script>'
+        $fixed = $fixed -replace '<head>', ('<head>' + $navTag)
 
         if ($content -ne $fixed) {
             [System.IO.File]::WriteAllText($file.FullName, $fixed)
@@ -125,14 +136,14 @@ try {
     $newAsset = "na"
 
     # 1) 모든 파일(HTML/JS/CSS/JSON)에서 3단계 치환
-    # A: "/_next/"(절대경로, . 없음) → "./na/"  — JS 번들 내 RSC 페이로드 절대경로 수정
+    # A: "/_next/"(절대경로, . 없음) → "/na/"  — Next 런타임의 currentScript 경로 판별 보존
     # B: "./_next/" / "../_next/"(상대경로)  → "./na/" / "../na/"
     # C: "_next/"(매니페스트 엔트리, 앞에 / · . 없음) → "na/"
     $patchCount = 0
     Get-ChildItem $outDir -Recurse -File | ForEach-Object {
         if ($_.Extension -in @('.html', '.js', '.css', '.json', '.txt')) {
             $c = [System.IO.File]::ReadAllText($_.FullName)
-            $f = $c  -replace '(?<!\.)/_next/', ('./' + $newAsset + '/')   # A
+            $f = $c  -replace '(?<!\.)/_next/', ('/' + $newAsset + '/')    # A
             $f = $f  -replace '\./_next/',      ('./' + $newAsset + '/')   # B
             $f = $f  -replace '(?<![./])_next/', ($newAsset + '/')         # C
             if ($c -ne $f) {

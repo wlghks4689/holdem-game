@@ -11,7 +11,8 @@ import {
   iaAppliedCostFromStack,
   isVoluntaryBetAmount,
   levelFromContributions,
-  postflopMaxOpenBetForActor,
+  postflopAiMaxOpenBetForActor,
+  postflopAiMaxRaiseTargetForActor,
   postflopMinRaiseTargetForActor,
   postflopRaiseTargetCappedByOpponent,
   roundHalfChip,
@@ -155,7 +156,7 @@ function snapRaiseTargets(
 
 function openBetCandidates(statePot: GameState): number[] {
   const bb = resolveHandBlinds(statePot).bb;
-  const maxB = postflopMaxOpenBetForActor(statePot);
+  const maxB = postflopAiMaxOpenBetForActor(statePot);
   const allowSub = headsUpSubBbVoluntaryEnabled(statePot);
   const minB = allowSub ? SMALLEST_CHIP : bb;
   if (maxB + CHIP_EPS < minB) return [];
@@ -271,7 +272,8 @@ export function pickBestRiverEvAction(
 
     if (!state.isAllIn && !streetRaiseCapReached(state.betting)) {
       const minR = postflopMinRaiseTargetForActor(sPot);
-      const maxR = postflopRaiseTargetCappedByOpponent(sPot);
+      const legalMaxR = postflopRaiseTargetCappedByOpponent(sPot);
+      const maxR = postflopAiMaxRaiseTargetForActor(sPot);
       const subBb = headsUpSubBbVoluntaryEnabled(sPot);
       if (minR <= maxR + CHIP_EPS) {
         for (const T of snapRaiseTargets(minR, maxR, bb, subBb)) {
@@ -284,9 +286,9 @@ export function pickBestRiverEvAction(
             best = { type: "POSTFLOP_RAISE", toLevelChips: T };
           }
         }
-      } else {
-        // 노리밋 미달이어도 올인 레이즈는 허용.
-        const T = maxR;
+      } else if (legalMaxR + CHIP_EPS < minR) {
+        // 스택이 최소 레이즈에 못 미치는 낮은 SPR 상황의 올인은 유지한다.
+        const T = legalMaxR;
         if (isLegalPostflopRaiseTo(sPot, T)) {
           const out = raisePotOutcome(state, aiSeat, potEff, T);
           if (out.ok) {
@@ -372,7 +374,8 @@ export function enumerateRiverLineCandidates(
 
     if (!state.isAllIn && !streetRaiseCapReached(state.betting)) {
       const minR = postflopMinRaiseTargetForActor(sPot);
-      const maxR = postflopRaiseTargetCappedByOpponent(sPot);
+      const legalMaxR = postflopRaiseTargetCappedByOpponent(sPot);
+      const maxR = postflopAiMaxRaiseTargetForActor(sPot);
       const subBb = headsUpSubBbVoluntaryEnabled(sPot);
       if (minR <= maxR + CHIP_EPS) {
         for (const T of snapRaiseTargets(minR, maxR, bb, subBb)) {
@@ -386,9 +389,9 @@ export function enumerateRiverLineCandidates(
             byKind.set("raise", { kind: "raise", ev: evR, action: act });
           }
         }
-      } else {
-        // 노리밋 미달이어도 올인 레이즈는 허용
-        const T = maxR;
+      } else if (legalMaxR + CHIP_EPS < minR) {
+        // 스택이 최소 레이즈에 못 미치는 낮은 SPR 상황의 올인은 유지한다.
+        const T = legalMaxR;
         if (isLegalPostflopRaiseTo(sPot, T)) {
           const out = raisePotOutcome(state, aiSeat, potEff, T);
           if (out.ok) {

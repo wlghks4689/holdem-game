@@ -2,14 +2,11 @@
 
 import * as React from "react";
 import type { GameState, PlayerIndex } from "@/holdem/types";
-import {
-  best5Of7,
-  compareHandValue,
-  handValueShowdownConciseForLocale,
-} from "@/holdem/pokerEval";
 import { useHoldemI18n } from "@/holdem/i18n/HoldemLocaleProvider";
+import { ALL_IN_RESULT_HOLD_MS } from "../allInCinemaTimeline";
+import { buildShowdownResultPresentation } from "../showdownPresentation";
 
-const AUTO_HIDE_MS = 2600;
+const AUTO_HIDE_MS = ALL_IN_RESULT_HOLD_MS;
 
 export type ShowdownDramaticOverlayProps = {
   state: GameState;
@@ -18,8 +15,8 @@ export type ShowdownDramaticOverlayProps = {
   armed: boolean;
 };
 
-function pl(playerNames: [string, string], p: PlayerIndex) {
-  return playerNames[p] ?? `플레이어 ${p + 1}`;
+function pl(playerNames: [string, string], p: PlayerIndex, isEn: boolean) {
+  return playerNames[p] ?? `${isEn ? "Player" : "플레이어"} ${p + 1}`;
 }
 
 export function ShowdownDramaticOverlay({
@@ -31,6 +28,20 @@ export function ShowdownDramaticOverlay({
   const [open, setOpen] = React.useState(false);
   const timers = React.useRef<number[]>([]);
 
+  const h0 = state.holes[0];
+  const h1 = state.holes[1];
+  const result = React.useMemo(
+    () =>
+      h0 && h1 && state.board.length >= 5
+        ? buildShowdownResultPresentation(
+            [h0.hole, h1.hole],
+            state.board,
+            locale,
+          )
+        : null,
+    [h0, h1, locale, state.board],
+  );
+
   const clear = React.useCallback(() => {
     timers.current.forEach((id) => window.clearTimeout(id));
     timers.current = [];
@@ -40,17 +51,15 @@ export function ShowdownDramaticOverlay({
     if (!armed) return null;
     if (state.phase !== "showdown") return null;
     if (state.boardRevealed < 5) return null;
-    const h0 = state.holes[0];
-    const h1 = state.holes[1];
-    if (!h0 || !h1) return null;
-    if (state.winner == null) return null;
-    return `sd-dramatic-${state.roundNumber}-${state.winner}-${state.logs.length}`;
+    if (state.board.length < 5) return null;
+    if (result == null) return null;
+    return `sd-dramatic-${state.roundNumber}-${result.winner ?? "tie"}-${state.logs.length}`;
   }, [
     armed,
     state.phase,
     state.boardRevealed,
-    state.holes,
-    state.winner,
+    state.board.length,
+    result,
     state.roundNumber,
     state.logs.length,
   ]);
@@ -68,19 +77,13 @@ export function ShowdownDramaticOverlay({
     return clear;
   }, [showKey, clear]);
 
-  if (!open) return null;
+  if (!open || showKey == null || result == null) return null;
 
-  const h0 = state.holes[0]!;
-  const h1 = state.holes[1]!;
-  const v0 = best5Of7([...h0.hole, ...state.board]);
-  const v1 = best5Of7([...h1.hole, ...state.board]);
-  const cmp = compareHandValue(v0, v1);
-  const split = cmp === 0;
-  const lead = split ? v0 : cmp > 0 ? v0 : v1;
-  const handLabel = handValueShowdownConciseForLocale(lead, locale);
-
-  const winnerName = split ? null : pl(playerNames, state.winner!);
-  const titleTop = locale === "en" ? "SHOWDOWN" : "쇼다운";
+  const { split, winner, labels } = result;
+  const isEn = locale === "en";
+  const handLabel = winner == null ? labels[0] : labels[winner];
+  const winnerName = winner == null ? null : pl(playerNames, winner, isEn);
+  const titleTop = isEn ? "SHOWDOWN" : "쇼다운";
   const winText =
     locale === "en"
       ? split
@@ -92,19 +95,19 @@ export function ShowdownDramaticOverlay({
 
   return (
     <div
-      className="pointer-events-none fixed inset-0 z-[65] flex items-center justify-center"
-      aria-label="쇼다운 결과 연출"
+      className="pointer-events-none fixed inset-0 z-[65] flex items-start justify-center px-3 pt-[max(4.5rem,9vh)] sm:pt-[max(5rem,10vh)]"
+      aria-label={isEn ? "Showdown result presentation" : "쇼다운 결과 연출"}
     >
       <div
         className="absolute inset-0"
         style={{ animation: "holdem-sd-backdrop-in 220ms ease-out both" }}
       >
-        <div className="absolute inset-0 bg-black/55 backdrop-blur-[2px]" />
+        <div className="absolute inset-0 bg-black/38 backdrop-blur-[1px]" />
         <div className="absolute inset-0 holdem-sd-vignette" />
       </div>
 
       <div
-        className="relative mx-4 w-full max-w-[32rem] rounded-2xl border border-amber-300/30 bg-zinc-950/60 p-4 text-center shadow-[0_0_60px_rgba(0,0,0,0.55)]"
+        className="relative w-full max-w-[36rem] rounded-2xl border border-amber-300/50 bg-zinc-950/82 p-4 text-center shadow-[0_0_75px_rgba(251,191,36,0.18),0_22px_70px_rgba(0,0,0,0.62)] backdrop-blur-md sm:p-5"
         style={{ animation: "holdem-sd-panel-in 520ms cubic-bezier(0.22,1,0.36,1) both" }}
       >
         <p
@@ -135,6 +138,22 @@ export function ShowdownDramaticOverlay({
           <span className="text-sm font-semibold text-violet-100/95">
             {handLabel}
           </span>
+        </div>
+
+        <div className="mt-3 grid grid-cols-[1fr_auto_1fr] items-center gap-2 text-[11px] sm:gap-3 sm:text-xs">
+          <div className={split || winner === 0 ? "font-bold text-amber-100" : "text-zinc-500"}>
+            <span className="block truncate text-[10px] uppercase tracking-wider text-zinc-400">
+              {pl(playerNames, 0, isEn)}
+            </span>
+            {labels[0]}
+          </div>
+          <span className="font-black tracking-[0.18em] text-zinc-600">VS</span>
+          <div className={split || winner === 1 ? "font-bold text-violet-100" : "text-zinc-500"}>
+            <span className="block truncate text-[10px] uppercase tracking-wider text-zinc-400">
+              {pl(playerNames, 1, isEn)}
+            </span>
+            {labels[1]}
+          </div>
         </div>
       </div>
     </div>

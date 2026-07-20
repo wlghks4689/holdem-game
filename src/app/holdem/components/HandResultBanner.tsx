@@ -3,8 +3,9 @@
 import {
   best5Of7,
   compareHandValue,
-  handValueShowdownConciseKorean,
+  handValueShowdownConciseForLocale,
 } from "@/holdem/pokerEval";
+import { useHoldemI18n } from "@/holdem/i18n/HoldemLocaleProvider";
 import { totalIaDeductedFromPotThisHand } from "@/holdem/bettingHelpers";
 import { resolveHandBlinds } from "@/holdem/blindLevels";
 import { chipsAsBbLabel } from "@/holdem/formatBb";
@@ -23,8 +24,11 @@ export function HandResultBanner({
   playerNames,
   visible = true,
 }: HandResultBannerProps) {
+  const { locale } = useHoldemI18n();
+  const isEn = locale === "en";
   if (!visible) return null;
-  const pl = (p: PlayerIndex) => playerNames[p] ?? `플레이어 ${p + 1}`;
+  const pl = (p: PlayerIndex) =>
+    playerNames[p] ?? `${isEn ? "Player" : "플레이어"} ${p + 1}`;
   const h0 = state.holes[0];
   const h1 = state.holes[1];
   const bbUnit = resolveHandBlinds(state).bb;
@@ -46,10 +50,10 @@ export function HandResultBanner({
     const iaDeducted = totalIaDeductedFromPotThisHand(state.logs);
 
     const leadHand = split
-      ? handValueShowdownConciseKorean(v0)
+      ? handValueShowdownConciseForLocale(v0, locale)
       : cmp > 0
-        ? handValueShowdownConciseKorean(v0)
-        : handValueShowdownConciseKorean(v1);
+        ? handValueShowdownConciseForLocale(v0, locale)
+        : handValueShowdownConciseForLocale(v1, locale);
 
     const panel0 = split
       ? "rounded-lg border border-emerald-700/40 bg-emerald-950/15 px-2.5 py-2 ring-1 ring-emerald-500/25"
@@ -96,14 +100,14 @@ export function HandResultBanner({
               <>
                 <span className="text-zinc-600"> · </span>
                 <span className="font-mono text-xs text-amber-200/80 sm:text-sm">
-                  팟 {potBb}
+                  {isEn ? "Pot" : "팟"} {potBb}
                 </span>
               </>
             ) : null}
           </p>
           {iaDeducted > 0 ? (
             <p className="mt-2 font-mono text-[10px] text-indigo-300/75">
-              IA 제외 {chipsAsBbLabel(iaDeducted, bbUnit)}
+              {isEn ? "IA deducted" : "IA 제외"} {chipsAsBbLabel(iaDeducted, bbUnit)}
             </p>
           ) : null}
         </div>
@@ -128,7 +132,7 @@ export function HandResultBanner({
                     : "text-zinc-500"
               }`}
             >
-              {handValueShowdownConciseKorean(v0)}
+              {handValueShowdownConciseForLocale(v0, locale)}
             </p>
           </div>
           <div className="text-center text-xs font-black tracking-[0.2em] text-zinc-500">VS</div>
@@ -151,7 +155,7 @@ export function HandResultBanner({
                     : "text-zinc-500"
               }`}
             >
-              {handValueShowdownConciseKorean(v1)}
+              {handValueShowdownConciseForLocale(v1, locale)}
             </p>
           </div>
         </div>
@@ -166,16 +170,16 @@ export function HandResultBanner({
         <p className="text-sm font-bold leading-snug text-zinc-50 sm:text-[15px]">
           {w != null ? (
             <>
-              상대 폴드로 승리 ·{" "}
+              {isEn ? "Won by opponent fold" : "상대 폴드로 승리"} ·{" "}
               <span className="text-emerald-300">{pl(w)}</span>
             </>
           ) : (
-            "폴드로 종료"
+            isEn ? "Hand ended by fold" : "폴드로 종료"
           )}
         </p>
         {w != null ? (
           <p className="mt-0.5 text-[10px] leading-tight text-zinc-500">
-            상대 홀 카드 비공개
+            {isEn ? "Opponent hole cards remain hidden" : "상대 홀 카드 비공개"}
           </p>
         ) : null}
       </div>

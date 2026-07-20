@@ -6,9 +6,10 @@
 import {
   effectiveCallPay,
   facingFor,
+  postflopAiMaxOpenBetForActor,
+  postflopAiMaxRaiseTargetForActor,
   iaAppliedCostFromStack,
   postflopRaiseTargetCappedByOpponent,
-  postflopMaxOpenBetForActor,
   headsUpSubBbVoluntaryEnabled,
   postflopMinRaiseTargetForActor,
   preflopHasLegalRaise,
@@ -385,7 +386,7 @@ function postflopAction(
   if (difficulty === "easy") {
     const r = Math.random();
     if (facing === 0) {
-      const maxB = postflopMaxOpenBetForActor(state);
+      const maxB = postflopAiMaxOpenBetForActor(state);
       const minBet = headsUpSubBbVoluntaryEnabled(state) ? SMALLEST_CHIP : bb;
       if (!isAllIn && r < 0.38 && maxB >= minBet - 1e-9) {
         return {
@@ -397,7 +398,8 @@ function postflopAction(
     } else {
       if (!isAllIn && !streetRaiseCapReached(state.betting) && r < 0.18) {
         const minR = postflopMinRaiseTargetForActor(state);
-        const maxR = postflopRaiseTargetCappedByOpponent(state);
+        const legalMaxR = postflopRaiseTargetCappedByOpponent(state);
+        const maxR = postflopAiMaxRaiseTargetForActor(state);
         const level = state.betting.currentLevel;
         // 노리밋: 스택이 min-raise를 못 맞추더라도 "올인 레이즈"는 허용
         if (minR <= maxR + 1e-9) {
@@ -406,8 +408,8 @@ function postflopAction(
             toLevelChips: clamp(rng(minR, maxR), minR, maxR),
           };
         }
-        if (maxR > level + 1e-9) {
-          return { type: "POSTFLOP_RAISE", toLevelChips: maxR };
+        if (legalMaxR + 1e-9 < minR && legalMaxR > level + 1e-9) {
+          return { type: "POSTFLOP_RAISE", toLevelChips: legalMaxR };
         }
       }
       if (r < 0.55) return { type: "POSTFLOP_CALL" };
@@ -437,7 +439,7 @@ function postflopAction(
         (isHellPf ? rm : 1),
       0, 0.95,
     );
-    const maxB = postflopMaxOpenBetForActor(state);
+    const maxB = postflopAiMaxOpenBetForActor(state);
     const minBet = headsUpSubBbVoluntaryEnabled(state) ? SMALLEST_CHIP : bb;
 
     if (!isAllIn && Math.random() < betThresh && maxB >= minBet - 1e-9) {
@@ -479,7 +481,8 @@ function postflopAction(
     const r = Math.random();
     if (!isAllIn && !streetRaiseCapReached(state.betting) && r < raiseThresh) {
       const minR = postflopMinRaiseTargetForActor(state);
-      const maxR = postflopRaiseTargetCappedByOpponent(state);
+      const legalMaxR = postflopRaiseTargetCappedByOpponent(state);
+      const maxR = postflopAiMaxRaiseTargetForActor(state);
       const contrib = state.betting.contributed[aiSeat]!;
       const affordable = roundHalfChip(contrib + chips);
       const level = state.betting.currentLevel;
@@ -488,9 +491,13 @@ function postflopAction(
         const to = clamp(minR + (maxR - minR) * frac, minR, maxR);
         return { type: "POSTFLOP_RAISE", toLevelChips: to };
       }
-      // 노리밋: min-raise 미달이어도 올인 레이즈(=maxR)는 가능
-      if (maxR <= affordable + 1e-9 && maxR > level + 1e-9) {
-        return { type: "POSTFLOP_RAISE", toLevelChips: maxR };
+      // 노리밋: 실제 스택 상한이 min-raise 미달인 숏스택 올인은 유지한다.
+      if (
+        legalMaxR + 1e-9 < minR &&
+        legalMaxR <= affordable + 1e-9 &&
+        legalMaxR > level + 1e-9
+      ) {
+        return { type: "POSTFLOP_RAISE", toLevelChips: legalMaxR };
       }
     }
     if (r < raiseThresh + callThresh) return { type: "POSTFLOP_CALL" };

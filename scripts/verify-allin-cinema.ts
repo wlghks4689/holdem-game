@@ -2,7 +2,6 @@ import assert from "node:assert/strict";
 import type { AllInCinemaTimelineEvent } from "../src/app/holdem/allInCinemaTimeline";
 
 const timelineModulePath = "../src/app/holdem/allInCinemaTimeline.ts";
-const { buildAllInCinemaTimeline } = await import(timelineModulePath);
 
 function reveals(events: AllInCinemaTimelineEvent[]) {
   return events
@@ -23,29 +22,60 @@ function assertOrdered(events: AllInCinemaTimelineEvent[]) {
   }
 }
 
-const preflopRunout = buildAllInCinemaTimeline(0);
-assert.deepEqual(reveals(preflopRunout), [1, 2, 3, 4, 5]);
-assert.equal(resolveAt(preflopRunout), 13_240);
-assertOrdered(preflopRunout);
+async function main() {
+  const { buildAllInCinemaTimeline } = await import(timelineModulePath);
+  const { ALL_IN_CINEMA_TIMING, ALL_IN_RESULT_HOLD_MS } = await import(
+    timelineModulePath
+  );
 
-const afterFlop = buildAllInCinemaTimeline(3);
-assert.deepEqual(reveals(afterFlop), [4, 5]);
-assert.equal(resolveAt(afterFlop), 4_700);
-assertOrdered(afterFlop);
+  const preflopRunout: AllInCinemaTimelineEvent[] =
+    buildAllInCinemaTimeline(0);
+  assert.deepEqual(reveals(preflopRunout), [1, 2, 3, 4, 5]);
+  assert.equal(resolveAt(preflopRunout), 9_654);
+  assertOrdered(preflopRunout);
+  const preflopRevealTimes = preflopRunout
+    .filter((event) => event.kind === "reveal")
+    .map((event) => event.atMs);
+  assert.equal(
+    preflopRevealTimes[1]! - preflopRevealTimes[0]!,
+    ALL_IN_CINEMA_TIMING.flopCardIntervalMs,
+  );
+  assert.equal(
+    preflopRevealTimes[2]! - preflopRevealTimes[1]!,
+    ALL_IN_CINEMA_TIMING.flopCardIntervalMs,
+  );
 
-const afterTurn = buildAllInCinemaTimeline(4);
-assert.deepEqual(reveals(afterTurn), [5]);
-assert.equal(resolveAt(afterTurn), 3_100);
-assertOrdered(afterTurn);
+  const afterFlop: AllInCinemaTimelineEvent[] = buildAllInCinemaTimeline(3);
+  assert.deepEqual(reveals(afterFlop), [4, 5]);
+  assert.equal(resolveAt(afterFlop), 6_222);
+  assertOrdered(afterFlop);
 
-const subtleRunout = buildAllInCinemaTimeline(0, true);
-assert.deepEqual(reveals(subtleRunout), [1, 2, 3, 4, 5]);
-assert.equal(resolveAt(subtleRunout), 4_580);
-assertOrdered(subtleRunout);
+  const afterTurn: AllInCinemaTimelineEvent[] = buildAllInCinemaTimeline(4);
+  assert.deepEqual(reveals(afterTurn), [5]);
+  assert.equal(resolveAt(afterTurn), 4_016);
+  assertOrdered(afterTurn);
 
-const riverAllIn = buildAllInCinemaTimeline(5);
-assert.deepEqual(reveals(riverAllIn), []);
-assert.equal(resolveAt(riverAllIn), 3_100);
-assertOrdered(riverAllIn);
+  const subtleRunout: AllInCinemaTimelineEvent[] =
+    buildAllInCinemaTimeline(0, true);
+  assert.deepEqual(subtleRunout, preflopRunout);
 
-console.log("All-in cinema verification passed.");
+  const riverAllIn: AllInCinemaTimelineEvent[] = buildAllInCinemaTimeline(5);
+  assert.deepEqual(reveals(riverAllIn), []);
+  assert.equal(resolveAt(riverAllIn), 1_000);
+  assertOrdered(riverAllIn);
+
+  for (const events of [preflopRunout, afterFlop, afterTurn, riverAllIn]) {
+    const targets = reveals(events);
+    assert.equal(new Set(targets).size, targets.length, "cards must reveal once");
+  }
+  assert.equal(
+    ALL_IN_CINEMA_TIMING.riverWindupMs -
+      ALL_IN_CINEMA_TIMING.turnWindupMs,
+    500,
+  );
+  assert.ok(ALL_IN_RESULT_HOLD_MS >= 2_500);
+
+  console.log("All-in cinema verification passed.");
+}
+
+void main();

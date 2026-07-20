@@ -15,13 +15,26 @@ import {
 } from "@/holdem/holdemPrefs";
 import { useHoldemI18n } from "@/holdem/i18n/HoldemLocaleProvider";
 import { iaCategoryHandListText, iaCategoryLabelKo } from "@/holdem/handPool";
-import { headsUpPositionLabel } from "@/holdem/headsUpLabels";
+import {
+  headsUpPositionLabel,
+  HU_DEALER_SB_LABEL,
+} from "@/holdem/headsUpLabels";
 import type { GameState, PlayerIndex } from "@/holdem/types";
 import { useHoldemMotionMode } from "../HoldemMotionRuntime";
 import { useTurnPulse } from "../hooks/useTurnPulse";
+import { currentShowdownHandLabels } from "../showdownPresentation";
 import { CardBack, PlayingCard } from "./Card";
 
 const other = (p: PlayerIndex): PlayerIndex => (p === 0 ? 1 : 0);
+
+/** 이전 빌드의 상세 쇼다운 문구가 섞여 들어와도 패널에는 키커를 노출하지 않는다. */
+function withoutKickerDetail(label: string | null): string | null {
+  if (label == null) return null;
+  return label
+    .replace(/\s*·\s*kickers?\b.*$/i, "")
+    .replace(/\s*·\s*[2-9TJQKA]+\s+kicker\b.*$/i, "")
+    .replace(/\s*·\s*키커\b.*$/, "");
+}
 
 /** 메이드 연출용 — 카드 링(글로우가 ::after 뒤에서도 보이도록) */
 const MADE_FX_CARD_RING: Record<number, string> = {
@@ -83,6 +96,8 @@ export type HoleCardsProps = {
   cinematicWinnerPulse?: boolean;
   /** 쇼다운 승패 강조를 활성화할지(시네마 resolve 단계에서만 true) */
   showdownFxArmed?: boolean;
+  /** 향후 정확한 올인 승률 계산기가 연결될 때 사용할 표시 슬롯 */
+  showdownEquityPercent?: [number | null, number | null];
 };
 
 function showdownCompare(state: GameState): number | null {
@@ -102,6 +117,7 @@ export function HoleCards({
   seatFilter = "both",
   cinematicWinnerPulse = false,
   showdownFxArmed = true,
+  showdownEquityPercent = [null, null],
 }: HoleCardsProps) {
   const { t, locale } = useHoldemI18n();
   const motionMode = useHoldemMotionMode();
@@ -111,6 +127,17 @@ export function HoleCards({
   const opp = other(viewer);
   const showdownReveal = state.phase === "showdown";
   const sdCmp = showdownCompare(state);
+  const showdownHandLabels = React.useMemo(() => {
+    const h0 = state.holes[0];
+    const h1 = state.holes[1];
+    if (!showdownReveal || !h0 || !h1) return [null, null] as const;
+    return currentShowdownHandLabels(
+      [h0.hole, h1.hole],
+      state.board,
+      state.boardRevealed,
+      locale,
+    );
+  }, [locale, showdownReveal, state.board, state.boardRevealed, state.holes]);
   const showdownMade = React.useMemo(() => {
     if (!showdownFxArmed || state.phase !== "showdown") return null;
     const h0 = state.holes[0];
@@ -231,11 +258,11 @@ export function HoleCards({
         /** 승자 패널만 은은한 글로우 1곳 */
         const showdownFrame =
           winnerShowdown && p === 0
-            ? "border-amber-500/55 bg-amber-950/25 shadow-[0_0_20px_rgba(251,191,36,0.22)] ring-1 ring-amber-400/45"
+            ? "border-amber-300/85 bg-amber-950/38 shadow-[0_0_46px_rgba(251,191,36,0.42)] ring-2 ring-amber-300/70"
             : winnerShowdown && p === 1
-              ? "border-violet-500/55 bg-violet-950/25 shadow-[0_0_20px_rgba(167,139,250,0.22)] ring-1 ring-violet-400/45"
+              ? "border-violet-300/85 bg-violet-950/38 shadow-[0_0_46px_rgba(167,139,250,0.42)] ring-2 ring-violet-300/70"
               : tieShowdown
-                ? "border-emerald-600/40 bg-emerald-950/20 ring-1 ring-emerald-500/35"
+                ? "border-emerald-300/80 bg-emerald-950/32 shadow-[0_0_36px_rgba(52,211,153,0.3)] ring-2 ring-emerald-300/65"
                 : "";
 
         let toneFrame = "";
@@ -261,7 +288,7 @@ export function HoleCards({
           "rounded-xl border transition-[box-shadow,background-color,border-color,opacity,filter] duration-200",
           showdownReveal ? "px-2 py-2" : "px-3 py-3",
           loserShowdown
-            ? "border-zinc-700/85 bg-zinc-800/35 text-zinc-500"
+            ? "border-zinc-800/85 bg-zinc-950/45 text-zinc-600 opacity-[0.48] brightness-[0.72] saturate-50"
             : toneFrame,
           dimPanelForIdleTurn ? "opacity-[0.52] brightness-[0.88] saturate-75" : "",
           cinematicWinnerPulse && winnerShowdown
@@ -292,6 +319,11 @@ export function HoleCards({
                 : undefined;
 
         const seatName = playerNames[p]!;
+        const rawPositionLabel = headsUpPositionLabel(state, p);
+        const positionLabel =
+          locale === "en" && rawPositionLabel === HU_DEALER_SB_LABEL
+            ? "BTN · SB"
+            : rawPositionLabel;
 
         // 내 카드 헤더용 compact 족보 (핸드셀렉·쇼다운 제외)
         const compactHand =
@@ -306,18 +338,14 @@ export function HoleCards({
                 locale,
               )
             : "";
+        const showdownHand = withoutKickerDetail(showdownHandLabels[p]);
+        const equityPercent = showdownEquityPercent[p];
 
         const cardSize =
-          showdownReveal ? ("compact" as const) : isMe ? ("hero" as const) : ("board" as const);
+          showdownReveal ? ("hero" as const) : isMe ? ("hero" as const) : ("board" as const);
 
         const showdownCardClass = loserShowdown ? "opacity-55" : "";
         const madeKey = (c: { rank: number; suit: string }) => `${c.rank}:${c.suit}`;
-        const holeMade =
-          showdownMade?.kind === "tie"
-            ? showdownMade.sets[p].has(madeKey(sel?.hole[0] ?? { rank: -1, suit: "s" })) ||
-              showdownMade.sets[p].has(madeKey(sel?.hole[1] ?? { rank: -1, suit: "s" }))
-            : showdownMade?.kind === "win" && showdownMade.winSeat === p;
-
         return (
           <div key={p} className={frameClass} style={frameStyle}>
             <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[10px] font-medium uppercase text-zinc-400">
@@ -326,7 +354,7 @@ export function HoleCards({
                 className="rounded bg-zinc-600/80 px-1.5 py-px text-zinc-300"
                 style={{ fontSize: "calc(9px * 1.3)" }}
               >
-                {headsUpPositionLabel(state, p)}
+                {positionLabel}
               </span>
               {isMe ? (
                 <span className="text-emerald-300">{t("hole.myCards")}</span>
@@ -334,7 +362,30 @@ export function HoleCards({
                 <span className="text-zinc-500">{t("hole.opponent")}</span>
               )}
               <div className="ml-auto flex items-center gap-1.5">
-                {isToAct ? (
+                {showdownReveal && showdownFxArmed ? (
+                  <span
+                    className={[
+                      "rounded-full px-2 py-0.5 text-[9px] font-black tracking-wider",
+                      tieShowdown
+                        ? "bg-emerald-500/22 text-emerald-200 ring-1 ring-emerald-400/45"
+                        : winnerShowdown
+                          ? "bg-amber-500/25 text-amber-100 ring-1 ring-amber-300/55"
+                          : "bg-zinc-800/75 text-zinc-500 ring-1 ring-zinc-700/60",
+                    ].join(" ")}
+                  >
+                    {tieShowdown
+                      ? locale === "en"
+                        ? "SPLIT POT"
+                        : "팟 분배"
+                      : winnerShowdown
+                        ? locale === "en"
+                          ? "WINNER"
+                          : "승자"
+                        : locale === "en"
+                          ? "LOSE"
+                          : "패자"}
+                  </span>
+                ) : isToAct ? (
                   <span
                     className={
                       heroMadeTurnGlow
@@ -357,13 +408,11 @@ export function HoleCards({
             </div>
 
             {sel && showFaces ? (
-              <div className="mt-1.5">
+              <div className="mt-2">
                 <div
                   className={[
-                    "flex flex-wrap items-center gap-x-4 gap-y-2",
-                    showdownReveal
-                      ? "justify-center gap-2 sm:justify-start"
-                      : "justify-center sm:justify-start",
+                    "flex flex-col items-center justify-center gap-2.5 text-center",
+                    showdownReveal ? "sm:gap-3" : "",
                   ].join(" ")}
                 >
                   {/* 카드 2장 — 스트레이트↑ 메이드 시 티어별 연출 */}
@@ -380,7 +429,7 @@ export function HoleCards({
                     <div
                       className={[
                         "flex shrink-0",
-                        showdownReveal ? "gap-2" : "gap-3",
+                        "gap-3",
                         madeFxTier > 0 ? "holdem-made-fx-stack" : "",
                       ].join(" ")}
                     >
@@ -433,20 +482,32 @@ export function HoleCards({
                     </div>
                   </div>
 
-                  {/* 족보 — 내 카드·비쇼다운에서만 크게 표시 */}
-                  {compactHand && isMe && !showdownReveal ? (
-                    <span
-                      key={`hand-label-${madeFxOuterKey}`}
-                      className={[
-                        "inline-block origin-left text-xl font-extrabold tracking-tight drop-shadow-sm",
-                        madeFxTier > 0
-                          ? `holdem-made-hand-label holdem-made-hand-label-t${madeFxTier}`
-                          : "text-zinc-50",
-                      ].join(" ")}
-                    >
-                      {compactHand}
-                    </span>
-                  ) : null}
+                  <div className="flex min-h-7 w-full flex-wrap items-center justify-center gap-2 px-1">
+                    {/* 일반 진행은 내 족보, 쇼다운은 양쪽 현재 족보를 카드 아래에 표시한다. */}
+                    {(showdownHand ?? compactHand) ? (
+                      <span
+                        key={
+                          showdownHand
+                            ? `showdown-hand-label-${p}-${showdownHand}`
+                            : `hand-label-${madeFxOuterKey}`
+                        }
+                        className={[
+                          "inline-block text-center text-lg font-extrabold leading-tight tracking-tight drop-shadow-sm sm:text-xl",
+                          showdownHand ? "holdem-showdown-hand-change text-amber-50" : "",
+                          madeFxTier > 0
+                            ? `holdem-made-hand-label holdem-made-hand-label-t${madeFxTier}`
+                            : "text-zinc-50",
+                        ].join(" ")}
+                      >
+                        {showdownHand ?? compactHand}
+                      </span>
+                    ) : null}
+                    {showdownReveal && equityPercent != null ? (
+                      <span className="rounded-full border border-sky-400/35 bg-sky-950/35 px-2 py-0.5 font-mono text-[10px] font-bold text-sky-100">
+                        {Math.max(0, Math.min(100, equityPercent)).toFixed(1)}%
+                      </span>
+                    ) : null}
+                  </div>
                 </div>
                 {isMe &&
                 iaOpponentLearnedAboutMe != null &&

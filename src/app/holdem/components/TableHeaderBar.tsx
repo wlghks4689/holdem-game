@@ -95,7 +95,7 @@ export function TableHeaderBar({ state, playerNames }: TableHeaderBarProps) {
   const btnName = playerNames[state.button]!;
   const bbSeat: PlayerIndex = state.button === 0 ? 1 : 0;
   const bbName = playerNames[bbSeat]!;
-  const dealerLabel = isEn ? "Dealer · SB" : HU_DEALER_SB_LABEL;
+  const dealerLabel = isEn ? "BTN · SB" : HU_DEALER_SB_LABEL;
   const bbLabel = HU_BB_LABEL;
   const hb = resolveHandBlinds(state);
   const blindLine = formatBlindTriple({
@@ -206,7 +206,7 @@ export function TableHeaderBar({ state, playerNames }: TableHeaderBarProps) {
           const label = playerNames[p]!;
           const blindTagRaw = headsUpPositionLabel(state, p);
           const blindTag = isEn && blindTagRaw === HU_DEALER_SB_LABEL
-            ? "Dealer · SB"
+            ? "BTN · SB"
             : blindTagRaw;
           const flashDelta = state.potAwardFlash?.[p] ?? 0;
           const showPotFlash =
@@ -284,7 +284,7 @@ export function TableHeaderBar({ state, playerNames }: TableHeaderBarProps) {
                       className="font-sans text-zinc-400"
                       style={{ fontSize: "calc(11px * 1.4)" }}
                     >
-                      칩
+                      {isEn ? " chips" : "칩"}
                     </span>
                   </span>
                   <span className="text-zinc-600" aria-hidden>
@@ -312,8 +312,12 @@ export function TableHeaderBar({ state, playerNames }: TableHeaderBarProps) {
                       }}
                       aria-label={
                         flashDelta > 0
-                          ? `이번 판 팟 획득 ${chipsAsBbLabel(Math.abs(flashDelta), hb.bb)}`
-                          : `이번 판 팟 ${chipsAsBbLabel(Math.abs(flashDelta), hb.bb)} 유실`
+                          ? isEn
+                            ? `Won ${chipsAsBbLabel(Math.abs(flashDelta), hb.bb)} from this pot`
+                            : `이번 판 팟 획득 ${chipsAsBbLabel(Math.abs(flashDelta), hb.bb)}`
+                          : isEn
+                            ? `Lost ${chipsAsBbLabel(Math.abs(flashDelta), hb.bb)} from this pot`
+                            : `이번 판 팟 ${chipsAsBbLabel(Math.abs(flashDelta), hb.bb)} 유실`
                       }
                     >
                       {flashDelta > 0

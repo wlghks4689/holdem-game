@@ -77,7 +77,7 @@ export default function SinglePlayerEntry() {
           {gameMode === "cost"
             ? isEn
               ? "Manage 100 Cost to select the hands you want. Recover 1 Cost each round; after 20 rounds, the player with more chips wins."
-              : "100 Cost를 관리하며 원하는 핸드를 선택합니다. 매 라운드 Cost가 1 회복되며, 20라운드 종료 시 더 많은 칩을 보유한 플레이어가 승리합니다."
+              : "cost를 소모하여 핸드를 선택, 20라운드 동안 상대보다 더 많은 칩을 보유한 플레이어가 승리합니다"
             : isEn
               ? "Choose your hands against the AI. Read its selections and bets, then secure more chips over 30 rounds."
               : "AI를 상대로 핸드를 직접 선택하며 플레이합니다. 상대의 선택과 베팅을 읽고 30라운드 동안 더 많은 칩을 확보하세요."}

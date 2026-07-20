@@ -213,14 +213,12 @@ function BetAmountInput({
             +0.5
           </button>
         </div>
-        <div className="mt-2 flex items-start justify-between gap-2 text-sm font-medium text-zinc-300">
-          <span>
-            {isEn
-              ? `Min ${formatBb(min)}BB · Max ${formatBb(max)}BB`
-              : `최소 ${formatBb(min)}BB · 최대 ${formatBb(max)}BB`}
+        <div className="mt-1.5 flex items-start justify-between gap-2">
+          <span className="rounded-md border border-zinc-600/70 bg-zinc-900/65 px-2 py-1 font-mono text-[11px] font-semibold tabular-nums text-zinc-200">
+            {isEn ? "Range" : "가능 범위"} {formatBb(min)}–{formatBb(max)} BB
           </span>
           {message ? (
-            <span id="bet-amount-message" className="text-right text-amber-300">{message}</span>
+            <span id="bet-amount-message" className="text-right text-[10px] text-amber-300">{message}</span>
           ) : null}
         </div>
       </div>
@@ -531,7 +529,11 @@ export function ActionPanel({
         <div className="flex flex-col gap-2 sm:flex-row sm:items-stretch sm:gap-3">
           <button
             type="button"
-            title="다음 핸드: 헤즈업 규칙에 따라 딜러 버튼(SB)이 교대되고, 다시 핸드를 고릅니다."
+            title={
+              isEn
+                ? "Next hand: the BTN (SB) alternates under heads-up rules, then both players pick again."
+                : "다음 핸드: 헤즈업 규칙에 따라 딜러 버튼(SB)이 교대되고, 다시 핸드를 고릅니다."
+            }
             className={btnPrimary + " w-full flex-1"}
             onClick={() => {
               skipAutoNewHandRef.current = true;
@@ -542,7 +544,11 @@ export function ActionPanel({
           </button>
           <div
             className="flex flex-col items-center justify-center gap-0.5 rounded-lg border border-zinc-600/80 bg-zinc-800/50 px-3 py-2 text-center sm:min-w-[6.5rem]"
-            title={`${nextHandAutoSeconds}초 후 자동으로 다음 라운드(핸드 선택)가 시작됩니다.`}
+            title={
+              isEn
+                ? `The next round and hand selection start automatically in ${nextHandAutoSeconds} seconds.`
+                : `${nextHandAutoSeconds}초 후 자동으로 다음 라운드(핸드 선택)가 시작됩니다.`
+            }
           >
             <span className="text-[9px] font-medium uppercase tracking-wide text-zinc-500">
               {isEn ? "AUTO START" : "자동 시작"}
@@ -664,21 +670,33 @@ export function ActionPanel({
   const callPay = effectiveCallPay(p, state);
   const isAllInCallUi = facing > 0 && callPay > 0 && Math.abs(callPay - chips) < 1e-6;
   const callPayBb = chipsAsBbLabel(callPay, bbUnit);
-  const callDetailTitle = `이번 스트리트에서 ${chipsAsBbLabel(facing, bbUnit)} 추가로 상대가 쌓인 액수(${chipsAsBbLabel(level, bbUnit)})에 맞춥니다.`;
+  const callDetailTitle = isEn
+    ? `Add ${chipsAsBbLabel(facing, bbUnit)} this street to match the opponent's total of ${chipsAsBbLabel(level, bbUnit)}.`
+    : `이번 스트리트에서 ${chipsAsBbLabel(facing, bbUnit)} 추가로 상대가 쌓인 액수(${chipsAsBbLabel(level, bbUnit)})에 맞춥니다.`;
   const callButtonTitle = isAllInCallUi
-    ? `스택 전부 ${callPayBb}를 맞춥니다. 남은 보드가 자동으로 깔린 뒤 쇼다운합니다.`
+    ? isEn
+      ? `Call ${callPayBb} with your full stack. The remaining board will run out automatically before showdown.`
+      : `스택 전부 ${callPayBb}를 맞춥니다. 남은 보드가 자동으로 깔린 뒤 쇼다운합니다.`
     : callDetailTitle;
-  const preflopCallFacingTitle = `맞춰야 할 추가 칩: ${chipsAsBbLabel(facing, bbUnit)}.`;
+  const preflopCallFacingTitle = isEn
+    ? `Additional amount to call: ${chipsAsBbLabel(facing, bbUnit)}.`
+    : `맞춰야 할 추가 칩: ${chipsAsBbLabel(facing, bbUnit)}.`;
   const postAllInDisplayAmount = allInActionKind === "call"
     ? callPay
     : allInActionKind === "bet"
       ? postAllInBetAmount
       : postAllInRaiseTotal;
   const postAllInTitle = allInActionKind === "call"
-    ? `남은 스택 전부 ${chipsAsBbLabel(callPay, bbUnit)}를 콜합니다.`
+    ? isEn
+      ? `Call ${chipsAsBbLabel(callPay, bbUnit)} with your entire remaining stack.`
+      : `남은 스택 전부 ${chipsAsBbLabel(callPay, bbUnit)}를 콜합니다.`
     : allInActionKind === "bet"
-      ? `남은 스택 전부 ${chipsAsBbLabel(postAllInBetAmount, bbUnit)}를 베팅합니다.`
-      : `남은 스택 전부로 총 ${chipsAsBbLabel(postAllInRaiseTotal, bbUnit)}까지 올인 레이즈합니다.`;
+      ? isEn
+        ? `Bet your entire remaining stack of ${chipsAsBbLabel(postAllInBetAmount, bbUnit)}.`
+        : `남은 스택 전부 ${chipsAsBbLabel(postAllInBetAmount, bbUnit)}를 베팅합니다.`
+      : isEn
+        ? `Raise all-in to a total of ${chipsAsBbLabel(postAllInRaiseTotal, bbUnit)}.`
+        : `남은 스택 전부로 총 ${chipsAsBbLabel(postAllInRaiseTotal, bbUnit)}까지 올인 레이즈합니다.`;
   const dispatchPostflopAllIn = () => {
     if (allInActionKind === "call") {
       void dispatch({ type: "POSTFLOP_CALL" });
@@ -697,8 +715,12 @@ export function ActionPanel({
     ? preflopAllInTotalContribution(state)
     : 0;
   const preflopAllInTitle = allInActionKind === "call"
-    ? `남은 스택 ${chipsAsBbLabel(callPay, bbUnit)} 전부를 콜합니다.`
-    : `프리플랍 전액 레이즈(총 ${chipsAsBbLabel(preflopAllInTotalChips, bbUnit)}). 남은 스택 ${actorStackBb(state).toFixed(1)}bb로 전액 올인 가능합니다.`;
+    ? isEn
+      ? `Call with your entire remaining stack of ${chipsAsBbLabel(callPay, bbUnit)}.`
+      : `남은 스택 ${chipsAsBbLabel(callPay, bbUnit)} 전부를 콜합니다.`
+    : isEn
+      ? `Preflop all-in raise to ${chipsAsBbLabel(preflopAllInTotalChips, bbUnit)} total. Your remaining ${actorStackBb(state).toFixed(1)}bb can be committed.`
+      : `프리플랍 전액 레이즈(총 ${chipsAsBbLabel(preflopAllInTotalChips, bbUnit)}). 남은 스택 ${actorStackBb(state).toFixed(1)}bb로 전액 올인 가능합니다.`;
   const preflopAllInLabel = allInActionKind === "call"
     ? `All-in Call (${callPayBb})`
     : `All-in (${chipsAsBbLabel(preflopAllInTotalChips, bbUnit)})`;
@@ -747,8 +769,12 @@ export function ActionPanel({
         <p className="text-[11px] font-bold uppercase tracking-wider text-amber-200">
           ALL-IN
         </p>
-        <p className="text-sm font-medium text-zinc-100">보드 자동 공개 중</p>
-        <p className="text-[11px] text-amber-200/80">쇼다운까지 잠시만 기다려 주세요.</p>
+        <p className="text-sm font-medium text-zinc-100">
+          {isEn ? "Running out the board" : "보드 자동 공개 중"}
+        </p>
+        <p className="text-[11px] text-amber-200/80">
+          {isEn ? "Please wait for the showdown." : "쇼다운까지 잠시만 기다려 주세요."}
+        </p>
       </div>
     );
   }
@@ -757,7 +783,7 @@ export function ActionPanel({
   // ── 프리플랍 레이즈 입력 블록 ─────────────────────────────────────────────
   const preflopRaiseBlock =
     showPreflopRaise && preflopRange != null && !hideReraiseStreet ? (
-      <div className="space-y-2 rounded-lg border border-zinc-600/45 bg-zinc-800/30 p-3">
+      <div className="space-y-2 rounded-lg border border-zinc-600/45 bg-zinc-800/30 px-3 pb-3 pt-2.5">
         <BetAmountInput
           value={preflopRaiseClamped}
           min={preflopRange.min}
@@ -774,8 +800,12 @@ export function ActionPanel({
           disabled={!preflopRaiseValid}
           title={
             preflopRaiseValid
-              ? `총 기여 ${chipsAsBbLabel(preflopRaiseClamped, bbUnit)}로 레이즈`
-              : "유효하지 않은 레이즈"
+              ? isEn
+                ? `Raise to ${chipsAsBbLabel(preflopRaiseClamped, bbUnit)} total contribution`
+                : `총 기여 ${chipsAsBbLabel(preflopRaiseClamped, bbUnit)}로 레이즈`
+              : isEn
+                ? "Invalid raise"
+                : "유효하지 않은 레이즈"
           }
           onClick={() => submitPreflopRaise(preflopRaiseClamped)}
         >
@@ -849,7 +879,11 @@ export function ActionPanel({
           <button
             type="button"
             className={[btnIa, "inline-flex items-center gap-1.5"].join(" ")}
-            title={`내 스택에서 비용이 차감되고 상대 홀의 카테고리만 공개됩니다. 사용 직후 이 리버 액션에 ${IA_RIVER_ACTION_EXTRA_SECONDS}초가 추가됩니다.`}
+            title={
+              isEn
+                ? `The cost is deducted from your stack and only the opponent's category is revealed. Adds ${IA_RIVER_ACTION_EXTRA_SECONDS} seconds to this river action.`
+                : `내 스택에서 비용이 차감되고 상대 홀의 카테고리만 공개됩니다. 사용 직후 이 리버 액션에 ${IA_RIVER_ACTION_EXTRA_SECONDS}초가 추가됩니다.`
+            }
             onClick={() => void dispatch({ type: "USE_IA" })}
           >
             <span className="font-semibold text-indigo-50">IA</span>
@@ -911,7 +945,7 @@ export function ActionPanel({
                   <button
                     type="button"
                     className={(isAllInCallUi ? btnAllInCall : btnPrimary) + " flex-1"}
-                    title="추가 칩 없이 프리플랍을 통과합니다."
+                    title={isEn ? "Continue to the flop without adding chips." : "추가 칩 없이 프리플랍을 통과합니다."}
                     onClick={() => void dispatch({ type: "PREFLOP_CHECK" })}
                   >
                     Check
@@ -962,7 +996,7 @@ export function ActionPanel({
                   <button
                     type="button"
                     className={btnDanger}
-                    title="이번 판을 포기합니다."
+                    title={isEn ? "Fold this hand." : "이번 판을 포기합니다."}
                     onClick={() => void dispatch({ type: "FOLD" })}
                   >
                     Fold
@@ -1003,7 +1037,7 @@ export function ActionPanel({
                   <button
                     type="button"
                     className={btnDanger}
-                    title="이번 판을 포기합니다."
+                    title={isEn ? "Fold this hand." : "이번 판을 포기합니다."}
                     onClick={() => void dispatch({ type: "FOLD" })}
                   >
                     Fold
@@ -1044,7 +1078,7 @@ export function ActionPanel({
 
           {/* Raise 입력 */}
           {canPostflopRaise && !hideReraiseStreet ? (
-            <div className="space-y-2 rounded-lg border border-zinc-600/45 bg-zinc-800/30 p-3">
+            <div className="space-y-2 rounded-lg border border-zinc-600/45 bg-zinc-800/30 px-3 pb-3 pt-2.5">
               <BetAmountInput
                 value={postRaiseClamped}
                 min={postRaiseMin}
@@ -1076,7 +1110,7 @@ export function ActionPanel({
               <button
                 type="button"
                 className={(isAllInCallUi ? btnAllInCall : btnPrimary) + " flex-1"}
-                title="베팅이 없을 때 팟을 늘리지 않고 넘깁니다."
+                title={isEn ? "Check without adding chips to the pot." : "베팅이 없을 때 팟을 늘리지 않고 넘깁니다."}
                 onClick={() => void dispatch({ type: "POSTFLOP_CHECK" })}
               >
                 Check
@@ -1108,7 +1142,11 @@ export function ActionPanel({
               <button
                 type="button"
                 className={btnDanger}
-                title="상대의 베팅을 따라가지 않고 이번 판을 포기합니다. 상대 홀 카드는 공개되지 않습니다."
+                title={
+                  isEn
+                    ? "Fold instead of matching the bet. The opponent's hole cards remain hidden."
+                    : "상대의 베팅을 따라가지 않고 이번 판을 포기합니다. 상대 홀 카드는 공개되지 않습니다."
+                }
                 onClick={() => void dispatch({ type: "FOLD" })}
               >
                 Fold

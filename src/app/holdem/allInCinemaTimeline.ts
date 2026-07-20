@@ -11,29 +11,24 @@ export type AllInCinemaTimelineEvent =
   | { atMs: number; kind: "hold"; street: AllInCinemaStreet }
   | { atMs: number; kind: "resolve" };
 
-type TimelinePacing = {
-  impact: number;
-  windup: Record<AllInCinemaStreet, number>;
-  betweenFlopCards: number;
-  settle: Record<AllInCinemaStreet, number>;
-  hold: Record<AllInCinemaStreet, number>;
-};
+/**
+ * 올인 쇼다운의 단일 시간표. 화면 크기와 모션 표현 설정은 CSS만 바꾸며,
+ * 실제 카드 공개 간격은 모든 기기에서 동일하게 유지한다.
+ */
+export const ALL_IN_CINEMA_TIMING = {
+  introHoldMs: 1_000,
+  flopWindupMs: 420,
+  /** 일반 보드 공개 620ms의 130% */
+  flopCardIntervalMs: 806,
+  turnWindupMs: 806,
+  /** 턴보다 정확히 0.5초 더 긴 리버 예고 */
+  riverWindupMs: 1_306,
+  revealSettleMs: { flop: 520, turn: 620, river: 760 },
+  streetHoldMs: { flop: 1_400, turn: 1_400, river: 1_710 },
+} as const;
 
-const NORMAL_PACING: TimelinePacing = {
-  impact: 900,
-  windup: { flop: 550, turn: 700, river: 1050 },
-  betweenFlopCards: 360,
-  settle: { flop: 480, turn: 580, river: 700 },
-  hold: { flop: 650, turn: 900, river: 1150 },
-};
-
-const SUBTLE_PACING: TimelinePacing = {
-  impact: 350,
-  windup: { flop: 200, turn: 250, river: 350 },
-  betweenFlopCards: 120,
-  settle: { flop: 150, turn: 180, river: 220 },
-  hold: { flop: 250, turn: 300, river: 350 },
-};
+/** 최종 승패·족보 화면과 입력 잠금을 유지하는 최소 시간. */
+export const ALL_IN_RESULT_HOLD_MS = 3_200;
 
 export function allInCinemaStreetForTarget(
   targetRevealed: number,
@@ -43,26 +38,26 @@ export function allInCinemaStreetForTarget(
   return "river";
 }
 
+function windupMs(street: AllInCinemaStreet): number {
+  if (street === "flop") return ALL_IN_CINEMA_TIMING.flopWindupMs;
+  if (street === "turn") return ALL_IN_CINEMA_TIMING.turnWindupMs;
+  return ALL_IN_CINEMA_TIMING.riverWindupMs;
+}
+
 export function buildAllInCinemaTimeline(
   startRevealed: number,
-  subtleMotion = false,
+  _subtleMotion = false,
 ): AllInCinemaTimelineEvent[] {
+  void _subtleMotion;
   const start = Math.min(5, Math.max(0, Math.round(startRevealed)));
+
+  // 리버 올인은 추가 런아웃 없이 완성 보드와 양쪽 홀카드를 1초 보여준 뒤 비교한다.
   if (start >= 5) {
-    const pacing = subtleMotion ? SUBTLE_PACING : NORMAL_PACING;
-    return [
-      { atMs: pacing.impact, kind: "windup", street: "river" },
-      { atMs: pacing.impact + pacing.windup.river, kind: "hold", street: "river" },
-      {
-        atMs: pacing.impact + pacing.windup.river + pacing.hold.river,
-        kind: "resolve",
-      },
-    ];
+    return [{ atMs: ALL_IN_CINEMA_TIMING.introHoldMs, kind: "resolve" }];
   }
 
-  const pacing = subtleMotion ? SUBTLE_PACING : NORMAL_PACING;
   const events: AllInCinemaTimelineEvent[] = [];
-  let atMs = pacing.impact;
+  let atMs = ALL_IN_CINEMA_TIMING.introHoldMs;
   let previousStreet: AllInCinemaStreet | null =
     start >= 4 ? "turn" : start >= 3 ? "flop" : null;
 
@@ -70,32 +65,24 @@ export function buildAllInCinemaTimeline(
     const street = allInCinemaStreetForTarget(target);
     if (street !== previousStreet) {
       events.push({ atMs, kind: "windup", street });
-      atMs += pacing.windup[street];
+      atMs += windupMs(street);
     }
 
-    events.push({
-      atMs,
-      kind: "reveal",
-      street,
-      targetRevealed: target,
-    });
+    events.push({ atMs, kind: "reveal", street, targetRevealed: target });
 
     if (target < 3) {
-      atMs += pacing.betweenFlopCards;
+      atMs += ALL_IN_CINEMA_TIMING.flopCardIntervalMs;
     } else {
       events.push({
-        atMs: atMs + Math.min(pacing.settle[street], pacing.hold[street]),
+        atMs: atMs + ALL_IN_CINEMA_TIMING.revealSettleMs[street],
         kind: "hold",
         street,
       });
-      atMs += pacing.hold[street];
+      atMs += ALL_IN_CINEMA_TIMING.streetHoldMs[street];
     }
     previousStreet = street;
   }
 
   events.push({ atMs, kind: "resolve" });
-  const runtimeMultiplier = start === 0 ? 2 : 1;
-  return runtimeMultiplier === 1
-    ? events
-    : events.map((event) => ({ ...event, atMs: event.atMs * runtimeMultiplier }));
+  return events;
 }

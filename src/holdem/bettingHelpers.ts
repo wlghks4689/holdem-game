@@ -2,6 +2,7 @@ import {
   CHIPS_PER_BB,
   IA_COST_MIN_BB,
   IA_COST_POT_FRACTION,
+  POSTFLOP_MAX_BET_POT_FRACTION,
   SMALLEST_CHIP,
 } from "./constants";
 import { resolveHandBlinds } from "./blindLevels";
@@ -431,6 +432,33 @@ export function postflopMaxOpenBetForActor(s: GameState): number {
   if (p == null) return 0;
   // 노리밋: 오픈 베팅(대기중) 최대 = 내 스택까지.
   return roundHalfChip(s.chips[p]!);
+}
+
+/**
+ * AI의 통상 오픈 베팅 상한. 규칙상 올인은 계속 가능하지만, 깊은 스택에서
+ * 단순 크기 후보가 곧바로 전 스택이 되지 않도록 팟 기준으로 제한한다.
+ */
+export function postflopAiMaxOpenBetForActor(s: GameState): number {
+  const legalMax = postflopMaxOpenBetForActor(s);
+  const potSized = roundHalfChip(s.pot * POSTFLOP_MAX_BET_POT_FRACTION);
+  return roundHalfChip(Math.min(legalMax, potSized));
+}
+
+/**
+ * AI의 통상 레이즈 목표 총액 상한. 낮은 SPR에서는 legalMax와 같아 자연스러운
+ * 올인이 남고, 깊은 스택에서는 팟사이즈를 크게 넘는 즉시 올인을 후보에서 뺀다.
+ */
+export function postflopAiMaxRaiseTargetForActor(s: GameState): number {
+  const p = s.toAct;
+  if (p == null) return 0;
+  const facing = facingFor(p, s.betting);
+  if (facing <= 1e-9) return levelFromContributions(s.betting);
+  const legalMax = postflopRaiseTargetCappedByOpponent(s);
+  const potSized = postflopCustomMaxRaiseToLevel(
+    s.pot * POSTFLOP_MAX_BET_POT_FRACTION,
+    facing,
+  );
+  return roundHalfChip(Math.min(legalMax, potSized));
 }
 
 export function levelFromContributions(b: BettingRoundMeta): number {

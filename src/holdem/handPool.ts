@@ -411,13 +411,22 @@ export function iaCategoryLabelKo(cat: OpponentHandCategory): string {
 }
 
 export function iaCategoryLabelEn(cat: OpponentHandCategory): string {
-  if (cat === (CAT_HIGH_PAIR as OpponentHandCategory)) return "High Pairs";
-  if (cat === (CAT_AX_OFFSUIT as OpponentHandCategory)) return "Ax Offsuit";
-  if (cat === (CAT_BROADWAY_SUITED as OpponentHandCategory)) return "Broadway Suited";
-  if (cat === (CAT_MIDDLE_PAIR as OpponentHandCategory)) return "Middle Pairs";
-  if (cat === (CAT_LOW_PAIR as OpponentHandCategory)) return "Low Pairs";
-  if (cat === (CAT_SUITED_CONNECTOR as OpponentHandCategory)) return "Suited Connectors";
-  return String(cat);
+  switch (iaCategoryLabelKo(cat)) {
+    case "하이파켓":
+      return "High Pocket";
+    case "Ax 오프수트":
+      return "Ax off suit";
+    case "브로드웨이 수딧":
+      return "Broadway Suited";
+    case "미들파켓":
+      return "Middle Pocket";
+    case "로우파켓":
+      return "Low Pocket";
+    case "커넥터 수딧":
+      return "Connected suited";
+    default:
+      return String(cat);
+  }
 }
 
 export function iaCategoryHandListText(cat: OpponentHandCategory): string {

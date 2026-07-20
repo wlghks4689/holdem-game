@@ -18,6 +18,13 @@ const STAR_LABELS: Record<number, string> = {
 };
 
 export default function FeedbackClient() {
+  const [nickname, setNickname] = React.useState("");
+  const [message, setMessage] = React.useState("");
+  const [rating, setRating] = React.useState<number | null>(null);
+  const [hoverRating, setHoverRating] = React.useState<number | null>(null);
+  const [submitState, setSubmitState] = React.useState<SubmitState>("idle");
+  const [errMsg, setErrMsg] = React.useState<string | null>(null);
+
   if (IS_STATIC) {
     return (
       <div className="flex flex-col items-center gap-5 py-12 text-center">
@@ -37,13 +44,6 @@ export default function FeedbackClient() {
       </div>
     );
   }
-
-  const [nickname, setNickname] = React.useState("");
-  const [message, setMessage] = React.useState("");
-  const [rating, setRating] = React.useState<number | null>(null);
-  const [hoverRating, setHoverRating] = React.useState<number | null>(null);
-  const [submitState, setSubmitState] = React.useState<SubmitState>("idle");
-  const [errMsg, setErrMsg] = React.useState<string | null>(null);
 
   const msgLen = message.trim().length;
   const canSubmit = msgLen > 0 && submitState !== "submitting";

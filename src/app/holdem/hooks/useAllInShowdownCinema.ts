@@ -3,6 +3,7 @@
 import * as React from "react";
 import type { GameState } from "@/holdem/types";
 import {
+  ALL_IN_RESULT_HOLD_MS,
   buildAllInCinemaTimeline,
   type AllInCinemaStreet,
 } from "../allInCinemaTimeline";
@@ -55,9 +56,10 @@ export function useAllInShowdownCinema(state: GameState) {
   const subtleMotion = motionMode === "subtle";
   const meta = React.useMemo(() => computeCinemaMeta(state), [state]);
   const { runKey, startRev } = meta;
+  // 모션 표현 설정과 화면 크기는 타이머를 재시작하지 않는다.
   const timeline = React.useMemo(
-    () => buildAllInCinemaTimeline(startRev, subtleMotion),
-    [startRev, subtleMotion],
+    () => buildAllInCinemaTimeline(startRev),
+    [startRev],
   );
 
   const [phase, setPhase] = React.useState<AllInCinemaPhase>("off");
@@ -66,10 +68,11 @@ export function useAllInShowdownCinema(state: GameState) {
     React.useState<AllInCinemaStreet | null>(null);
   const [showHandResult, setShowHandResult] = React.useState(true);
   const [awardReleased, setAwardReleased] = React.useState(false);
+  const [interactionReleased, setInteractionReleased] = React.useState(false);
 
   const timersRef = React.useRef<ReturnType<typeof setTimeout>[]>([]);
   const awardTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
-  const skippedRef = React.useRef(false);
+  const resultTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
   const startedRunKeyRef = React.useRef<string | null>(null);
 
   const clearTimers = React.useCallback(() => {
@@ -82,6 +85,11 @@ export function useAllInShowdownCinema(state: GameState) {
     awardTimerRef.current = null;
   }, []);
 
+  const clearResultTimer = React.useCallback(() => {
+    if (resultTimerRef.current != null) clearTimeout(resultTimerRef.current);
+    resultTimerRef.current = null;
+  }, []);
+
   const resolveCinema = React.useCallback(() => {
     clearTimers();
     setVisualRevealed(5);
@@ -91,12 +99,12 @@ export function useAllInShowdownCinema(state: GameState) {
     playShowdownResultChime();
     clearAwardTimer();
     awardTimerRef.current = setTimeout(() => setAwardReleased(true), 850);
-  }, [clearAwardTimer, clearTimers]);
-
-  const skip = React.useCallback(() => {
-    skippedRef.current = true;
-    resolveCinema();
-  }, [resolveCinema]);
+    clearResultTimer();
+    resultTimerRef.current = setTimeout(
+      () => setInteractionReleased(true),
+      ALL_IN_RESULT_HOLD_MS,
+    );
+  }, [clearAwardTimer, clearResultTimer, clearTimers]);
 
   React.useLayoutEffect(() => {
     if (runKey == null) {
@@ -106,20 +114,23 @@ export function useAllInShowdownCinema(state: GameState) {
       setActiveStreet(null);
       setShowHandResult(true);
       setAwardReleased(false);
+      setInteractionReleased(false);
       clearAwardTimer();
+      clearResultTimer();
       return;
     }
-    skippedRef.current = false;
     setPhase("allin-lock");
     setVisualRevealed(startRev);
     setActiveStreet(null);
     setShowHandResult(false);
     setAwardReleased(false);
+    setInteractionReleased(false);
+    clearResultTimer();
     if (startedRunKeyRef.current !== runKey) {
       startedRunKeyRef.current = runKey;
       playAllInImpact();
     }
-  }, [clearAwardTimer, runKey, startRev]);
+  }, [clearAwardTimer, clearResultTimer, runKey, startRev]);
 
   React.useEffect(() => {
     clearTimers();
@@ -127,7 +138,6 @@ export function useAllInShowdownCinema(state: GameState) {
 
     for (const event of timeline) {
       const id = setTimeout(() => {
-        if (skippedRef.current) return;
         switch (event.kind) {
           case "windup":
             setActiveStreet(event.street);
@@ -154,15 +164,20 @@ export function useAllInShowdownCinema(state: GameState) {
     return clearTimers;
   }, [runKey, timeline, clearTimers, resolveCinema]);
 
-  React.useEffect(() => clearAwardTimer, [clearAwardTimer]);
+  React.useEffect(
+    () => () => {
+      clearAwardTimer();
+      clearResultTimer();
+    },
+    [clearAwardTimer, clearResultTimer],
+  );
 
   const active = runKey != null;
-  const blockingInput =
-    active && phase !== "showdown-resolve" && phase !== "off";
+  const blockingInput = active && phase !== "off" && !interactionReleased;
 
   const boardStreetLabelKo = React.useMemo(() => {
     if (!active) return null;
-    if (phase === "allin-lock") return "ALL-IN";
+    if (phase === "allin-lock") return "SHOWDOWN";
     if (phase === "showdown-resolve") return "쇼다운";
     if (activeStreet === "flop") return "플랍";
     if (activeStreet === "turn") return "턴";
@@ -186,6 +201,5 @@ export function useAllInShowdownCinema(state: GameState) {
         ? activeStreet
         : null,
     subtleMotion,
-    skip,
   };
 }

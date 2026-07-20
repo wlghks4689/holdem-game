@@ -92,11 +92,11 @@ const KO: Record<MessageKey, string> = {
   "settings.sound": "사운드 효과",
   "settings.soundHint": "(준비 중 — 옵션만 저장됩니다)",
   "home.title": "핸드 셀렉 홀덤",
-  "home.subtitle": "헤즈업 · 핸드 셀렉 · 리미트 홀덤",
+  "home.subtitle": "헤즈업 · 핸드 셀렉",
   "home.settings": "환경 설정",
   "home.guide": "게임 설명",
   "home.guideDesc":
-    "처음 하는 분도 30초면 이해할 수 있는 플레이 흐름 안내입니다.",
+    "처음 하는 분도 이해할 수 있는 플레이 흐름 안내입니다.",
   "home.feedback": "의견 보내기",
   "home.multiplayTitle": "멀티플레이",
   "home.multiplayDesc": "방 만들기, 방 참여, 비공개 방 선택 가능",
@@ -149,7 +149,7 @@ const KO: Record<MessageKey, string> = {
   "action.matchEnd": "매치 종료",
   "action.winner": "승자:",
   "single.hellTitle": "Hell",
-  "single.hellDesc": "도전 해보세요 당신의 실력을",
+  "single.hellDesc": "한계에 도전",
   "single.hellLockedHint":
     "Hard 매치 승리 10회로 잠금 해제 · 현재 진행도는 아래에 표시됩니다",
 };
@@ -169,11 +169,11 @@ const EN: Record<MessageKey, string> = {
   "settings.languageKo": "Korean",
   "settings.languageEn": "English",
   "settings.languageNote":
-    "English translates major UI, buttons, and hand names. Some logs or edge strings may stay in Korean until fully localized.",
+    "English applies to the game UI, controls, hand names, showdown results, and hand log.",
   "settings.sound": "Sound effects",
   "settings.soundHint": "(coming soon — preference is saved)",
   "home.title": "Hand Select Hold’em",
-  "home.subtitle": "Heads-up · hand select · limit hold’em",
+  "home.subtitle": "Heads-up · hand select",
   "home.settings": "Settings",
   "home.guide": "How to play",
   "home.guideDesc": "A quick walkthrough of how a hand flows.",

@@ -9,7 +9,6 @@ export type AllInShowdownCinemaOverlayProps = {
   visualRevealed: number;
   isEn: boolean;
   subtleMotion: boolean;
-  onSkip: () => void;
 };
 
 const STREET_LABELS: Record<
@@ -27,7 +26,6 @@ export function AllInShowdownCinemaOverlay({
   visualRevealed,
   isEn,
   subtleMotion,
-  onSkip,
 }: AllInShowdownCinemaOverlayProps) {
   if (phase === "off" || phase === "showdown-resolve") return null;
 
@@ -35,11 +33,11 @@ export function AllInShowdownCinemaOverlay({
   const streetLabel = activeStreet
     ? STREET_LABELS[activeStreet][isEn ? "en" : "ko"]
     : "RUNOUT";
-  const title = impact ? "ALL-IN" : streetLabel;
+  const title = impact ? "SHOWDOWN" : streetLabel;
 
   return (
     <div
-      className="pointer-events-none fixed inset-0 z-[60] overflow-hidden"
+      className="pointer-events-auto fixed inset-0 z-[60] cursor-wait overflow-hidden"
       data-cinema-overlay-phase={phase}
       data-cinema-street={activeStreet ?? "none"}
       aria-live="polite"
@@ -73,7 +71,7 @@ export function AllInShowdownCinemaOverlay({
           {impact ? (
             <div className="inline-flex items-center gap-2 rounded-full border border-rose-300/65 bg-rose-950/75 px-3 py-1 text-[10px] font-black uppercase tracking-[0.22em] text-rose-100 shadow-[0_0_28px_rgba(244,63,94,0.32)] backdrop-blur-sm">
               <span className="h-1.5 w-1.5 rounded-full bg-rose-300 shadow-[0_0_10px_rgba(253,164,175,0.9)]" />
-              ALL-IN RUNOUT
+              {isEn ? "ALL-IN · CARDS UP" : "ALL-IN · 패 공개"}
             </div>
           ) : null}
           <p
@@ -91,15 +89,6 @@ export function AllInShowdownCinemaOverlay({
         </div>
       </div>
 
-      <div className="absolute inset-x-0 bottom-5 flex justify-center px-4 sm:bottom-7">
-        <button
-          type="button"
-          onClick={onSkip}
-          className="pointer-events-auto rounded-full border border-zinc-500/75 bg-zinc-950/80 px-4 py-1.5 text-[11px] font-semibold text-zinc-200 shadow-lg backdrop-blur transition hover:border-amber-300/75 hover:text-amber-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300"
-        >
-          {isEn ? "Skip animation" : "연출 건너뛰기"}
-        </button>
-      </div>
     </div>
   );
 }

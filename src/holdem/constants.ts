@@ -29,7 +29,7 @@ export const MAX_RAISES_PER_STREET = 3;
 /** 남은 스택이 이 BB 이하일 때 프리플랍 올인(전액 레이즈) 허용 */
 export const PREFLOP_SHORT_STACK_ALL_IN_MAX_BB = 15;
 
-/** 포스트플랍 최대 베팅 비율 — 1.0 = 팟사이즈(팟 리밋) */
+/** AI의 통상 포스트플랍 베팅/레이즈 크기 상한. 게임 규칙 자체는 노리밋이며, 1.0은 팟사이즈 후보까지만 생성한다. */
 export const POSTFLOP_MAX_BET_POT_FRACTION = 1.0;
 
 export const IA_COST_POT_FRACTION = 0.3;

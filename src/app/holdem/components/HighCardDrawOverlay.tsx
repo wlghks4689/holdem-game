@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import type { PlayerIndex } from "@/holdem/types";
+import { useHoldemI18n } from "@/holdem/i18n/HoldemLocaleProvider";
 
 function rankLabel(r: number): string {
   if (r === 14) return "A";
@@ -36,6 +37,8 @@ export function HighCardDrawOverlay({
   mySeat,
   onClose,
 }: HighCardDrawOverlayProps) {
+  const { locale } = useHoldemI18n();
+  const isEn = locale === "en";
   const [animPhase, setAnimPhase] = React.useState<AnimPhase>("intro");
   const timerRefs = React.useRef<number[]>([]);
   const drawKey = `${draw.ranks[0]}-${draw.ranks[1]}-${draw.winnerSeat}`;
@@ -119,7 +122,7 @@ export function HighCardDrawOverlay({
           ].join(" ")}
         >
           {playerNames[seat]}
-          {isMe ? " (나)" : ""}
+          {isMe ? (isEn ? " (You)" : " (나)") : ""}
         </span>
 
         <div
@@ -158,7 +161,7 @@ export function HighCardDrawOverlay({
             ].join(" ")}
           >
             {rankLabel(ranks[seat])}
-            {ranks[0] === ranks[1] ? " (동점)" : ""}
+            {ranks[0] === ranks[1] ? (isEn ? " (Tie)" : " (동점)") : ""}
           </span>
         )}
       </div>
@@ -168,7 +171,7 @@ export function HighCardDrawOverlay({
   return (
     <button
       type="button"
-      aria-label="클릭하여 건너뛰기"
+      aria-label={isEn ? "Click to skip" : "클릭하여 건너뛰기"}
       onClick={skip}
       className="fixed inset-0 z-50 flex flex-col items-center justify-center gap-6 bg-zinc-950/85 backdrop-blur-sm"
       style={{ animation: "holdem-hcd-backdrop-in 0.3s ease-out both" }}
@@ -182,10 +185,12 @@ export function HighCardDrawOverlay({
           Game Start
         </p>
         <p className="mt-1 text-2xl font-extrabold tracking-tight text-zinc-50">
-          하이카드 드로우
+          {isEn ? "High-card Draw" : "하이카드 드로우"}
         </p>
         <p className="mt-0.5 text-sm text-zinc-400">
-          더 높은 카드를 받은 플레이어가 버튼(SB)로 시작합니다
+          {isEn
+            ? "The player with the higher card starts on the button (SB)."
+            : "더 높은 카드를 받은 플레이어가 버튼(SB)로 시작합니다"}
         </p>
       </div>
 
@@ -204,19 +209,29 @@ export function HighCardDrawOverlay({
         >
           <p className="text-lg font-extrabold text-amber-200">
             {winnerName}
-            {winnerSeat === mySeat ? " (나)" : ""}
+            {winnerSeat === mySeat ? (isEn ? " (You)" : " (나)") : ""}
           </p>
           <p className="mt-0.5 text-sm text-amber-300/80">
-            버튼 (SB) 획득 — 프리플랍 먼저 액션
+            {isEn
+              ? "Wins the button (SB) — acts first preflop"
+              : "버튼 (SB) 획득 — 프리플랍 먼저 액션"}
           </p>
           <p className="mt-1 text-xs text-amber-100/90">
-            상대 {oppRank} vs 나 {myRank} →{" "}
-            {winnerSeat === mySeat ? "나 선플레이어" : "상대 선플레이어"}
+            {isEn ? `Opponent ${oppRank} vs You ${myRank}` : `상대 ${oppRank} vs 나 ${myRank}`} →{" "}
+            {winnerSeat === mySeat
+              ? isEn
+                ? "You act first"
+                : "나 선플레이어"
+              : isEn
+                ? "Opponent acts first"
+                : "상대 선플레이어"}
           </p>
         </div>
       )}
 
-      <p className="text-[11px] text-zinc-600">탭하여 건너뛰기</p>
+      <p className="text-[11px] text-zinc-600">
+        {isEn ? "Tap to skip" : "탭하여 건너뛰기"}
+      </p>
     </button>
   );
 }

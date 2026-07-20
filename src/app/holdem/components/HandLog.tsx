@@ -7,59 +7,99 @@ import { chipsAsBbLabel } from "@/holdem/formatBb";
 import {
   findTemplate,
   iaCategoryHandListText,
+  iaCategoryLabelEn,
   iaCategoryLabelKo,
   templateLabel,
 } from "@/holdem/handPool";
-import { best5Of7, handValueSummaryKorean } from "@/holdem/pokerEval";
+import { useHoldemI18n } from "@/holdem/i18n/HoldemLocaleProvider";
+import {
+  best5Of7,
+  handValueDisplayForLocale,
+} from "@/holdem/pokerEval";
+import type { HoldemUiLocale } from "@/holdem/holdemPrefs";
 import type { GameMessage, HoldemGameMode, PlayerIndex, SelectedHand, Street } from "@/holdem/types";
 
 type Pl = (p: PlayerIndex) => string;
+
+function actionLabel(action: string, locale: HoldemUiLocale): string {
+  if (locale !== "en") return action;
+  const labels: Record<string, string> = {
+    "콜": "Call",
+    "레이즈": "Raise",
+    "올인": "All-in",
+    "올인 콜": "All-in call",
+    "베트": "Bet",
+    "체크": "Check",
+    "체크(자동)": "Auto-check",
+    "폴드": "Fold",
+  };
+  return labels[action] ?? action;
+}
+
+function legacyHandSummaryForLocale(
+  summary: string,
+  locale: HoldemUiLocale,
+): string {
+  if (locale !== "en") return summary;
+  const pair = summary.match(/^([2-9TJQKA]) 원페어$/);
+  if (pair) return `Pair of ${pair[1]}`;
+  const twoPair = summary.match(/^([2-9TJQKA]), ([2-9TJQKA]) 투페어$/);
+  if (twoPair) return `Two pair, ${twoPair[1]}s and ${twoPair[2]}s`;
+  return summary
+    .replace("스트레이트 플러시", "straight flush")
+    .replace("하이카드", "high")
+    .replace("원페어", "pair")
+    .replace("투페어", "two pair")
+    .replace("트리플", "trips")
+    .replace("스트레이트", "straight")
+    .replace("플러시", "flush")
+    .replace("풀하우스", "full house")
+    .replace("포카드", "quads");
+}
 
 function fmtPreflop(
   m: Extract<GameMessage, { t: "preflop_action" }>,
   pl: Pl,
   bbUnit: number,
+  locale: HoldemUiLocale,
 ): string {
+  const isEn = locale === "en";
   const amt = m.amount != null ? chipsAsBbLabel(m.amount, bbUnit) : "";
   const who = pl(m.player);
   if (m.action === "콜" && m.amount != null) {
-    return `${who}: 콜 (총 ${amt})`;
+    return `${who}: ${isEn ? "Call" : "콜"} (${isEn ? "total" : "총"} ${amt})`;
   }
   if (m.action === "레이즈" && m.amount != null) {
-    return `${who}: 레이즈 → 총 ${amt}`;
+    return `${who}: ${isEn ? "Raise" : "레이즈"} → ${isEn ? "total" : "총"} ${amt}`;
   }
   if (m.action === "올인" && m.amount != null) {
-    return `${who}: 올인 → 총 ${amt}`;
+    return `${who}: ${isEn ? "All-in" : "올인"} → ${isEn ? "total" : "총"} ${amt}`;
   }
-  return `${who}: ${m.action}${amt ? ` (${amt})` : ""}`;
+  return `${who}: ${actionLabel(m.action, locale)}${amt ? ` (${amt})` : ""}`;
 }
 
 function fmtPost(
   m: Extract<GameMessage, { t: "postflop_action" }>,
   pl: Pl,
   bbUnit: number,
+  locale: HoldemUiLocale,
 ): string {
+  const isEn = locale === "en";
   const amt = m.amount != null ? chipsAsBbLabel(m.amount, bbUnit) : "";
   const who = pl(m.player);
   if (m.action === "콜" && m.amount != null) {
-    return `${who}: 콜 (+${amt})`;
+    return `${who}: ${isEn ? "Call" : "콜"} (+${amt})`;
   }
   if (m.action === "베트" && m.amount != null) {
-    return `${who}: 베트 ${amt}`;
+    return `${who}: ${isEn ? "Bet" : "베트"} ${amt}`;
   }
   if (m.action === "레이즈" && m.amount != null) {
-    return `${who}: 레이즈 → 총 ${amt}`;
+    return `${who}: ${isEn ? "Raise" : "레이즈"} → ${isEn ? "total" : "총"} ${amt}`;
   }
-  return `${who}: ${m.action}${amt ? ` (${amt})` : ""}`;
+  return `${who}: ${actionLabel(m.action, locale)}${amt ? ` (${amt})` : ""}`;
 }
 
 type Section = { title: string; lines: string[] };
-
-const POST_NAMES: Partial<Record<Street, string>> = {
-  flop: "플랍",
-  turn: "턴",
-  river: "리버",
-};
 
 function lastShowdownIn(
   logs: GameMessage[],
@@ -118,8 +158,33 @@ function buildSections(
   showdownHoleCtx: { holes: [SelectedHand, SelectedHand]; board: Card[] } | null,
   playMode: "local" | "online" | "single" | undefined,
   gameMode: HoldemGameMode,
+  locale: HoldemUiLocale,
 ): Section[] {
-  const pl = (p: PlayerIndex) => playerNames[p] ?? `플레이어 ${p + 1}`;
+  const isEn = locale === "en";
+  const names = isEn
+    ? {
+        setup: "HAND SETUP",
+        preflop: "PREFLOP",
+        flop: "FLOP",
+        turn: "TURN",
+        river: "RIVER",
+        result: "IA / HAND RESULT",
+      }
+    : {
+        setup: "핸드 준비",
+        preflop: "프리플랍",
+        flop: "플랍",
+        turn: "턴",
+        river: "리버",
+        result: "IA / 판 결과",
+      };
+  const postNames: Partial<Record<Street, string>> = {
+    flop: names.flop,
+    turn: names.turn,
+    river: names.river,
+  };
+  const pl = (p: PlayerIndex) =>
+    playerNames[p] ?? `${isEn ? "Player" : "플레이어"} ${p + 1}`;
   const lastSd = lastShowdownIn(logs);
   const out: Section[] = [];
   let setup: string[] = [];
@@ -138,21 +203,21 @@ function buildSections(
 
   const pushPreflop = () => {
     if (preflop != null && preflop.length > 0) {
-      out.push({ title: "프리플랍", lines: preflop });
+      out.push({ title: names.preflop, lines: preflop });
     }
     preflop = null;
   };
 
   const pushSetup = () => {
     if (setup.length > 0) {
-      out.push({ title: "핸드 준비", lines: setup });
+      out.push({ title: names.setup, lines: setup });
       setup = [];
     }
   };
 
   const pushEnd = () => {
     if (endLines != null && endLines.length > 0) {
-      out.push({ title: "IA / 판 결과", lines: endLines });
+      out.push({ title: names.result, lines: endLines });
     }
     endLines = null;
   };
@@ -184,7 +249,9 @@ function buildSections(
         : sel.acquisitionType === "mystery" ? "Mystery Hand" : "Random Hand";
       const v = best5Of7([...sel.hole, ...board]);
       endLines!.push(
-        `${pl(p)} 핸드: 풀 ${pool} · 홀 ${sel.hole.map(cardLabel).join(" ")} — ${handValueSummaryKorean(v)}`,
+        isEn
+          ? `${pl(p)} hand: pool ${pool} · hole ${sel.hole.map(cardLabel).join(" ")} — ${handValueDisplayForLocale(v, locale)}`
+          : `${pl(p)} 핸드: 풀 ${pool} · 홀 ${sel.hole.map(cardLabel).join(" ")} — ${handValueDisplayForLocale(v, locale)}`,
       );
     }
   };
@@ -197,52 +264,70 @@ function buildSections(
         pushStreet();
         pushPreflop();
         logBlindBbUnit = getBlindLevel(m.round, gameMode).bigBlind;
-        setup = [`라운드 ${m.round} 시작`];
+        setup = [isEn ? `Round ${m.round} started` : `라운드 ${m.round} 시작`];
         break;
       case "hand_pick_conflict":
-        setup.push("홀카드 충돌 — 재선택");
+        setup.push(isEn ? "Hole-card collision — pick again" : "홀카드 충돌 — 재선택");
         break;
       case "hand_chosen": {
         const revealPool =
           playMode === "local" && shouldRevealHandChosenLabel(logs, mi);
         setup.push(
           revealPool
-            ? `${pl(m.player)} 핸드: ${m.label}`
-            : `${pl(m.player)}: 핸드 선택 완료 (비공개)`,
+            ? isEn
+              ? `${pl(m.player)} hand: ${m.label}`
+              : `${pl(m.player)} 핸드: ${m.label}`
+            : isEn
+              ? `${pl(m.player)}: hand locked (hidden)`
+              : `${pl(m.player)}: 핸드 선택 완료 (비공개)`,
         );
         break;
       }
       case "preflop_action":
         if (setup.length > 0) pushSetup();
         if (preflop == null) preflop = [];
-        preflop.push(fmtPreflop(m, pl, logBlindBbUnit));
+        preflop.push(fmtPreflop(m, pl, logBlindBbUnit, locale));
         break;
       case "street_cards": {
         if (setup.length > 0) pushSetup();
         if (m.street === "flop") {
           if (preflop == null) preflop = [];
-          preflop.push(`프리플랍 종료 · 팟 ${chipsAsBbLabel(m.pot, logBlindBbUnit)}`);
+          preflop.push(
+            isEn
+              ? `Preflop complete · Pot ${chipsAsBbLabel(m.pot, logBlindBbUnit)}`
+              : `프리플랍 종료 · 팟 ${chipsAsBbLabel(m.pot, logBlindBbUnit)}`,
+          );
         }
-        if (m.street === "turn" && streetPost?.title === "플랍") {
-          streetPost.lines.push(`플랍 종료 · 팟 ${chipsAsBbLabel(m.pot, logBlindBbUnit)}`);
+        if (m.street === "turn" && streetPost?.title === names.flop) {
+          streetPost.lines.push(
+            isEn
+              ? `Flop complete · Pot ${chipsAsBbLabel(m.pot, logBlindBbUnit)}`
+              : `플랍 종료 · 팟 ${chipsAsBbLabel(m.pot, logBlindBbUnit)}`,
+          );
         }
-        if (m.street === "river" && streetPost?.title === "턴") {
-          streetPost.lines.push(`턴 종료 · 팟 ${chipsAsBbLabel(m.pot, logBlindBbUnit)}`);
+        if (m.street === "river" && streetPost?.title === names.turn) {
+          streetPost.lines.push(
+            isEn
+              ? `Turn complete · Pot ${chipsAsBbLabel(m.pot, logBlindBbUnit)}`
+              : `턴 종료 · 팟 ${chipsAsBbLabel(m.pot, logBlindBbUnit)}`,
+          );
         }
         pushPreflop();
         pushStreet();
-        const name = POST_NAMES[m.street];
+        const name = postNames[m.street];
         if (name != null) {
           streetPost = {
             title: name,
-            lines: [`보드: ${m.cards.map(cardLabel).join(" ")}`],
+            lines: [
+              `${isEn ? "Board" : "보드"}: ${m.cards.map(cardLabel).join(" ")}`,
+            ],
           };
         }
         break;
       }
       case "postflop_action":
-        ensurePost("플랍");
-        streetPost!.lines.push(fmtPost(m, pl, logBlindBbUnit));
+        ensurePost(names.flop);
+        streetPost!.lines.push(fmtPost(m, pl, logBlindBbUnit, locale));
         break;
       case "ia":
         pushStreet();
@@ -250,48 +335,80 @@ function buildSections(
         if (endLines == null) endLines = [];
         endLines.push(
           m.acquisitionType === "mystery"
-            ? `${pl(m.player)}: IA (−${chipsAsBbLabel(m.cost, logBlindBbUnit)}) → 상대는 Mystery Hand입니다.`
+            ? isEn
+              ? `${pl(m.player)}: IA (−${chipsAsBbLabel(m.cost, logBlindBbUnit)}) → Opponent received a Mystery Hand.`
+              : `${pl(m.player)}: IA (−${chipsAsBbLabel(m.cost, logBlindBbUnit)}) → 상대는 Mystery Hand입니다.`
             : m.acquisitionType === "forced-random"
-              ? `${pl(m.player)}: IA (−${chipsAsBbLabel(m.cost, logBlindBbUnit)}) → 상대는 Random Hand를 지급받았습니다. 카테고리가 제공되지 않습니다.`
-              : `${pl(m.player)}: IA (−${chipsAsBbLabel(m.cost, logBlindBbUnit)}) → 상대 카테고리: ${iaCategoryLabelKo(m.revealedCategory!)} (${iaCategoryHandListText(m.revealedCategory!)})`,
+              ? isEn
+                ? `${pl(m.player)}: IA (−${chipsAsBbLabel(m.cost, logBlindBbUnit)}) → Opponent received a Random Hand. No category is revealed.`
+                : `${pl(m.player)}: IA (−${chipsAsBbLabel(m.cost, logBlindBbUnit)}) → 상대는 Random Hand를 지급받았습니다. 카테고리가 제공되지 않습니다.`
+              : isEn
+                ? `${pl(m.player)}: IA (−${chipsAsBbLabel(m.cost, logBlindBbUnit)}) → Opponent category: ${iaCategoryLabelEn(m.revealedCategory!)} (${iaCategoryHandListText(m.revealedCategory!)})`
+                : `${pl(m.player)}: IA (−${chipsAsBbLabel(m.cost, logBlindBbUnit)}) → 상대 카테고리: ${iaCategoryLabelKo(m.revealedCategory!)} (${iaCategoryHandListText(m.revealedCategory!)})`,
         );
         break;
       case "showdown": {
         if (preflop != null) {
-          preflop.push(`프리플랍 종료 · 팟 ${chipsAsBbLabel(m.pot, logBlindBbUnit)}`);
+          preflop.push(
+            isEn
+              ? `Preflop complete · Pot ${chipsAsBbLabel(m.pot, logBlindBbUnit)}`
+              : `프리플랍 종료 · 팟 ${chipsAsBbLabel(m.pot, logBlindBbUnit)}`,
+          );
         }
-        if (streetPost?.title === "플랍") {
-          streetPost.lines.push(`플랍 종료 · 팟 ${chipsAsBbLabel(m.pot, logBlindBbUnit)}`);
-        } else if (streetPost?.title === "턴") {
-          streetPost.lines.push(`턴 종료 · 팟 ${chipsAsBbLabel(m.pot, logBlindBbUnit)}`);
-        } else if (streetPost?.title === "리버") {
-          streetPost.lines.push(`리버 종료 · 팟 ${chipsAsBbLabel(m.pot, logBlindBbUnit)}`);
+        if (streetPost?.title === names.flop) {
+          streetPost.lines.push(
+            isEn
+              ? `Flop complete · Pot ${chipsAsBbLabel(m.pot, logBlindBbUnit)}`
+              : `플랍 종료 · 팟 ${chipsAsBbLabel(m.pot, logBlindBbUnit)}`,
+          );
+        } else if (streetPost?.title === names.turn) {
+          streetPost.lines.push(
+            isEn
+              ? `Turn complete · Pot ${chipsAsBbLabel(m.pot, logBlindBbUnit)}`
+              : `턴 종료 · 팟 ${chipsAsBbLabel(m.pot, logBlindBbUnit)}`,
+          );
+        } else if (streetPost?.title === names.river) {
+          streetPost.lines.push(
+            isEn
+              ? `River complete · Pot ${chipsAsBbLabel(m.pot, logBlindBbUnit)}`
+              : `리버 종료 · 팟 ${chipsAsBbLabel(m.pot, logBlindBbUnit)}`,
+          );
         }
         pushStreet();
         pushPreflop();
         const lastSec = out[out.length - 1];
         if (
-          lastSec?.title === "리버" &&
-          !lastSec.lines.some((l) => l.startsWith("리버 종료 · 팟"))
+          lastSec?.title === names.river &&
+          !lastSec.lines.some((l) =>
+            l.startsWith(isEn ? "River complete · Pot" : "리버 종료 · 팟"),
+          )
         ) {
-          lastSec.lines.push(`리버 종료 · 팟 ${chipsAsBbLabel(m.pot, logBlindBbUnit)}`);
+          lastSec.lines.push(
+            isEn
+              ? `River complete · Pot ${chipsAsBbLabel(m.pot, logBlindBbUnit)}`
+              : `리버 종료 · 팟 ${chipsAsBbLabel(m.pot, logBlindBbUnit)}`,
+          );
         }
         if (endLines == null) endLines = [];
         const showdownLine =
           m.folder != null
-            ? `${pl(m.folder)} 폴드`
+            ? `${pl(m.folder)} ${isEn ? "folded" : "폴드"}`
             : m.hands
-              ? `${pl(0)} ${m.hands[0]} vs ${pl(1)} ${m.hands[1]}`
+              ? `${pl(0)} ${legacyHandSummaryForLocale(m.hands[0], locale)} vs ${pl(1)} ${legacyHandSummaryForLocale(m.hands[1], locale)}`
               : humanizeLegacyShowdownDesc(m.desc, pl);
+        const resultLead =
+          m.winners.length > 1
+            ? `${isEn ? "Split" : "분배"}: ${m.winners.map((w) => pl(w)).join(", ")}`
+            : `${isEn ? "Winner" : "승"}: ${m.winners.map((w) => pl(w)).join(", ")}`;
         endLines.push(
-          `${showdownLine} · 팟 ${chipsAsBbLabel(m.pot, logBlindBbUnit)} (승: ${m.winners.map((w) => pl(w)).join(", ")})`,
+          `${showdownLine} · ${isEn ? "Pot" : "팟"} ${chipsAsBbLabel(m.pot, logBlindBbUnit)} (${resultLead})`,
         );
         appendShowdownHoleLines(m);
         break;
       }
       case "player_busted":
         if (endLines == null) endLines = [];
-        endLines.push(`${pl(m.player)} 버스트`);
+        endLines.push(`${pl(m.player)} ${isEn ? "busted" : "버스트"}`);
         break;
       default:
         break;
@@ -323,11 +440,21 @@ export function HandLog({
   playMode = "local",
   gameMode = "classic",
 }: HandLogProps) {
+  const { locale } = useHoldemI18n();
+  const isEn = locale === "en";
   const [open, setOpen] = React.useState(true);
   const recent = React.useMemo(() => logs.slice(-140), [logs]);
   const sections = React.useMemo(
-    () => buildSections(recent, playerNames, showdownHoleCtx ?? null, playMode, gameMode),
-    [recent, playerNames, showdownHoleCtx, playMode, gameMode],
+    () =>
+      buildSections(
+        recent,
+        playerNames,
+        showdownHoleCtx ?? null,
+        playMode,
+        gameMode,
+        locale,
+      ),
+    [recent, playerNames, showdownHoleCtx, playMode, gameMode, locale],
   );
   const tail = sections.slice(-10);
 
@@ -337,11 +464,11 @@ export function HandLog({
       open={open}
       onToggle={(e) => setOpen(e.currentTarget.open)}
     >
-      <summary className="mb-0.5 cursor-pointer list-none text-xs font-semibold text-zinc-200 [&::-webkit-details-marker]:hidden">
+      <summary className="mb-0.5 cursor-pointer list-none text-xs font-semibold text-zinc-200">
         <span className="inline-flex items-center gap-2">
-          핸드 로그
+          {isEn ? "Hand Log" : "핸드 로그"}
           <span className="rounded bg-zinc-600/60 px-1 py-px text-[9px] font-normal uppercase tracking-wide text-zinc-400">
-            펼치기 · 접기
+            {isEn ? "Expand · Collapse" : "펼치기 · 접기"}
           </span>
         </span>
       </summary>

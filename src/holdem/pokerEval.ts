@@ -193,7 +193,9 @@ export function handValueDisplayPatternKorean(v: HandValue): string {
     case RANK_PAIR:
       return k[0] != null ? `${rCh(k[0])} 원페어` : "원페어";
     case RANK_TWO_PAIR:
-      return "투페어";
+      return k[0] != null && k[1] != null
+        ? `${rCh(k[0])}, ${rCh(k[1])} 투페어`
+        : "투페어";
     case RANK_TRIPS:
       return k[0] != null ? `${rCh(k[0])} 트립스` : "트립스";
     case RANK_STRAIGHT:
@@ -222,7 +224,9 @@ export function handValueDisplayPatternEnglish(v: HandValue): string {
     case RANK_PAIR:
       return k[0] != null ? `Pair of ${rCh(k[0])}` : "Pair";
     case RANK_TWO_PAIR:
-      return "Two pair";
+      return k[0] != null && k[1] != null
+        ? `Two pair, ${rCh(k[0])}s and ${rCh(k[1])}s`
+        : "Two pair";
     case RANK_TRIPS:
       return k[0] != null ? `Trips ${rCh(k[0])}` : "Trips";
     case RANK_STRAIGHT:

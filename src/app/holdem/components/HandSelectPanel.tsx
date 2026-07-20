@@ -64,7 +64,7 @@ function HandTemplateCardPreview({
           >
             <span
               className={[
-                "flex h-[13px] w-full items-center justify-center text-center font-mono text-[13px] font-black leading-none tabular-nums lg:h-[14px] lg:text-[14px]",
+                "flex h-[14px] w-full items-center justify-center text-center font-mono text-[14px] font-black leading-none tabular-nums lg:h-[15.1px] lg:text-[15.1px]",
                 red ? "text-red-600" : "text-zinc-950",
               ].join(" ")}
             >
@@ -72,7 +72,7 @@ function HandTemplateCardPreview({
             </span>
             <span
               className={[
-                "mt-px flex h-[17.25px] w-full items-center justify-center text-center text-[17.25px] leading-none lg:h-[18.375px] lg:text-[18.375px]",
+                "mt-px flex h-[18.6px] w-full items-center justify-center text-center text-[18.6px] leading-none lg:h-[19.85px] lg:text-[19.85px]",
                 red ? "text-red-600" : "text-zinc-950",
               ].join(" ")}
             >
@@ -115,11 +115,7 @@ const CATEGORY_BLURB_EN: Record<OpponentHandCategory, string> = {
 function categoryLabelForMode(
   cat: OpponentHandCategory,
   isEn: boolean,
-  isCostMode: boolean,
 ): string {
-  if (cat === CATEGORY_ORDER[1] && isCostMode) {
-    return isEn ? "Ax" : "Ax";
-  }
   return isEn ? iaCategoryLabelEn(cat) : iaCategoryLabelKo(cat);
 }
 
@@ -239,7 +235,11 @@ function HandPickerColumn({
         : "이 핸드로 확정";
 
   const posLabel =
-    state.button === player ? HU_DEALER_SB_LABEL : HU_BB_LABEL;
+    state.button === player
+      ? isEn
+        ? "BTN · SB"
+        : HU_DEALER_SB_LABEL
+      : HU_BB_LABEL;
 
   const submit = () => {
     if (!tpl || !canConfirm) return;
@@ -341,7 +341,7 @@ function HandPickerColumn({
                 ].join(" ")}
               >
                 <h4 className="text-[10px] font-bold uppercase tracking-wide text-zinc-100">
-                  {categoryLabelForMode(cat, isEn, isCostMode)}
+                  {categoryLabelForMode(cat, isEn)}
                 </h4>
                 {!compact ? (
                   <p className="mt-0.5 text-[11px] leading-snug text-zinc-400">
@@ -423,8 +423,8 @@ function HandPickerColumn({
                       <span
                         className={[
                           isCostMode ? "hidden" : "",
-                          "mt-0.5 font-medium leading-none",
-                          compact ? "text-[9px]" : "text-[10px]",
+                          "mt-1.5 font-medium leading-none",
+                          compact ? "text-[10.35px]" : "text-[11.5px]",
                           dead ? "text-zinc-500" : "text-zinc-400",
                         ].join(" ")}
                       >
@@ -475,7 +475,7 @@ function HandPickerColumn({
                 <p className="text-[11px] text-zinc-300">
                   <span className="text-zinc-500">{isEn ? "Category · " : "카테고리 · "}</span>
                   {categoryForPick != null
-                    ? categoryLabelForMode(categoryForPick, isEn, isCostMode)
+                    ? categoryLabelForMode(categoryForPick, isEn)
                     : null}
                 </p>
                 {isCostMode ? (
