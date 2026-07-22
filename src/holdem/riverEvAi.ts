@@ -55,9 +55,10 @@ export function buildWeightedOpponentHoles(
   state: GameState,
   aiSeat: PlayerIndex,
   categoryFilter: OpponentHandCategory | null,
+  opponentTemplateRemaining?: Readonly<Record<string, number>>,
 ): WeightedHole[] {
   const opp = otherSeat(aiSeat);
-  const pool = state.handPoolRemaining[opp];
+  const pool = opponentTemplateRemaining ?? state.handPoolRemaining[opp];
   const hero = state.holes[aiSeat]?.hole;
   if (!hero) return [];
   const br =
@@ -242,13 +243,19 @@ export function pickBestRiverEvAction(
   aiSeat: PlayerIndex,
   potEff: number,
   categoryFilter: OpponentHandCategory | null,
+  opponentTemplateRemaining?: Readonly<Record<string, number>>,
 ): RiverEvPick | null {
   if (state.phase !== "river") return null;
   const heroSel = state.holes[aiSeat];
   const board = state.board;
   if (!heroSel || board.length < 5) return null;
 
-  const range = buildWeightedOpponentHoles(state, aiSeat, categoryFilter);
+  const range = buildWeightedOpponentHoles(
+    state,
+    aiSeat,
+    categoryFilter,
+    opponentTemplateRemaining,
+  );
   if (totalWeight(range) <= 1e-12) return null;
 
   const { equity } = equityVsWeightedRange(heroSel.hole, board, range);
@@ -340,13 +347,19 @@ export function enumerateRiverLineCandidates(
   aiSeat: PlayerIndex,
   potEff: number,
   categoryFilter: OpponentHandCategory | null,
+  opponentTemplateRemaining?: Readonly<Record<string, number>>,
 ): RiverLineCandidate[] {
   if (state.phase !== "river") return [];
   const heroSel = state.holes[aiSeat];
   const board = state.board;
   if (!heroSel || board.length < 5) return [];
 
-  const range = buildWeightedOpponentHoles(state, aiSeat, categoryFilter);
+  const range = buildWeightedOpponentHoles(
+    state,
+    aiSeat,
+    categoryFilter,
+    opponentTemplateRemaining,
+  );
   if (totalWeight(range) <= 1e-12) return [];
 
   const { equity } = equityVsWeightedRange(heroSel.hole, board, range);
@@ -427,7 +440,11 @@ export function enumerateRiverLineCandidates(
 /**
  * HARD 리버: IA 기대이익 vs 비용(내 스택 차감) 비교.
  */
-export function shouldAIUseIAHardEv(state: GameState, aiSeat: PlayerIndex): boolean {
+export function shouldAIUseIAHardEv(
+  state: GameState,
+  aiSeat: PlayerIndex,
+  opponentTemplateRemaining?: Readonly<Record<string, number>>,
+): boolean {
   if (state.phase !== "river" || state.isAllIn) return false;
   const bb = resolveHandBlinds(state).bb;
   const P = state.pot;
@@ -438,7 +455,12 @@ export function shouldAIUseIAHardEv(state: GameState, aiSeat: PlayerIndex): bool
   const board = state.board;
   if (!hero || board.length < 5) return false;
 
-  const fullRange = buildWeightedOpponentHoles(state, aiSeat, null);
+  const fullRange = buildWeightedOpponentHoles(
+    state,
+    aiSeat,
+    null,
+    opponentTemplateRemaining,
+  );
   const tw = totalWeight(fullRange);
   if (tw <= 1e-12) return false;
 
@@ -453,7 +475,13 @@ export function shouldAIUseIAHardEv(state: GameState, aiSeat: PlayerIndex): bool
   if (noShowdownValue) return false;
 
   const potAfter = roundHalfChip(P - C);
-  const evNo = pickBestRiverEvAction(state, aiSeat, P, null);
+  const evNo = pickBestRiverEvAction(
+    state,
+    aiSeat,
+    P,
+    null,
+    opponentTemplateRemaining,
+  );
   if (!evNo) return false;
 
   const categories = [
@@ -464,11 +492,22 @@ export function shouldAIUseIAHardEv(state: GameState, aiSeat: PlayerIndex): bool
 
   let evIa = 0;
   for (const cat of categories) {
-    const rCat = buildWeightedOpponentHoles(state, aiSeat, cat);
+    const rCat = buildWeightedOpponentHoles(
+      state,
+      aiSeat,
+      cat,
+      opponentTemplateRemaining,
+    );
     const wCat = totalWeight(rCat);
     if (wCat <= 1e-12) continue;
     const pCat = wCat / tw;
-    const pickCat = pickBestRiverEvAction(state, aiSeat, potAfter, cat);
+    const pickCat = pickBestRiverEvAction(
+      state,
+      aiSeat,
+      potAfter,
+      cat,
+      opponentTemplateRemaining,
+    );
     if (!pickCat) continue;
     evIa += pCat * pickCat.ev;
   }

@@ -269,6 +269,7 @@ export function hellRiverSolverAction(
   state: GameState,
   aiSeat: PlayerIndex,
   categoryFilter: OpponentHandCategory | null,
+  opponentTemplateRemaining?: Readonly<Record<string, number>>,
 ): GameAction | null {
   if (state.phase !== "river") return null;
   const potEff = state.pot;
@@ -276,7 +277,12 @@ export function hellRiverSolverAction(
   const board = state.board;
   if (!heroSel || board.length < 5) return null;
 
-  const range = buildWeightedOpponentHoles(state, aiSeat, categoryFilter);
+  const range = buildWeightedOpponentHoles(
+    state,
+    aiSeat,
+    categoryFilter,
+    opponentTemplateRemaining,
+  );
   if (totalWeight(range) <= 1e-12) return null;
 
   const { equity } = equityVsWeightedRange(heroSel.hole, board, range);
@@ -287,6 +293,7 @@ export function hellRiverSolverAction(
     aiSeat,
     potEff,
     categoryFilter,
+    opponentTemplateRemaining,
   );
   if (candidates.length === 0) return null;
 

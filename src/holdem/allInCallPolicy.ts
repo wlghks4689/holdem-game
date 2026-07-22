@@ -3,6 +3,7 @@ import { effectiveCallPay } from "./bettingHelpers";
 import { resolveHandBlinds } from "./blindLevels";
 import { loadMotionDebugEnabled } from "./holdemMotionMode";
 import { best5Of7, compareHandValue } from "./pokerEval";
+import { allConcreteHolesForTemplate, getHandTemplatesForMode } from "./handPool";
 import type { GameState, PlayerIndex } from "./types";
 
 export type AllInCallDifficulty = "easy" | "normal" | "hard" | "hell";
@@ -129,16 +130,40 @@ function buildOpponentRange(
   board: readonly Card[],
   street: AllInCallDecision["street"],
   effectiveStackBb: number,
+  state: GameState,
+  opponentTemplateRemaining?: Readonly<Record<string, number>>,
 ): WeightedHole[] {
-  const deck = removeCards(makeDeck(), [...hero, ...board]);
   const out: WeightedHole[] = [];
   let cumulative = 0;
+  const weightFor = (hole: [Card, Card]): number => street === "preflop"
+    ? preflopShoveWeight(hole, effectiveStackBb)
+    : postflopShoveWeight(hole, board);
+
+  if (opponentTemplateRemaining) {
+    const blocked = new Set([...hero, ...board].map((card) => `${card.rank}:${card.suit}`));
+    for (const template of getHandTemplatesForMode(state.gameMode)) {
+      const remaining = opponentTemplateRemaining[template.id] ?? 0;
+      if (remaining <= 0) continue;
+      const holes = allConcreteHolesForTemplate(template).filter((hole) =>
+        !blocked.has(`${hole[0].rank}:${hole[0].suit}`) &&
+        !blocked.has(`${hole[1].rank}:${hole[1].suit}`),
+      );
+      if (holes.length === 0) continue;
+      for (const hole of holes) {
+        const weight = weightFor(hole) * remaining / holes.length;
+        if (weight <= 0) continue;
+        cumulative += weight;
+        out.push({ hole, weight, cumulative });
+      }
+    }
+    return out;
+  }
+
+  const deck = removeCards(makeDeck(), [...hero, ...board]);
   for (let i = 0; i < deck.length; i++) {
     for (let j = i + 1; j < deck.length; j++) {
       const hole: [Card, Card] = [deck[i]!, deck[j]!];
-      const weight = street === "preflop"
-        ? preflopShoveWeight(hole, effectiveStackBb)
-        : postflopShoveWeight(hole, board);
+      const weight = weightFor(hole);
       if (weight <= 0) continue;
       cumulative += weight;
       out.push({ hole, weight, cumulative });
@@ -201,6 +226,7 @@ export function evaluateAllInCall(
   state: GameState,
   aiSeat: PlayerIndex,
   difficulty: AllInCallDifficulty,
+  opponentTemplateRemaining?: Readonly<Record<string, number>>,
 ): AllInCallDecision | null {
   if (!isFacingOpponentAllIn(state, aiSeat)) return null;
   const hero = state.holes[aiSeat]?.hole;
@@ -219,7 +245,14 @@ export function evaluateAllInCall(
   const opponentStreetStack = state.chips[opponent]! + state.betting.contributed[opponent]!;
   const effectiveStackBb = Math.min(heroStreetStack, opponentStreetStack) / bb;
   const board = knownBoard(state);
-  const range = buildOpponentRange(hero, board, state.phase, effectiveStackBb);
+  const range = buildOpponentRange(
+    hero,
+    board,
+    state.phase,
+    effectiveStackBb,
+    state,
+    opponentTemplateRemaining,
+  );
   const seed = hashCards([...hero, ...board], Math.round(state.pot * 100) + state.roundNumber * 31);
   const { equity, samples } = estimateEquity(hero, board, range, seed);
 
