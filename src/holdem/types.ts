@@ -110,6 +110,8 @@ export type GameState = {
    */
   button: PlayerIndex;
   chips: [number, number];
+  /** Stack sizes immediately before this hand posts blinds; used for per-hand net result UI. */
+  handStartChips: [number, number];
   pot: number;
   /**
    * 직전 핸드 팟 정산 플래시(칩): 양수 = 이번에 팟에서 얻은 양, 음수 = 상대가 가져간 팟(2인·표시용).

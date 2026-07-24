@@ -323,6 +323,7 @@ function startPreflopAfterHands(s: GameState, deckRng: () => number): void {
   const h1 = s.holes[1]!.hole;
   s.board = dealAfterHoles(h0, h1, deckRng);
   s.boardRevealed = 0;
+  s.handStartChips = [s.chips[0]!, s.chips[1]!];
   ensureHandBlinds(s);
   const { sb, bb, ante } = s.handBlinds;
   const btn = s.button;
@@ -521,6 +522,7 @@ export function createInitialGameState(gameModeRaw: HoldemGameMode = "classic"):
     handBlinds: handBlindsFromRound(1, gameMode),
     button: 0,
     chips: [startingChips, startingChips],
+    handStartChips: [startingChips, startingChips],
     pot: 0,
     potAwardFlash: null,
     handPoolRemaining: [
@@ -582,6 +584,13 @@ export function holdemReducer(
   const s: GameState = structuredClone(state);
   s.gameMode = normalizeGameMode(s.gameMode);
   ensureHandBlinds(s);
+  if (
+    !Array.isArray(s.handStartChips) ||
+    typeof s.handStartChips[0] !== "number" ||
+    typeof s.handStartChips[1] !== "number"
+  ) {
+    s.handStartChips = [s.chips[0]!, s.chips[1]!];
+  }
   s.isAllIn = s.isAllIn ?? false;
   s.handPoolRemaining = normalizeHandPoolRemaining(s.handPoolRemaining as unknown, s.gameMode);
   s.handCostRemaining = normalizeHandCostRemaining(s.handCostRemaining as unknown, s.gameMode);
@@ -901,15 +910,17 @@ export function holdemReducer(
 
       const target = roundHalfChip(action.toLevelChips);
       const contributed = s.betting.contributed[p]!;
-      const add = roundHalfChip(target - contributed);
+      const requestedAdd = roundHalfChip(target - contributed);
+      const stackBefore = roundHalfChip(s.chips[p]!);
+      const add = Math.min(requestedAdd, stackBefore);
       if (add <= 1e-9) return state; // 레이즈는 "상대 현재 레벨 초과"여야 함
-      if (add > s.chips[p]!) return state;
+      if (requestedAdd > stackBefore + 1e-9) return state;
 
       const level = levelFromContributions(s.betting);
       if (target <= level + 1e-9) return state;
 
       // 노리밋: 올인(남은 스택 전부)이라면 최소 레이즈 미만이어도 허용
-      const allInRaise = add >= s.chips[p]! - 1e-9;
+      const allInRaise = add >= stackBefore - 1e-9;
       if (!allInRaise) {
         const minTarget = postflopMinRaiseTargetForActor(s);
         const bbUnitPost = resolveHandBlinds(s).bb;
@@ -921,10 +932,10 @@ export function holdemReducer(
           return state;
         }
       }
-      s.chips[p]! -= add;
+      s.chips[p]! = roundHalfChip(stackBefore - add);
       s.pot = roundHalfChip(s.pot + add);
-      s.betting.contributed[p]! = target;
-      s.betting.currentLevel = target;
+      s.betting.contributed[p]! = roundHalfChip(contributed + add);
+      s.betting.currentLevel = s.betting.contributed[p]!;
       s.betting.raiseDone = false;
       s.betting.checksThisStreet = 0;
       s.betting.raisesThisStreet += 1;

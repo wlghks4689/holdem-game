@@ -67,6 +67,7 @@ export function useHoldemSinglePlayer({
         const chips = singlePlayerInitialChips(d, seat);
         base.chips[0] = chips[0]!;
         base.chips[1] = chips[1]!;
+        base.handStartChips = [chips[0]!, chips[1]!];
       }
       return base;
     },

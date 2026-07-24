@@ -208,7 +208,10 @@ export function TableHeaderBar({ state, playerNames }: TableHeaderBarProps) {
           const blindTag = isEn && blindTagRaw === HU_DEALER_SB_LABEL
             ? "BTN · SB"
             : blindTagRaw;
-          const flashDelta = state.potAwardFlash?.[p] ?? 0;
+          const flashDelta =
+            state.potAwardFlash != null && Array.isArray(state.handStartChips)
+              ? state.chips[p]! - state.handStartChips[p]!
+              : 0;
           const showPotFlash =
             gainVisible &&
             state.potAwardFlash != null &&
@@ -313,11 +316,11 @@ export function TableHeaderBar({ state, playerNames }: TableHeaderBarProps) {
                       aria-label={
                         flashDelta > 0
                           ? isEn
-                            ? `Won ${chipsAsBbLabel(Math.abs(flashDelta), hb.bb)} from this pot`
-                            : `이번 판 팟 획득 ${chipsAsBbLabel(Math.abs(flashDelta), hb.bb)}`
+                            ? `Net gain this hand: ${chipsAsBbLabel(Math.abs(flashDelta), hb.bb)}`
+                            : `이번 핸드 순이익 ${chipsAsBbLabel(Math.abs(flashDelta), hb.bb)}`
                           : isEn
-                            ? `Lost ${chipsAsBbLabel(Math.abs(flashDelta), hb.bb)} from this pot`
-                            : `이번 판 팟 ${chipsAsBbLabel(Math.abs(flashDelta), hb.bb)} 유실`
+                            ? `Net loss this hand: ${chipsAsBbLabel(Math.abs(flashDelta), hb.bb)}`
+                            : `이번 핸드 순손실 ${chipsAsBbLabel(Math.abs(flashDelta), hb.bb)}`
                       }
                     >
                       {flashDelta > 0
