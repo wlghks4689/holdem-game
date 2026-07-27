@@ -7,8 +7,10 @@ import {
   bestFiveCardsFromSeven,
   compareHandValue,
   currentCompactHandLabel,
+  madeHandFxKind,
   madeHandFxTier,
 } from "@/holdem/pokerEval";
+import type { MadeHandFxKind } from "@/holdem/pokerEval";
 import {
   HOLDEM_PREFS_CHANGED_EVENT,
   loadMadeHandFxEnabled,
@@ -36,22 +38,22 @@ function withoutKickerDetail(label: string | null): string | null {
     .replace(/\s*·\s*키커\b.*$/, "");
 }
 
-/** 메이드 연출용 — 카드 링(글로우가 ::after 뒤에서도 보이도록) */
-const MADE_FX_CARD_RING: Record<number, string> = {
-  1: "ring-2 ring-amber-400/90 shadow-[0_0_26px_rgba(251,191,36,0.55)]",
-  2: "ring-2 ring-sky-400/90 shadow-[0_0_28px_rgba(14,165,233,0.55)]",
-  3: "ring-2 ring-violet-400/85 shadow-[0_0_28px_rgba(167,139,250,0.45)]",
-  4: "ring-2 ring-amber-300/90 shadow-[0_0_30px_rgba(252,211,77,0.55)]",
-  5: "ring-2 ring-yellow-300/90 shadow-[0_0_32px_rgba(253,224,71,0.5)]",
+/** 메이드 연출용 — 선 형태의 링 없이 족보 색상이 번지는 카드 후광 */
+export const MADE_FX_CARD_GLOW: Record<number, string> = {
+  1: "holdem-made-card-glow-t1",
+  2: "holdem-made-card-glow-t2",
+  3: "holdem-made-card-glow-t3",
+  4: "holdem-made-card-glow-t4",
+  5: "holdem-made-card-glow-t5",
 };
 
 /** 내 턴 패널 — 메이드 티어가 있으면 메이드 연출 색으로 에메랄드 대체 */
-const MADE_TURN_PANEL: Record<number, string> = {
-  1: "border-amber-400/70 bg-amber-950/32 shadow-[0_0_30px_rgba(251,191,36,0.38)] ring-2 ring-amber-400/55 z-[2]",
-  2: "border-sky-400/70 bg-sky-950/28 shadow-[0_0_30px_rgba(14,165,233,0.38)] ring-2 ring-sky-400/55 z-[2]",
-  3: "border-violet-400/70 bg-violet-950/30 shadow-[0_0_30px_rgba(167,139,250,0.4)] ring-2 ring-violet-400/50 z-[2]",
-  4: "border-amber-300/70 bg-amber-950/28 shadow-[0_0_32px_rgba(252,211,77,0.38)] ring-2 ring-amber-300/55 z-[2]",
-  5: "border-yellow-300/70 bg-yellow-950/22 shadow-[0_0_32px_rgba(253,224,71,0.4)] ring-2 ring-yellow-300/55 z-[2]",
+export const MADE_TURN_PANEL: Record<number, string> = {
+  1: "border-zinc-600/70 bg-amber-950/29 shadow-[0_0_26px_rgba(251,191,36,0.29)] z-[2]",
+  2: "border-zinc-600/70 bg-sky-950/29 shadow-[0_0_35px_rgba(14,165,233,0.36)] z-[2]",
+  3: "border-zinc-600/70 bg-violet-950/31 shadow-[0_0_44px_rgba(167,139,250,0.41)] z-[2]",
+  4: "border-zinc-600/70 bg-rose-950/31 shadow-[0_0_53px_rgba(244,63,94,0.46)] z-[2]",
+  5: "border-zinc-600/70 bg-sky-950/22 shadow-[0_0_56px_rgba(192,132,252,0.4)] z-[2]",
 };
 
 const MADE_TURN_ACTION_BADGE: Record<number, string> = {
@@ -60,6 +62,53 @@ const MADE_TURN_ACTION_BADGE: Record<number, string> = {
   3: "rounded-full bg-violet-600/38 px-2 py-0.5 text-[9px] font-bold text-violet-100",
   4: "rounded-full bg-amber-500/38 px-2 py-0.5 text-[9px] font-bold text-amber-50",
   5: "rounded-full bg-yellow-500/35 px-2 py-0.5 text-[9px] font-bold text-yellow-50",
+};
+
+const MADE_FX_IMPACT_CLASS: Partial<Record<MadeHandFxKind, string>> = {
+  straight: "holdem-preview-impact-t1-fx",
+  flush: "holdem-preview-impact-t2-fx",
+  "full-house": "holdem-preview-impact-t3-fx",
+};
+
+const MADE_FX_CYCLE_AURA_CLASS: Partial<Record<MadeHandFxKind, string>> = {
+  straight: "holdem-preview-cycle-aura-straight",
+  flush: "holdem-preview-cycle-aura-flush",
+  "full-house": "holdem-preview-cycle-aura-full-house",
+  quads: "holdem-preview-cycle-aura-quads",
+};
+
+type MadeFxVariantClasses = {
+  panel: string;
+  fx: string;
+  card: string;
+  label: string;
+  badge: string;
+};
+
+const MADE_FX_VARIANT_CLASSES: Partial<
+  Record<MadeHandFxKind, MadeFxVariantClasses>
+> = {
+  quads: {
+    panel: "holdem-preview-quads-coral-panel",
+    fx: "holdem-preview-quads-coral-fx",
+    card: "holdem-preview-quads-coral-card",
+    label: "holdem-preview-quads-coral-label",
+    badge: "holdem-preview-quads-coral-badge",
+  },
+  "straight-flush": {
+    panel: "holdem-preview-straight-flush-rainbow-panel",
+    fx: "holdem-preview-straight-flush-rainbow-fx",
+    card: "holdem-preview-straight-flush-rainbow-card",
+    label: "holdem-preview-straight-flush-rainbow-label",
+    badge: "holdem-preview-straight-flush-rainbow-badge",
+  },
+  "royal-flush": {
+    panel: "holdem-preview-royal-flush-panel",
+    fx: "holdem-preview-royal-flush-fx",
+    card: "holdem-preview-royal-flush-card",
+    label: "holdem-preview-royal-flush-label",
+    badge: "holdem-preview-royal-flush-badge",
+  },
 };
 
 function turnPulseAnimation(madeTier: number | null, subtle: boolean): string {
@@ -98,6 +147,8 @@ export type HoleCardsProps = {
   showdownFxArmed?: boolean;
   /** 향후 정확한 올인 승률 계산기가 연결될 때 사용할 표시 슬롯 */
   showdownEquityPercent?: [number | null, number | null];
+  /** 올인 런아웃에서 새 스트리트 공개 후 현재 메이드 족보 연출을 허용 */
+  showdownRunoutFx?: boolean;
 };
 
 function showdownCompare(state: GameState): number | null {
@@ -118,6 +169,7 @@ export function HoleCards({
   cinematicWinnerPulse = false,
   showdownFxArmed = true,
   showdownEquityPercent = [null, null],
+  showdownRunoutFx = false,
 }: HoleCardsProps) {
   const { t, locale } = useHoldemI18n();
   const motionMode = useHoldemMotionMode();
@@ -223,16 +275,33 @@ export function HoleCards({
 
         const boardUsedForFx = state.board.slice(0, state.boardRevealed);
         let madeFxTier = 0;
-        if (sel != null && showFaces && madeHandFxOn) {
+        let madeFxKind: MadeHandFxKind = "none";
+        if (
+          sel != null &&
+          showFaces &&
+          (madeHandFxOn || showdownReveal)
+        ) {
           const all = [...sel.hole, ...boardUsedForFx];
           if (all.length >= 5) {
-            madeFxTier = madeHandFxTier(best5Of7(all));
+            const madeValue = best5Of7(all);
+            madeFxTier = madeHandFxTier(madeValue);
+            madeFxKind = madeHandFxKind(madeValue);
           }
         }
+        const madeFxImpactClass = MADE_FX_IMPACT_CLASS[madeFxKind];
+        const madeFxCycleAuraClass = MADE_FX_CYCLE_AURA_CLASS[madeFxKind];
+        const madeFxVariant = MADE_FX_VARIANT_CLASSES[madeFxKind];
+        const madeFxCardClass =
+          madeFxVariant?.card ??
+          (madeFxTier > 0 ? MADE_FX_CARD_GLOW[madeFxTier] : "");
         const madeFxOuterKey =
           madeFxTier > 0
-            ? `made-fx-${state.roundNumber}-${state.boardRevealed}-${madeFxTier}-p${p}`
-            : `hole-row-${p}`;
+            ? showdownRunoutFx
+              ? `made-fx-runout-${state.roundNumber}-${madeFxKind}-p${p}`
+              : `made-fx-${state.roundNumber}-${state.boardRevealed}-${madeFxKind}-p${p}`
+            : showdownReveal
+              ? `showdown-default-fx-${state.roundNumber}-p${p}`
+              : `hole-row-${p}`;
         /** 메이드 연출이 보이도록: 내 패가 스트레이트↑일 때 상대 턴 디밍 제외 */
         const dimPanelForIdleTurn =
           dimForNonTurn && !(isMe && madeFxTier > 0);
@@ -255,21 +324,34 @@ export function HoleCards({
           isToAct &&
           !loserShowdown;
 
-        /** 승자 패널만 은은한 글로우 1곳 */
+        const showdownResultGlow =
+          showdownReveal && (winnerShowdown || tieShowdown);
+        const showMadeFx =
+          madeFxTier > 0 &&
+          (!showdownReveal || showdownResultGlow || showdownRunoutFx);
+        const showDefaultShowdownGlow =
+          showdownResultGlow && madeFxTier === 0;
+        const royalPanelCelebration =
+          showMadeFx && madeFxKind === "royal-flush" && !loserShowdown;
+
+        /** 쇼다운 승자·무승부 패널도 족보 색상, 트리플 이하는 에메랄드로 통일 */
         const showdownFrame =
-          winnerShowdown && p === 0
-            ? "border-amber-300/85 bg-amber-950/38 shadow-[0_0_46px_rgba(251,191,36,0.42)] ring-2 ring-amber-300/70"
-            : winnerShowdown && p === 1
-              ? "border-violet-300/85 bg-violet-950/38 shadow-[0_0_46px_rgba(167,139,250,0.42)] ring-2 ring-violet-300/70"
-              : tieShowdown
-                ? "border-emerald-300/80 bg-emerald-950/32 shadow-[0_0_36px_rgba(52,211,153,0.3)] ring-2 ring-emerald-300/65"
-                : "";
+          showdownResultGlow
+            ? madeFxTier > 0
+              ? madeFxVariant?.panel ?? MADE_TURN_PANEL[madeFxTier]!
+              : "border-zinc-600/70 bg-emerald-950/28 shadow-[0_0_38px_rgba(52,211,153,0.34)]"
+            : "";
+
+        const showdownResultBadgeClass =
+          madeFxTier > 0
+            ? madeFxVariant?.badge ?? MADE_TURN_ACTION_BADGE[madeFxTier]!
+            : "bg-emerald-500/22 text-emerald-100 shadow-[0_0_12px_rgba(52,211,153,0.28)]";
 
         let toneFrame = "";
         if (!loserShowdown) {
           if (isToAct) {
             toneFrame = heroMadeTurnGlow
-              ? MADE_TURN_PANEL[madeFxTier]!
+              ? madeFxVariant?.panel ?? MADE_TURN_PANEL[madeFxTier]!
               : "border-emerald-400/70 bg-emerald-900/35 shadow-[0_0_30px_rgba(52,211,153,0.38)] ring-2 ring-emerald-400/50 z-[2]";
           } else if (isHandPickChoosing) {
             toneFrame =
@@ -294,16 +376,21 @@ export function HoleCards({
           cinematicWinnerPulse && winnerShowdown
             ? "z-[1] scale-[1.02]"
             : "",
+          royalPanelCelebration
+            ? "holdem-preview-royal-panel-celebration"
+            : "",
         ].join(" ");
 
         const frameStyle: CSSProperties | undefined =
           isToAct && turnPulse
-            ? {
+            ? heroMadeTurnGlow
+              ? undefined
+              : {
                 animation: turnPulseAnimation(
                   heroMadeTurnGlow ? madeFxTier : null,
                   subtleMotion,
                 ),
-              }
+                }
             : isHandPickChoosing
               ? {
                   animation: subtleMotion
@@ -348,6 +435,13 @@ export function HoleCards({
         const madeKey = (c: { rank: number; suit: string }) => `${c.rank}:${c.suit}`;
         return (
           <div key={p} className={frameClass} style={frameStyle}>
+            {royalPanelCelebration ? (
+              <div
+                key={`royal-panel-flash-${madeFxOuterKey}`}
+                className="holdem-preview-royal-panel-flash"
+                aria-hidden
+              />
+            ) : null}
             <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[10px] font-medium uppercase text-zinc-400">
               <span className="text-zinc-200">{seatName}</span>
               <span
@@ -366,11 +460,9 @@ export function HoleCards({
                   <span
                     className={[
                       "rounded-full px-2 py-0.5 text-[9px] font-black tracking-wider",
-                      tieShowdown
-                        ? "bg-emerald-500/22 text-emerald-200 ring-1 ring-emerald-400/45"
-                        : winnerShowdown
-                          ? "bg-amber-500/25 text-amber-100 ring-1 ring-amber-300/55"
-                          : "bg-zinc-800/75 text-zinc-500 ring-1 ring-zinc-700/60",
+                      winnerShowdown || tieShowdown
+                        ? showdownResultBadgeClass
+                        : "bg-zinc-800/75 text-zinc-500 ring-1 ring-zinc-700/60",
                     ].join(" ")}
                   >
                     {tieShowdown
@@ -389,7 +481,8 @@ export function HoleCards({
                   <span
                     className={
                       heroMadeTurnGlow
-                        ? MADE_TURN_ACTION_BADGE[madeFxTier]!
+                        ? madeFxVariant?.badge ??
+                          MADE_TURN_ACTION_BADGE[madeFxTier]!
                         : "rounded-full bg-emerald-600/30 px-2 py-0.5 text-[9px] font-bold text-emerald-200"
                     }
                   >
@@ -419,26 +512,38 @@ export function HoleCards({
                   <div
                     key={madeFxOuterKey}
                     className={[
-                      madeFxTier > 0
+                      showMadeFx
                         ? `holdem-made-fx holdem-made-fx-t${madeFxTier} overflow-visible`
+                        : showDefaultShowdownGlow
+                          ? "holdem-made-fx holdem-showdown-default-fx overflow-visible"
                         : "",
+                      showMadeFx ? madeFxImpactClass ?? "" : "",
+                      showMadeFx ? madeFxVariant?.fx ?? "" : "",
                     ]
                       .filter(Boolean)
                       .join(" ")}
                   >
+                    {showMadeFx && madeFxCycleAuraClass ? (
+                      <span
+                        className={`holdem-preview-cycle-aura ${madeFxCycleAuraClass}`}
+                        aria-hidden
+                      />
+                    ) : null}
                     <div
                       className={[
                         "flex shrink-0",
                         "gap-3",
-                        madeFxTier > 0 ? "holdem-made-fx-stack" : "",
+                        showMadeFx || showDefaultShowdownGlow
+                          ? "holdem-made-fx-stack"
+                          : "",
                       ].join(" ")}
                     >
                       {sel.hole.map((c, i) => (
                         <div
                           key={i}
-                          className={madeFxTier > 0 ? "holdem-made-fx-card" : undefined}
+                          className={showMadeFx ? "holdem-made-fx-card" : undefined}
                           style={
-                            madeFxTier > 0
+                            showMadeFx
                               ? { animationDelay: `${i * 0.08}s` }
                               : undefined
                           }
@@ -462,11 +567,14 @@ export function HoleCards({
                                 size={cardSize}
                                 className={[
                                   showdownReveal ? showdownCardClass : "",
-                                  madeFxTier > 0 && !showdownReveal
-                                    ? MADE_FX_CARD_RING[madeFxTier] ?? ""
+                                  showMadeFx &&
+                                  (!showdownReveal || showdownRunoutFx)
+                                    ? madeFxCardClass
                                     : "",
                                   showRing
-                                    ? "ring-2 ring-amber-300/80 shadow-[0_0_22px_rgba(252,211,77,0.25)]"
+                                    ? madeFxTier > 0
+                                      ? madeFxCardClass
+                                      : "holdem-showdown-default-card-glow"
                                     : "",
                                   dimNonMade
                                     ? "opacity-35 brightness-[0.78] saturate-50 grayscale-[0.18]"
@@ -494,8 +602,14 @@ export function HoleCards({
                         className={[
                           "inline-block text-center text-lg font-extrabold leading-tight tracking-tight drop-shadow-sm sm:text-xl",
                           showdownHand ? "holdem-showdown-hand-change text-amber-50" : "",
-                          madeFxTier > 0
-                            ? `holdem-made-hand-label holdem-made-hand-label-t${madeFxTier}`
+                          showMadeFx
+                            ? [
+                                "holdem-made-hand-label",
+                                madeFxVariant?.label ??
+                                  `holdem-made-hand-label-t${madeFxTier}`,
+                              ].join(" ")
+                            : showDefaultShowdownGlow
+                              ? "text-emerald-100 drop-shadow-[0_0_10px_rgba(52,211,153,0.48)]"
                             : "text-zinc-50",
                         ].join(" ")}
                       >

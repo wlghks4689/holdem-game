@@ -3,7 +3,13 @@
 import * as React from "react";
 import type { GameState } from "@/holdem/types";
 import { useHoldemI18n } from "@/holdem/i18n/HoldemLocaleProvider";
-import { bestFiveCardsFromSeven, best5Of7, compareHandValue } from "@/holdem/pokerEval";
+import {
+  bestFiveCardsFromSeven,
+  best5Of7,
+  compareHandValue,
+  madeHandFxKind,
+} from "@/holdem/pokerEval";
+import type { MadeHandFxKind } from "@/holdem/pokerEval";
 import { useHoldemMotionMode } from "../HoldemMotionRuntime";
 import { CardBack, PlayingCard } from "./Card";
 import {
@@ -52,6 +58,16 @@ const FLOP_STAGGER_MS = 180;
 const TURN_RIVER_STAGGER_MS = 80;
 
 const BOARD_GAP = "gap-2 sm:gap-5 lg:gap-7";
+
+const SHOWDOWN_BOARD_GLOW: Record<MadeHandFxKind, string> = {
+  none: "holdem-showdown-default-card-glow",
+  straight: "holdem-made-card-glow-t1",
+  flush: "holdem-made-card-glow-t2",
+  "full-house": "holdem-made-card-glow-t3",
+  quads: "holdem-preview-quads-coral-card",
+  "straight-flush": "holdem-preview-straight-flush-rainbow-card",
+  "royal-flush": "holdem-preview-royal-flush-card",
+};
 
 function rabbitSlotLabel(
   i: number,
@@ -192,11 +208,15 @@ export function BoardDisplay({
       // 타이: 양쪽의 best5가 동일/유사할 수 있으니 둘 다 합집합으로 강조
       for (const c of bestFiveCardsFromSeven(all0)) set.add(key(c));
       for (const c of bestFiveCardsFromSeven(all1)) set.add(key(c));
+      return { keys: set, fxKind: madeHandFxKind(v0) };
     } else {
       const winAll = cmp > 0 ? all0 : all1;
       for (const c of bestFiveCardsFromSeven(winAll)) set.add(key(c));
+      return {
+        keys: set,
+        fxKind: madeHandFxKind(cmp > 0 ? v0 : v1),
+      };
     }
-    return set;
   }, [cinematicFlip, rev, state.board, state.holes, state.phase]);
 
   const [enterDeals, setEnterDeals] = React.useState<EnterDeal[]>([]);
@@ -330,8 +350,12 @@ export function BoardDisplay({
             const slotDeals = enterDeals.filter((d) => d.slot === i);
             const hasEnterDeal = slotDeals.length > 0;
             const cardKey = `${c.rank}:${c.suit}`;
-            const madeOnWinner = showdownMadeKeySet?.has(cardKey) ?? false;
+            const madeOnWinner =
+              showdownMadeKeySet?.keys.has(cardKey) ?? false;
             const dimNonMade = showdownMadeKeySet != null && !madeOnWinner;
+            const showdownGlowClass = SHOWDOWN_BOARD_GLOW[
+              showdownMadeKeySet?.fxKind ?? "none"
+            ];
             return (
               <div
                 key={i}
@@ -346,7 +370,7 @@ export function BoardDisplay({
                   className={[
                     showdown ? "drop-shadow-sm" : "drop-shadow-md",
                     madeOnWinner
-                      ? "brightness-[1.2] contrast-[1.12] saturate-[1.15] ring-[3px] ring-amber-200/95 shadow-[0_0_34px_rgba(253,224,71,0.58),0_0_12px_rgba(255,255,255,0.34)]"
+                      ? `brightness-[1.16] contrast-[1.1] saturate-[1.12] ${showdownGlowClass}`
                       : "",
                     dimNonMade
                       ? "opacity-20 brightness-[0.48] contrast-75 saturate-[0.28] grayscale-[0.58]"
@@ -374,7 +398,7 @@ export function BoardDisplay({
                         className={[
                           "drop-shadow-lg",
                           madeOnWinner
-                            ? "brightness-[1.2] contrast-[1.12] saturate-[1.15] ring-[3px] ring-amber-200/95 shadow-[0_0_36px_rgba(253,224,71,0.62),0_0_12px_rgba(255,255,255,0.36)]"
+                            ? `brightness-[1.16] contrast-[1.1] saturate-[1.12] ${showdownGlowClass}`
                             : "",
                           dimNonMade
                             ? "opacity-20 brightness-[0.48] contrast-75 saturate-[0.28] grayscale-[0.58]"

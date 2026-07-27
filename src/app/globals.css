@@ -496,44 +496,6 @@ body {
   }
 }
 
-/* ── 쇼다운 드라마틱 오버레이 ── */
-.holdem-sd-vignette {
-  background:
-    radial-gradient(ellipse at center, rgba(0,0,0,0) 0%, rgba(0,0,0,0.55) 70%, rgba(0,0,0,0.82) 100%),
-    radial-gradient(ellipse at 50% 42%, rgba(252,211,77,0.10) 0%, rgba(252,211,77,0.0) 52%);
-}
-
-@keyframes holdem-sd-backdrop-in {
-  from { opacity: 0; }
-  to   { opacity: 1; }
-}
-
-@keyframes holdem-sd-panel-in {
-  0%   { opacity: 0; transform: translateY(10px) scale(0.94); filter: blur(1px); }
-  65%  { opacity: 1; transform: translateY(-2px) scale(1.01); filter: blur(0); }
-  100% { opacity: 1; transform: translateY(0) scale(1); }
-}
-
-@keyframes holdem-sd-title-pop {
-  0%   { opacity: 0; transform: translateY(-8px) scale(0.96); }
-  100% { opacity: 1; transform: translateY(0) scale(1); }
-}
-
-@keyframes holdem-sd-subtitle-in {
-  0%   { opacity: 0; transform: translateY(-6px); }
-  100% { opacity: 1; transform: translateY(0); }
-}
-
-@keyframes holdem-sd-winner-in {
-  0%   { opacity: 0; transform: translateY(6px) scale(0.985); letter-spacing: -0.01em; }
-  100% { opacity: 1; transform: translateY(0) scale(1); letter-spacing: -0.02em; }
-}
-
-@keyframes holdem-sd-hand-in {
-  0%   { opacity: 0; transform: translateY(8px) scale(0.98); }
-  100% { opacity: 1; transform: translateY(0) scale(1); }
-}
-
 /* ── 올인 쇼다운: 줌아웃은 잠깐만 ──
    HoldemPlayUI의 섹션에 아래 클래스가 붙습니다:
    - .holdem-cinema-active
@@ -1322,6 +1284,143 @@ body {
   animation: holdem-made-sf 1.45s ease-in-out 1;
 }
 
+@keyframes holdem-made-card-glow-straight {
+  0% {
+    box-shadow:
+      0 0 6px rgba(251, 191, 36, 0.43),
+      0 0 13px rgba(245, 158, 11, 0.19);
+  }
+  45% {
+    box-shadow:
+      0 0 13px rgba(251, 191, 36, 0.82),
+      0 0 29px rgba(245, 158, 11, 0.41);
+  }
+  100% {
+    box-shadow:
+      0 0 10px rgba(251, 191, 36, 0.65),
+      0 0 22px rgba(245, 158, 11, 0.3);
+  }
+}
+
+@keyframes holdem-made-card-glow-flush {
+  0% {
+    box-shadow:
+      0 0 8px rgba(56, 189, 248, 0.5),
+      0 0 18px rgba(14, 165, 233, 0.24);
+  }
+  45% {
+    box-shadow:
+      0 0 17px rgba(56, 189, 248, 0.91),
+      0 0 37px rgba(14, 165, 233, 0.53),
+      0 0 46px rgba(125, 211, 252, 0.19);
+  }
+  100% {
+    box-shadow:
+      0 0 13px rgba(56, 189, 248, 0.74),
+      0 0 31px rgba(14, 165, 233, 0.41);
+  }
+}
+
+@keyframes holdem-made-card-glow-full-house {
+  0% {
+    box-shadow:
+      0 0 9px rgba(192, 132, 252, 0.55),
+      0 0 20px rgba(251, 191, 36, 0.22);
+  }
+  45% {
+    box-shadow:
+      0 0 20px rgba(192, 132, 252, 0.96),
+      0 0 44px rgba(167, 139, 250, 0.6),
+      0 0 57px rgba(251, 191, 36, 0.31);
+  }
+  100% {
+    box-shadow:
+      0 0 17px rgba(192, 132, 252, 0.82),
+      0 0 37px rgba(167, 139, 250, 0.48),
+      0 0 48px rgba(251, 191, 36, 0.24);
+  }
+}
+
+.holdem-made-card-glow-t1 {
+  animation: holdem-made-card-glow-straight 0.85s ease-out 1 both;
+}
+
+.holdem-made-card-glow-t2 {
+  animation: holdem-made-card-glow-flush 1.05s ease-out 1 both;
+}
+
+.holdem-made-card-glow-t3 {
+  animation: holdem-made-card-glow-full-house 1.2s ease-out 1 both;
+}
+
+.holdem-made-card-glow-t4 {
+  box-shadow:
+    0 0 19px rgba(251, 113, 133, 0.94),
+    0 0 42px rgba(239, 68, 68, 0.67),
+    0 0 55px rgba(190, 24, 93, 0.34);
+}
+
+.holdem-made-card-glow-t5 {
+  box-shadow:
+    0 0 20px rgba(34, 211, 238, 0.84),
+    0 0 44px rgba(192, 132, 252, 0.6),
+    0 0 62px rgba(244, 114, 182, 0.34);
+}
+
+@keyframes holdem-showdown-default-aura {
+  0% {
+    opacity: 0;
+    transform: scale(0.82);
+  }
+  42% {
+    opacity: 0.86;
+    transform: scale(1.04);
+  }
+  100% {
+    opacity: 0.4;
+    transform: scale(1.1);
+  }
+}
+
+@keyframes holdem-showdown-default-card-glow {
+  0% {
+    box-shadow:
+      0 0 8px rgba(52, 211, 153, 0.42),
+      0 0 18px rgba(16, 185, 129, 0.18);
+  }
+  45% {
+    box-shadow:
+      0 0 17px rgba(52, 211, 153, 0.8),
+      0 0 36px rgba(16, 185, 129, 0.44);
+  }
+  100% {
+    box-shadow:
+      0 0 14px rgba(52, 211, 153, 0.66),
+      0 0 30px rgba(16, 185, 129, 0.34);
+  }
+}
+
+.holdem-showdown-default-fx::after {
+  content: "";
+  position: absolute;
+  inset: -20px;
+  z-index: 0;
+  border-radius: 50%;
+  pointer-events: none;
+  background: radial-gradient(
+    ellipse at center,
+    rgba(52, 211, 153, 0.52) 0%,
+    rgba(16, 185, 129, 0.26) 42%,
+    transparent 74%
+  );
+  filter: blur(12px);
+  animation: holdem-showdown-default-aura 1.1s ease-out 1 both;
+}
+
+.holdem-showdown-default-card-glow {
+  animation: holdem-showdown-default-card-glow 1.1s ease-out 1 both;
+}
+
 @keyframes holdem-made-hand-label-glow {
   0% {
     text-shadow: 0 0 0 transparent;
@@ -1361,6 +1460,626 @@ body {
 }
 .holdem-made-hand-label-t5 {
   color: rgb(253 224 71);
+}
+
+/* Development FX preview: proposed high-hand color directions. */
+@keyframes holdem-preview-cycle-aura-orbit {
+  0% {
+    opacity: 0;
+    transform: rotate(0deg) scale(0.78);
+  }
+  28% {
+    opacity: var(--preview-cycle-opacity);
+  }
+  100% {
+    opacity: 0;
+    transform: rotate(360deg) scale(1.14);
+  }
+}
+
+.holdem-preview-cycle-aura {
+  position: absolute;
+  inset: var(--preview-cycle-inset);
+  z-index: 0;
+  border-radius: 50%;
+  pointer-events: none;
+  background: var(--preview-cycle-gradient);
+  filter: blur(var(--preview-cycle-blur));
+  animation: holdem-preview-cycle-aura-orbit
+    var(--preview-cycle-duration) cubic-bezier(0.2, 0.8, 0.25, 1) 1;
+}
+
+.holdem-preview-cycle-aura-straight {
+  --preview-cycle-inset: -18px;
+  --preview-cycle-blur: 10px;
+  --preview-cycle-duration: 1.45s;
+  --preview-cycle-opacity: 0.62;
+  --preview-cycle-gradient: conic-gradient(
+    from 0deg,
+    transparent,
+    rgba(251, 191, 36, 0.7),
+    rgba(253, 230, 138, 0.82),
+    transparent 48%,
+    rgba(245, 158, 11, 0.58),
+    transparent
+  );
+}
+
+.holdem-preview-cycle-aura-flush {
+  --preview-cycle-inset: -21px;
+  --preview-cycle-blur: 11px;
+  --preview-cycle-duration: 1.55s;
+  --preview-cycle-opacity: 0.72;
+  --preview-cycle-gradient: conic-gradient(
+    from 0deg,
+    transparent,
+    rgba(14, 165, 233, 0.72),
+    rgba(125, 211, 252, 0.9),
+    transparent 46%,
+    rgba(34, 211, 238, 0.64),
+    transparent
+  );
+}
+
+.holdem-preview-cycle-aura-full-house {
+  --preview-cycle-inset: -24px;
+  --preview-cycle-blur: 12px;
+  --preview-cycle-duration: 1.65s;
+  --preview-cycle-opacity: 0.82;
+  --preview-cycle-gradient: conic-gradient(
+    from 0deg,
+    transparent,
+    rgba(167, 139, 250, 0.78),
+    rgba(216, 180, 254, 0.94),
+    rgba(251, 191, 36, 0.66),
+    transparent 54%,
+    rgba(192, 132, 252, 0.72),
+    transparent
+  );
+}
+
+.holdem-preview-cycle-aura-quads {
+  --preview-cycle-inset: -27px;
+  --preview-cycle-blur: 13px;
+  --preview-cycle-duration: 1.75s;
+  --preview-cycle-opacity: 0.92;
+  --preview-cycle-gradient: conic-gradient(
+    from 0deg,
+    transparent,
+    rgba(239, 68, 68, 0.86),
+    rgba(251, 113, 133, 1),
+    rgba(190, 24, 93, 0.78),
+    transparent 54%,
+    rgba(244, 63, 94, 0.84),
+    transparent
+  );
+}
+
+@keyframes holdem-preview-royal-panel-sweep {
+  0% {
+    opacity: 0;
+    transform: translateX(-115%) skewX(-16deg);
+  }
+  24% {
+    opacity: 0.92;
+  }
+  68% {
+    opacity: 0.78;
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(115%) skewX(-16deg);
+  }
+}
+
+@keyframes holdem-preview-royal-panel-burst {
+  0% {
+    opacity: 0;
+    transform: scale(0.62);
+  }
+  30% {
+    opacity: 0.48;
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.28);
+  }
+}
+
+.holdem-preview-royal-panel-celebration {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  border-width: 2px;
+  border-color: rgb(235 220 174);
+  box-shadow:
+    0 0 18px rgba(255, 255, 255, 0.46),
+    0 0 42px rgba(253, 224, 71, 0.48),
+    0 0 84px rgba(202, 138, 4, 0.28),
+    inset 0 0 24px rgba(255, 251, 235, 0.14);
+}
+
+.holdem-preview-royal-panel-celebration
+  > :not(.holdem-preview-royal-panel-flash) {
+  position: relative;
+  z-index: 1;
+}
+
+.holdem-preview-royal-panel-flash {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  border-radius: inherit;
+  pointer-events: none;
+}
+
+.holdem-preview-royal-panel-flash::before {
+  content: "";
+  position: absolute;
+  inset: -35% -25%;
+  background: linear-gradient(
+    105deg,
+    transparent 34%,
+    rgba(255, 255, 255, 0.84) 44%,
+    rgba(253, 224, 71, 0.76) 50%,
+    rgba(255, 251, 235, 0.66) 56%,
+    transparent 66%
+  );
+  mix-blend-mode: screen;
+  filter: blur(5px);
+  animation: holdem-preview-royal-panel-sweep 1.7s ease-out 1;
+}
+
+.holdem-preview-royal-panel-flash::after {
+  content: "";
+  position: absolute;
+  inset: -24%;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle at center,
+    rgba(255, 255, 255, 0.4) 0%,
+    rgba(253, 224, 71, 0.28) 24%,
+    rgba(202, 138, 4, 0.12) 48%,
+    transparent 72%
+  );
+  mix-blend-mode: screen;
+  filter: blur(9px);
+  animation: holdem-preview-royal-panel-burst 1.1s ease-out 0.04s 1 both;
+}
+
+@keyframes holdem-preview-graded-wave {
+  0% {
+    opacity: 0;
+    transform: scale(0.58);
+  }
+  24% {
+    opacity: var(--preview-impact-opacity);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(var(--preview-impact-scale));
+  }
+}
+
+.holdem-preview-impact-t1-fx,
+.holdem-preview-impact-t2-fx,
+.holdem-preview-impact-t3-fx {
+  --preview-impact-opacity: 0.55;
+  --preview-impact-scale: 1.18;
+  --preview-impact-color: rgba(251, 191, 36, 0.58);
+  --preview-impact-glow: rgba(251, 191, 36, 0.29);
+}
+
+.holdem-preview-impact-t2-fx {
+  --preview-impact-opacity: 0.74;
+  --preview-impact-scale: 1.29;
+  --preview-impact-color: rgba(56, 189, 248, 0.74);
+  --preview-impact-glow: rgba(14, 165, 233, 0.43);
+}
+
+.holdem-preview-impact-t3-fx {
+  --preview-impact-opacity: 0.91;
+  --preview-impact-scale: 1.4;
+  --preview-impact-color: rgba(192, 132, 252, 0.86);
+  --preview-impact-glow: rgba(167, 139, 250, 0.58);
+}
+
+.holdem-preview-impact-t1-fx::before,
+.holdem-preview-impact-t2-fx::before,
+.holdem-preview-impact-t3-fx::before {
+  content: "";
+  position: absolute;
+  inset: -22px;
+  z-index: 0;
+  border-radius: 50%;
+  pointer-events: none;
+  background: radial-gradient(
+    ellipse at center,
+    var(--preview-impact-color) 0%,
+    var(--preview-impact-glow) 42%,
+    transparent 74%
+  );
+  filter: blur(10px);
+  animation: holdem-preview-graded-wave 0.78s ease-out 1;
+}
+
+.holdem-preview-impact-t2-fx::before {
+  inset: -26px;
+  filter: blur(12px);
+  animation-duration: 0.92s;
+}
+
+.holdem-preview-impact-t3-fx::before {
+  inset: -31px;
+  filter: blur(14px);
+  animation-duration: 1.02s;
+}
+
+@keyframes holdem-preview-quads-coral-impact {
+  0% {
+    transform: scale(0.94);
+    filter: brightness(1.9) saturate(1.5);
+    box-shadow: 0 0 59px rgba(239, 68, 68, 0.7);
+  }
+  38% {
+    transform: scale(1.025);
+    box-shadow: 0 0 75px rgba(244, 63, 94, 0.6);
+  }
+  100% {
+    transform: scale(1);
+    filter: brightness(1) saturate(1);
+    box-shadow: 0 0 42px rgba(244, 63, 94, 0.36);
+  }
+}
+
+@keyframes holdem-preview-quads-coral-burst {
+  0% {
+    opacity: 0;
+    transform: scale(0.88) rotate(-3deg);
+  }
+  28% {
+    opacity: 0.92;
+    transform: scale(1.02) rotate(0deg);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.08) rotate(2deg);
+  }
+}
+
+.holdem-preview-quads-coral-panel {
+  border-color: rgba(82, 82, 91, 0.7);
+  background:
+    radial-gradient(circle at 50% 38%, rgba(190, 24, 93, 0.46), transparent 53%),
+    linear-gradient(145deg, rgba(69, 10, 10, 0.94), rgba(28, 8, 16, 0.98));
+  animation: holdem-preview-quads-coral-impact 0.9s cubic-bezier(0.2, 0.9, 0.28, 1) 1;
+}
+
+.holdem-preview-quads-coral-fx::after {
+  content: "";
+  position: absolute;
+  inset: -20px;
+  z-index: 0;
+  border-radius: 50%;
+  pointer-events: none;
+  background: radial-gradient(
+    ellipse at center,
+    rgba(251, 113, 133, 0.7) 0%,
+    rgba(239, 68, 68, 0.43) 38%,
+    rgba(190, 24, 93, 0.19) 58%,
+    transparent 76%
+  );
+  filter: blur(13px);
+  animation: holdem-preview-quads-coral-burst 1.05s ease-out 1;
+}
+
+.holdem-preview-quads-coral-card {
+  animation: holdem-preview-quads-card-halo 1.35s ease-out 1 both;
+}
+
+@keyframes holdem-preview-quads-card-halo {
+  0% {
+    box-shadow:
+      0 0 10px rgba(251, 113, 133, 0.6),
+      0 0 22px rgba(239, 68, 68, 0.29);
+  }
+  45% {
+    box-shadow:
+      0 0 22px rgba(251, 113, 133, 1),
+      0 0 48px rgba(239, 68, 68, 0.82),
+      0 0 64px rgba(190, 24, 93, 0.41);
+  }
+  100% {
+    box-shadow:
+      0 0 19px rgba(251, 113, 133, 0.94),
+      0 0 42px rgba(239, 68, 68, 0.67),
+      0 0 55px rgba(190, 24, 93, 0.34);
+  }
+}
+
+.holdem-preview-quads-coral-label {
+  color: rgb(253 164 175);
+  text-shadow:
+    0 0 12px rgba(251, 113, 133, 0.85),
+    0 0 28px rgba(239, 68, 68, 0.58);
+}
+
+.holdem-preview-quads-coral-badge {
+  border-radius: 9999px;
+  background: rgba(225, 29, 72, 0.42);
+  padding: 0.125rem 0.5rem;
+  color: rgb(255 228 230);
+  font-size: 9px;
+  font-weight: 700;
+  box-shadow: 0 0 14px rgba(251, 113, 133, 0.42);
+}
+
+@keyframes holdem-preview-rainbow-panel {
+  0% {
+    background-position: 0% 50%;
+    filter: brightness(1.65) saturate(1.45);
+    transform: scale(0.97);
+  }
+  55% {
+    background-position: 100% 50%;
+    transform: scale(1.018);
+  }
+  100% {
+    background-position: 30% 50%;
+    filter: brightness(1.05) saturate(1.15);
+    transform: scale(1);
+  }
+}
+
+@keyframes holdem-preview-rainbow-orbit {
+  from {
+    transform: rotate(0deg) scale(0.82);
+    opacity: 0;
+  }
+  28% {
+    opacity: 0.92;
+  }
+  to {
+    transform: rotate(360deg) scale(1.13);
+    opacity: 0;
+  }
+}
+
+@keyframes holdem-preview-rainbow-card {
+  0% {
+    box-shadow:
+      0 0 20px rgba(248, 113, 113, 0.9),
+      0 0 44px rgba(244, 63, 94, 0.72),
+      0 0 62px rgba(192, 132, 252, 0.34);
+  }
+  25% {
+    box-shadow:
+      0 0 21px rgba(250, 204, 21, 0.92),
+      0 0 46px rgba(34, 197, 94, 0.68),
+      0 0 64px rgba(34, 211, 238, 0.36);
+  }
+  50% {
+    box-shadow:
+      0 0 22px rgba(34, 211, 238, 0.94),
+      0 0 48px rgba(14, 165, 233, 0.74),
+      0 0 68px rgba(192, 132, 252, 0.38);
+  }
+  75% {
+    box-shadow:
+      0 0 22px rgba(167, 139, 250, 0.94),
+      0 0 48px rgba(217, 70, 239, 0.72),
+      0 0 68px rgba(244, 114, 182, 0.38);
+  }
+  100% {
+    box-shadow:
+      0 0 20px rgba(248, 113, 113, 0.9),
+      0 0 44px rgba(244, 63, 94, 0.72),
+      0 0 62px rgba(192, 132, 252, 0.34);
+  }
+}
+
+.holdem-preview-straight-flush-rainbow-panel {
+  border-color: rgba(82, 82, 91, 0.7);
+  background:
+    linear-gradient(
+      125deg,
+      rgba(127, 29, 29, 0.62),
+      rgba(133, 77, 14, 0.58),
+      rgba(20, 83, 45, 0.6),
+      rgba(14, 116, 144, 0.58),
+      rgba(49, 46, 129, 0.62),
+      rgba(112, 26, 117, 0.6)
+    );
+  background-size: 320% 320%;
+  box-shadow: 0 0 46px rgba(56, 189, 248, 0.28);
+  animation: holdem-preview-rainbow-panel 2.15s ease-out 1 both;
+}
+
+.holdem-preview-straight-flush-rainbow-fx::after {
+  content: "";
+  position: absolute;
+  inset: -24px;
+  z-index: 0;
+  border-radius: 1.5rem;
+  pointer-events: none;
+  background: conic-gradient(
+    from 0deg,
+    rgba(248, 113, 113, 0.78),
+    rgba(250, 204, 21, 0.78),
+    rgba(74, 222, 128, 0.78),
+    rgba(34, 211, 238, 0.78),
+    rgba(96, 165, 250, 0.78),
+    rgba(192, 132, 252, 0.78),
+    rgba(244, 114, 182, 0.78),
+    rgba(248, 113, 113, 0.78)
+  );
+  filter: blur(13px);
+  animation: holdem-preview-rainbow-orbit 1.75s cubic-bezier(0.2, 0.8, 0.25, 1) 1;
+}
+
+.holdem-preview-straight-flush-rainbow-card {
+  animation: holdem-preview-rainbow-card 1.8s linear 1;
+}
+
+.holdem-preview-straight-flush-rainbow-label {
+  color: rgb(255 255 255);
+  background: linear-gradient(
+    90deg,
+    #f87171,
+    #facc15,
+    #4ade80,
+    #22d3ee,
+    #60a5fa,
+    #c084fc,
+    #f472b6
+  );
+  background-clip: text;
+  color: transparent;
+  filter: drop-shadow(0 0 10px rgba(125, 211, 252, 0.58));
+}
+
+.holdem-preview-straight-flush-rainbow-badge {
+  border-radius: 9999px;
+  background: linear-gradient(
+    90deg,
+    rgba(225, 29, 72, 0.58),
+    rgba(202, 138, 4, 0.58),
+    rgba(22, 163, 74, 0.58),
+    rgba(8, 145, 178, 0.58),
+    rgba(124, 58, 237, 0.58)
+  );
+  padding: 0.125rem 0.5rem;
+  color: white;
+  font-size: 9px;
+  font-weight: 700;
+  box-shadow: 0 0 16px rgba(125, 211, 252, 0.42);
+}
+
+@keyframes holdem-preview-royal-flash {
+  0% {
+    opacity: 0;
+    transform: scale(0.72);
+    filter: brightness(2);
+  }
+  35% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.3);
+    filter: brightness(1);
+  }
+}
+
+@keyframes holdem-preview-royal-aura {
+  0% {
+    opacity: 0;
+    transform: rotate(-10deg) scale(0.78);
+  }
+  38% {
+    opacity: 0.92;
+    transform: rotate(5deg) scale(1.04);
+  }
+  100% {
+    opacity: 0.38;
+    transform: rotate(18deg) scale(1.12);
+  }
+}
+
+@keyframes holdem-preview-royal-card-halo {
+  0% {
+    filter: brightness(1.7);
+    box-shadow:
+      0 0 16px rgba(255, 255, 255, 0.95),
+      0 0 34px rgba(253, 224, 71, 0.72),
+      0 0 56px rgba(192, 132, 252, 0.42);
+  }
+  45% {
+    filter: brightness(1.12);
+    box-shadow:
+      0 0 26px rgba(255, 255, 255, 0.98),
+      0 0 58px rgba(34, 211, 238, 0.68),
+      0 0 88px rgba(253, 224, 71, 0.54);
+  }
+  100% {
+    filter: brightness(1.04);
+    box-shadow:
+      0 0 22px rgba(255, 255, 255, 0.92),
+      0 0 50px rgba(253, 224, 71, 0.7),
+      0 0 76px rgba(192, 132, 252, 0.42);
+  }
+}
+
+.holdem-preview-royal-flush-panel {
+  border-color: rgba(82, 82, 91, 0.7);
+  background:
+    radial-gradient(circle at 50% 32%, rgba(255, 255, 255, 0.22), transparent 44%),
+    radial-gradient(circle at 16% 72%, rgba(192, 132, 252, 0.18), transparent 38%),
+    radial-gradient(circle at 84% 68%, rgba(34, 211, 238, 0.15), transparent 38%),
+    linear-gradient(145deg, rgba(66, 56, 24, 0.78), rgba(15, 23, 42, 0.98));
+  box-shadow:
+    0 0 52px rgba(255, 255, 255, 0.24),
+    0 0 82px rgba(192, 132, 252, 0.16);
+  animation: holdem-made-sf 1.45s ease-in-out 1;
+}
+
+.holdem-preview-royal-flush-fx::before {
+  content: "";
+  position: absolute;
+  inset: -22px;
+  z-index: 0;
+  border-radius: 1.4rem;
+  pointer-events: none;
+  background: conic-gradient(
+    from 20deg,
+    transparent 0deg,
+    rgba(255, 255, 255, 0.72) 42deg,
+    rgba(253, 224, 71, 0.62) 92deg,
+    transparent 142deg,
+    rgba(192, 132, 252, 0.58) 210deg,
+    rgba(34, 211, 238, 0.52) 270deg,
+    transparent 340deg
+  );
+  filter: blur(18px);
+  animation: holdem-preview-royal-aura 1.9s ease-out 1 both;
+}
+
+.holdem-preview-royal-flush-fx::after {
+  content: "";
+  position: absolute;
+  inset: -30px;
+  z-index: 0;
+  border-radius: 50%;
+  pointer-events: none;
+  background: radial-gradient(
+    circle,
+    rgba(255, 255, 255, 0.54) 0%,
+    rgba(253, 224, 71, 0.2) 34%,
+    transparent 70%
+  );
+  animation: holdem-preview-royal-flash 1.45s ease-out 1;
+}
+
+.holdem-preview-royal-flush-card {
+  animation: holdem-preview-royal-card-halo 1.9s ease-out 1 both;
+}
+
+.holdem-preview-royal-flush-label {
+  color: rgb(255 251 235);
+  text-shadow:
+    0 0 10px rgba(255, 255, 255, 0.92),
+    0 0 28px rgba(253, 224, 71, 0.58);
+}
+
+.holdem-preview-royal-flush-badge {
+  border-radius: 9999px;
+  background: rgba(113, 63, 18, 0.48);
+  padding: 0.125rem 0.5rem;
+  color: rgb(255 251 235);
+  font-size: 9px;
+  font-weight: 700;
+  box-shadow: 0 0 16px rgba(255, 255, 255, 0.28);
 }
 
 /**

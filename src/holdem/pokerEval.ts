@@ -24,6 +24,33 @@ export function madeHandFxTier(v: HandValue): number {
   return v.rank - RANK_STRAIGHT + 1;
 }
 
+export type MadeHandFxKind =
+  | "none"
+  | "straight"
+  | "flush"
+  | "full-house"
+  | "quads"
+  | "straight-flush"
+  | "royal-flush";
+
+/** 실제 게임 연출 선택용 족보 분류. 로열 플러시는 A-high 스트레이트 플러시로 구분한다. */
+export function madeHandFxKind(v: HandValue): MadeHandFxKind {
+  switch (v.rank) {
+    case RANK_STRAIGHT:
+      return "straight";
+    case RANK_FLUSH:
+      return "flush";
+    case RANK_FULL_HOUSE:
+      return "full-house";
+    case RANK_QUADS:
+      return "quads";
+    case RANK_STRAIGHT_FLUSH:
+      return v.kickers[0] === 14 ? "royal-flush" : "straight-flush";
+    default:
+      return "none";
+  }
+}
+
 function sortRanksDesc(ranks: number[]): number[] {
   return [...ranks].sort((a, b) => b - a);
 }

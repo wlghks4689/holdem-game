@@ -26,7 +26,6 @@ import { HoleCards } from "./components/HoleCards";
 import { IaBanner } from "./components/IaBanner";
 import { PlayAreaPotBetting } from "./components/PlayAreaPotBetting";
 import { TableHeaderBar } from "./components/TableHeaderBar";
-import { ShowdownDramaticOverlay } from "./components/ShowdownDramaticOverlay";
 import { rabbitHuntInfo, viewerMayUseRabbit } from "@/holdem/rabbitHunt";
 import { useAllInShowdownCinema } from "./hooks/useAllInShowdownCinema";
 
@@ -138,12 +137,14 @@ export function HoldemPlayUI({
     showdownCinema.active && showdownCinema.phase === "showdown-resolve";
   const showdownFxArmed =
     !showdownCinema.active || showdownCinema.phase === "showdown-resolve";
-  const showdownDramaticArmed =
-    state.phase === "showdown" &&
-    state.handEndMode === "showdown" &&
-    state.boardRevealed >= 5 &&
-    (!showdownCinema.active || showdownCinema.phase === "showdown-resolve");
-
+  const runoutStartRevealed = Math.min(
+    5,
+    Math.max(0, Math.round(state.runoutUiStartRevealed ?? 0)),
+  );
+  const showdownRunoutFx =
+    showdownCinema.active &&
+    showdownCinema.phase !== "showdown-resolve" &&
+    (showdownCinema.visualRevealed ?? 0) > runoutStartRevealed;
   const showResultBannerSlot =
     state.phase === "hand_over" && state.handEndMode === "fold";
 
@@ -534,11 +535,6 @@ export function HoldemPlayUI({
           data-allin-cinema-phase={showdownCinema.active ? showdownCinema.phase : "off"}
           aria-label={isEn ? "Play area" : "플레이 영역"}
         >
-          <ShowdownDramaticOverlay
-            state={state}
-            playerNames={playerNames}
-            armed={showdownDramaticArmed}
-          />
           {effectivePaused ? (
             <div className="absolute inset-0 z-20 flex items-start justify-center rounded-[inherit] bg-zinc-950/60 pt-16 backdrop-blur-[2px] lg:pt-24">
               <p className="mx-4 rounded-xl border border-zinc-500/80 bg-zinc-900/95 px-4 py-3 text-center text-sm font-semibold text-zinc-100 shadow-xl">
@@ -556,6 +552,7 @@ export function HoldemPlayUI({
                 seatFilter="both"
                 cinematicWinnerPulse={winnerCinematicPulse}
                 showdownFxArmed={showdownFxArmed}
+                showdownRunoutFx={showdownRunoutFx}
               />
             </div>
           ) : null}
