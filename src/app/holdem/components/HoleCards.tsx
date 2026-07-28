@@ -17,10 +17,6 @@ import {
 } from "@/holdem/holdemPrefs";
 import { useHoldemI18n } from "@/holdem/i18n/HoldemLocaleProvider";
 import { iaCategoryHandListText, iaCategoryLabelKo } from "@/holdem/handPool";
-import {
-  headsUpPositionLabel,
-  HU_DEALER_SB_LABEL,
-} from "@/holdem/headsUpLabels";
 import type { GameState, PlayerIndex } from "@/holdem/types";
 import { useHoldemMotionMode } from "../HoldemMotionRuntime";
 import { useTurnPulse } from "../hooks/useTurnPulse";
@@ -54,14 +50,6 @@ export const MADE_TURN_PANEL: Record<number, string> = {
   3: "border-zinc-600/70 bg-violet-950/31 shadow-[0_0_44px_rgba(167,139,250,0.41)] z-[2]",
   4: "border-zinc-600/70 bg-rose-950/31 shadow-[0_0_53px_rgba(244,63,94,0.46)] z-[2]",
   5: "border-zinc-600/70 bg-sky-950/22 shadow-[0_0_56px_rgba(192,132,252,0.4)] z-[2]",
-};
-
-const MADE_TURN_ACTION_BADGE: Record<number, string> = {
-  1: "rounded-full bg-amber-600/38 px-2 py-0.5 text-[9px] font-bold text-amber-100",
-  2: "rounded-full bg-sky-600/38 px-2 py-0.5 text-[9px] font-bold text-sky-100",
-  3: "rounded-full bg-violet-600/38 px-2 py-0.5 text-[9px] font-bold text-violet-100",
-  4: "rounded-full bg-amber-500/38 px-2 py-0.5 text-[9px] font-bold text-amber-50",
-  5: "rounded-full bg-yellow-500/35 px-2 py-0.5 text-[9px] font-bold text-yellow-50",
 };
 
 const MADE_FX_IMPACT_CLASS: Partial<Record<MadeHandFxKind, string>> = {
@@ -164,7 +152,6 @@ function showdownCompare(state: GameState): number | null {
 export function HoleCards({
   state,
   viewer,
-  playerNames,
   seatFilter = "both",
   cinematicWinnerPulse = false,
   showdownFxArmed = true,
@@ -342,11 +329,6 @@ export function HoleCards({
               : "border-zinc-600/70 bg-emerald-950/28 shadow-[0_0_38px_rgba(52,211,153,0.34)]"
             : "";
 
-        const showdownResultBadgeClass =
-          madeFxTier > 0
-            ? madeFxVariant?.badge ?? MADE_TURN_ACTION_BADGE[madeFxTier]!
-            : "bg-emerald-500/22 text-emerald-100 shadow-[0_0_12px_rgba(52,211,153,0.28)]";
-
         let toneFrame = "";
         if (!loserShowdown) {
           if (isToAct) {
@@ -368,7 +350,7 @@ export function HoleCards({
 
         const frameClass = [
           "rounded-xl border transition-[box-shadow,background-color,border-color,opacity,filter] duration-200",
-          showdownReveal ? "px-2 py-2" : "px-3 py-3",
+          showdownReveal ? "p-2" : "p-2 sm:p-3",
           loserShowdown
             ? "border-zinc-800/85 bg-zinc-950/45 text-zinc-600 opacity-[0.48] brightness-[0.72] saturate-50"
             : toneFrame,
@@ -405,13 +387,6 @@ export function HoleCards({
                   }
                 : undefined;
 
-        const seatName = playerNames[p]!;
-        const rawPositionLabel = headsUpPositionLabel(state, p);
-        const positionLabel =
-          locale === "en" && rawPositionLabel === HU_DEALER_SB_LABEL
-            ? "BTN · SB"
-            : rawPositionLabel;
-
         // 내 카드 헤더용 compact 족보 (핸드셀렉·쇼다운 제외)
         const compactHand =
           isMe &&
@@ -442,69 +417,11 @@ export function HoleCards({
                 aria-hidden
               />
             ) : null}
-            <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[10px] font-medium uppercase text-zinc-400">
-              <span className="text-zinc-200">{seatName}</span>
-              <span
-                className="rounded bg-zinc-600/80 px-1.5 py-px text-zinc-300"
-                style={{ fontSize: "calc(9px * 1.3)" }}
-              >
-                {positionLabel}
-              </span>
-              {isMe ? (
-                <span className="text-emerald-300">{t("hole.myCards")}</span>
-              ) : (
-                <span className="text-zinc-500">{t("hole.opponent")}</span>
-              )}
-              <div className="ml-auto flex items-center gap-1.5">
-                {showdownReveal && showdownFxArmed ? (
-                  <span
-                    className={[
-                      "rounded-full px-2 py-0.5 text-[9px] font-black tracking-wider",
-                      winnerShowdown || tieShowdown
-                        ? showdownResultBadgeClass
-                        : "bg-zinc-800/75 text-zinc-500 ring-1 ring-zinc-700/60",
-                    ].join(" ")}
-                  >
-                    {tieShowdown
-                      ? locale === "en"
-                        ? "SPLIT POT"
-                        : "팟 분배"
-                      : winnerShowdown
-                        ? locale === "en"
-                          ? "WINNER"
-                          : "승자"
-                        : locale === "en"
-                          ? "LOSE"
-                          : "패자"}
-                  </span>
-                ) : isToAct ? (
-                  <span
-                    className={
-                      heroMadeTurnGlow
-                        ? madeFxVariant?.badge ??
-                          MADE_TURN_ACTION_BADGE[madeFxTier]!
-                        : "rounded-full bg-emerald-600/30 px-2 py-0.5 text-[9px] font-bold text-emerald-200"
-                    }
-                  >
-                    {t("hole.actionTurn")}
-                  </span>
-                ) : isHandPickChoosing ? (
-                  <span className="rounded-full bg-amber-600/35 px-2 py-0.5 text-[9px] font-bold text-amber-100">
-                    {t("hole.handPick")}
-                  </span>
-                ) : isHandPickSubmitted ? (
-                  <span className="rounded-full bg-emerald-700/35 px-2 py-0.5 text-[9px] font-bold text-emerald-100">
-                    {t("hole.submitted")}
-                  </span>
-                ) : null}
-              </div>
-            </div>
-
             {sel && showFaces ? (
-              <div className="mt-2">
+              <div>
                 <div
                   className={[
-                    "flex flex-col items-center justify-center gap-2.5 text-center",
+                    "flex flex-col items-center justify-center gap-1.5 text-center",
                     showdownReveal ? "sm:gap-3" : "",
                   ].join(" ")}
                 >

@@ -137,10 +137,10 @@ export function TableHeaderBar({ state, playerNames }: TableHeaderBarProps) {
         </div>
       ) : null}
 
-      <div className="rounded-xl border border-zinc-600/90 bg-zinc-700/70 p-2 text-sm sm:p-2.5">
-      <div className="mb-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 border-b border-zinc-600/70 pb-1.5 text-zinc-300 sm:mb-2 sm:pb-2">
+      <div className="rounded-xl border border-zinc-600/90 bg-zinc-700/70 p-1.5 text-sm sm:p-2.5">
+      <div className="mb-1 flex flex-nowrap items-center gap-x-1.5 border-b border-zinc-600/70 pb-1 text-zinc-300 sm:mb-2 sm:gap-x-2 sm:pb-2">
         <span
-          className={`shrink-0 text-zinc-100 ${headerMetaMono}`}
+          className={`shrink-0 whitespace-nowrap text-zinc-100 ${headerMetaMono}`}
           title={debugBlindLine(state.roundNumber, hb)}
         >
           {isEn ? "ROUND" : "라운드"} {state.roundNumber}
@@ -150,11 +150,14 @@ export function TableHeaderBar({ state, playerNames }: TableHeaderBarProps) {
           ·
         </span>
         <span
-          className="min-w-0 shrink rounded-md border-2 border-amber-400/75 bg-amber-950/25 px-2 py-1 shadow-[inset_0_0_0_1px_rgba(251,191,36,0.12)]"
+          className="min-w-0 shrink overflow-hidden rounded-md border-2 border-amber-400/75 bg-amber-950/25 px-1.5 py-0.5 shadow-[inset_0_0_0_1px_rgba(251,191,36,0.12)] sm:px-2 sm:py-1"
           title={blindTooltip}
         >
-          <span className={`text-amber-100 ${headerMetaMono}`}>
-            <span className="font-sans font-semibold text-white">
+          <span className={`block truncate whitespace-nowrap text-amber-100 ${headerMetaMono}`}>
+            <span className="font-sans font-semibold text-white sm:hidden">
+              {isEn ? "BLINDS: " : "블라인드: "}
+            </span>
+            <span className="hidden font-sans font-semibold text-white sm:inline">
               {isEn ? "BLINDS:  " : "현재 블라인드:  "}
             </span>
             {blindLine}
@@ -189,7 +192,7 @@ export function TableHeaderBar({ state, playerNames }: TableHeaderBarProps) {
         </span>
       </div>
 
-      <div className="grid grid-cols-2 gap-1.5 sm:gap-2">
+      <div className="grid grid-cols-2 gap-1 sm:gap-2">
         {([0, 1] as PlayerIndex[]).map((p) => {
           const bettingUi =
             !state.matchEnded &&
@@ -220,7 +223,7 @@ export function TableHeaderBar({ state, playerNames }: TableHeaderBarProps) {
             <div
               key={p}
               className={[
-                "relative rounded-lg px-2 py-1.5 transition-[background-color,opacity,box-shadow,filter] duration-200 sm:py-2",
+                "relative min-w-0 rounded-lg px-1.5 py-1 transition-[background-color,opacity,box-shadow,filter] duration-200 sm:px-2 sm:py-2",
                 matchWinnerGlow
                   ? "z-[2] bg-gradient-to-br from-amber-950/55 via-zinc-900/50 to-zinc-900/30 ring-2 ring-amber-400/90 shadow-[0_0_32px_rgba(251,191,36,0.38)]"
                   : matchLoserDim
@@ -253,82 +256,75 @@ export function TableHeaderBar({ state, playerNames }: TableHeaderBarProps) {
                       : undefined
               }
             >
-              <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
-                <span className="text-sm font-semibold text-zinc-50">
+              <div className="flex min-w-0 items-center gap-1 sm:gap-2">
+                <span className="min-w-0 truncate text-xs font-semibold text-zinc-50 sm:text-sm">
                   {label}
-                  {matchWinnerGlow ? (
-                    <span className="ml-1.5 inline-block rounded-md bg-amber-500/30 px-1.5 py-0.5 text-[9px] font-extrabold uppercase tracking-wide text-amber-100 ring-1 ring-amber-400/60">
-                      {isEn ? "WIN" : "승리"}
-                    </span>
-                  ) : null}
                 </span>
                 <span
-                  className="rounded bg-zinc-600/80 px-1.5 py-px font-medium uppercase text-zinc-300"
-                  style={{ fontSize: "calc(9px * 1.3)" }}
+                  className="shrink-0 whitespace-nowrap rounded bg-zinc-600/80 px-1 py-px text-[9px] font-medium uppercase text-zinc-300 sm:px-1.5 sm:text-[12px]"
                 >
                   {blindTag}
                 </span>
-              </div>
-              <div className="mt-1 flex min-h-[1.5rem] items-center justify-between gap-2">
-                <div
-                  className="flex min-w-0 shrink flex-wrap items-baseline gap-x-1.5 gap-y-0"
-                  title={
-                    isEn
-                      ? `1 BB = ${fmtChips(hb.bb)} chips · round ${state.roundNumber}`
-                      : `BB 1단위 = ${fmtChips(hb.bb)}칩 · 라운드 ${state.roundNumber}`
-                  }
-                >
+                {acting ? (
+                  <span className="shrink-0 whitespace-nowrap rounded bg-emerald-700/40 px-1.5 py-0.5 text-[8px] font-bold text-emerald-100 sm:px-2 sm:text-[10px]">
+                    {isEn ? "ACTING" : "행동 중"}
+                  </span>
+                ) : null}
+                {matchWinnerGlow ? (
+                  <span className="shrink-0 rounded-md bg-amber-500/30 px-1 py-0.5 text-[8px] font-extrabold uppercase tracking-wide text-amber-100 ring-1 ring-amber-400/60 sm:px-1.5 sm:text-[9px]">
+                    {isEn ? "WIN" : "승리"}
+                  </span>
+                ) : null}
+                {showPotFlash ? (
                   <span
-                    className="font-mono text-zinc-100"
-                    style={{ fontSize: "calc(1rem * 1.2)" }}
+                    key={`pot-gain-${p}-${flashDelta}-${state.roundNumber}`}
+                    className={[
+                      "ml-auto shrink-0 font-mono text-[10px] font-bold tabular-nums drop-shadow-[0_1px_2px_rgba(0,0,0,0.5)] sm:text-sm",
+                      flashDelta > 0 ? "text-green-400" : "text-red-400",
+                    ].join(" ")}
+                    style={{
+                      animation: "holdem-pot-gain 1.8s ease-out forwards",
+                    }}
+                    aria-label={
+                      flashDelta > 0
+                        ? isEn
+                          ? `Net gain this hand: ${chipsAsBbLabel(Math.abs(flashDelta), hb.bb)}`
+                          : `이번 핸드 순이익 ${chipsAsBbLabel(Math.abs(flashDelta), hb.bb)}`
+                        : isEn
+                          ? `Net loss this hand: ${chipsAsBbLabel(Math.abs(flashDelta), hb.bb)}`
+                          : `이번 핸드 순손실 ${chipsAsBbLabel(Math.abs(flashDelta), hb.bb)}`
+                    }
+                  >
+                    {flashDelta > 0
+                      ? `+${chipsAsBbLabel(Math.abs(flashDelta), hb.bb)}`
+                      : `-${chipsAsBbLabel(Math.abs(flashDelta), hb.bb)}`}
+                  </span>
+                ) : null}
+              </div>
+              <div
+                className="mt-0.5 flex min-w-0 items-baseline gap-x-1 overflow-hidden whitespace-nowrap sm:mt-1 sm:gap-x-1.5"
+                title={
+                  isEn
+                    ? `1 BB = ${fmtChips(hb.bb)} chips · round ${state.roundNumber}`
+                    : `BB 1단위 = ${fmtChips(hb.bb)}칩 · 라운드 ${state.roundNumber}`
+                }
+              >
+                  <span
+                    className="shrink-0 font-mono text-sm tabular-nums text-zinc-100 sm:text-[1.2rem]"
                   >
                     {fmtChips(state.chips[p]!)}
                     <span
-                      className="font-sans text-zinc-400"
-                      style={{ fontSize: "calc(11px * 1.4)" }}
+                      className="ml-0.5 font-sans text-[10px] text-zinc-400 sm:text-[15px]"
                     >
                       {isEn ? " chips" : "칩"}
                     </span>
                   </span>
-                  <span className="text-zinc-600" aria-hidden>
+                  <span className="shrink-0 text-[10px] text-zinc-600 sm:text-sm" aria-hidden>
                     =
                   </span>
-                  <span className="font-mono text-sm font-medium tabular-nums text-amber-200/90 sm:text-[0.95rem]">
+                  <span className="shrink-0 font-mono text-xs font-medium tabular-nums text-amber-200/90 sm:text-[0.95rem]">
                     {stackAsBbPretty(state.chips[p]!, hb.bb)}
                   </span>
-                </div>
-                <div className="flex shrink-0 flex-col items-end gap-1">
-                  {acting ? (
-                    <span className="rounded-md bg-emerald-700/40 px-2 py-0.5 text-[10px] font-bold text-emerald-100">
-                      {isEn ? "ACTING" : "행동 중"}
-                    </span>
-                  ) : null}
-                  {showPotFlash ? (
-                    <span
-                      key={`pot-gain-${p}-${flashDelta}-${state.roundNumber}`}
-                      className={[
-                        "pointer-events-none font-mono text-sm font-bold tabular-nums drop-shadow-[0_1px_2px_rgba(0,0,0,0.5)]",
-                        flashDelta > 0 ? "text-green-400" : "text-red-400",
-                      ].join(" ")}
-                      style={{
-                        animation: "holdem-pot-gain 1.8s ease-out forwards",
-                      }}
-                      aria-label={
-                        flashDelta > 0
-                          ? isEn
-                            ? `Net gain this hand: ${chipsAsBbLabel(Math.abs(flashDelta), hb.bb)}`
-                            : `이번 핸드 순이익 ${chipsAsBbLabel(Math.abs(flashDelta), hb.bb)}`
-                          : isEn
-                            ? `Net loss this hand: ${chipsAsBbLabel(Math.abs(flashDelta), hb.bb)}`
-                            : `이번 핸드 순손실 ${chipsAsBbLabel(Math.abs(flashDelta), hb.bb)}`
-                      }
-                    >
-                      {flashDelta > 0
-                        ? `+${chipsAsBbLabel(Math.abs(flashDelta), hb.bb)}`
-                        : `-${chipsAsBbLabel(Math.abs(flashDelta), hb.bb)}`}
-                    </span>
-                  ) : null}
-                </div>
               </div>
             </div>
           );

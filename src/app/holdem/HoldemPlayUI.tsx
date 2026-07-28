@@ -509,7 +509,7 @@ export function HoldemPlayUI({
 
         <section
           className={[
-            "relative mb-4 rounded-2xl border p-3 sm:p-4",
+            "relative mb-3 rounded-2xl border p-2 sm:mb-4 sm:p-4",
             isHellSingle
               ? "border-fuchsia-500/35 bg-gradient-to-b from-fuchsia-950/25 via-zinc-800/45 to-zinc-950/90 shadow-[0_0_44px_rgba(147,51,234,0.14),inset_0_1px_0_rgba(244,114,182,0.06)]"
               : "border-zinc-600/80 bg-zinc-800/35 shadow-[0_0_40px_rgba(0,0,0,0.2)]",
@@ -517,7 +517,7 @@ export function HoldemPlayUI({
               ? "space-y-0"
               : state.phase === "showdown"
                 ? "space-y-2 sm:space-y-2.5 lg:space-y-3"
-                : "space-y-3 sm:space-y-4",
+                : "space-y-2 sm:space-y-4",
             selecting
               ? "lg:mx-auto lg:mb-5 lg:max-w-none lg:rounded-[1.5rem] lg:p-4"
               : "lg:mx-auto lg:mb-6 lg:max-w-5xl lg:rounded-[2rem] lg:p-6",
@@ -656,7 +656,7 @@ export function HoldemPlayUI({
 
           {!selecting ? <div
             className={[
-              "space-y-3 transition-all duration-500 lg:hidden",
+              "space-y-2 transition-all duration-500 sm:space-y-3 lg:hidden",
               showdownCinema.blockingInput ? "holdem-cinema-hole-stage" : "",
             ].join(" ")}
           >
@@ -671,7 +671,7 @@ export function HoldemPlayUI({
             ) : null}
             {/* 모바일 상대 카드 — 쇼다운에서만 전체 표시 */}
             {state.phase === "hand_over" ? (
-              <div className="rounded-xl border border-zinc-600/90 bg-zinc-700/40 p-3">
+              <div className="rounded-xl border border-zinc-600/90 bg-zinc-700/40 p-1.5 sm:p-3">
                 <HoleCards
                   state={cinemaDisplayState}
                   viewer={viewer}
@@ -682,7 +682,7 @@ export function HoldemPlayUI({
                 />
               </div>
             ) : state.phase !== "showdown" ? (
-              <div className="rounded-xl border border-zinc-600/90 bg-zinc-700/40 p-3">
+              <div className="rounded-xl border border-zinc-600/90 bg-zinc-700/40 p-1.5 sm:p-3">
                 <HoleCards
                   state={cinemaDisplayState}
                   viewer={viewer}
