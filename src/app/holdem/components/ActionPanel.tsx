@@ -30,7 +30,10 @@ import {
 import { actionTimerLimitMs } from "@/holdem/actionTimer";
 import { resolveHandBlinds } from "@/holdem/blindLevels";
 import { chipsAsBbLabel } from "@/holdem/formatBb";
-import { headsUpPositionLabel } from "@/holdem/headsUpLabels";
+import {
+  HU_DEALER_SB_LABEL,
+  headsUpPositionLabel,
+} from "@/holdem/headsUpLabels";
 import { useHoldemI18n } from "@/holdem/i18n/HoldemLocaleProvider";
 import type { GameAction, GameState, PlayerIndex } from "@/holdem/types";
 
@@ -159,20 +162,21 @@ function BetAmountInput({
     [bbUnit, draft, formatBb, isEn, max, min, onSubmit, setChips, value],
   );
 
+  const thirdPot = clamp(pot / 3);
   const halfPot = clamp(pot * 0.5);
   const threeQPot = clamp(pot * 0.75);
   const fullPot = clamp(pot);
   const step = Math.max(SMALLEST_CHIP, bbUnit * 0.5);
 
   return (
-    <div className="w-full space-y-2.5">
+    <div className="w-full space-y-1.5">
       <div>
         <div className="flex items-stretch gap-1.5">
           <button
             type="button"
             aria-label={isEn ? "Decrease by 0.5 BB" : "0.5BB 감소"}
             onClick={() => setChips(value - step)}
-            className="min-w-12 rounded-lg border border-zinc-600/80 bg-zinc-800 px-2 text-xs font-bold text-zinc-200 hover:bg-zinc-700"
+            className="min-w-11 rounded-lg border border-zinc-600/80 bg-zinc-800 px-2 text-xs font-bold text-zinc-200 hover:bg-zinc-700"
           >
             −0.5
           </button>
@@ -198,7 +202,7 @@ function BetAmountInput({
                   commit(true);
                 }
               }}
-              className="h-11 w-full rounded-lg border border-emerald-500/70 bg-zinc-950/80 px-3 pr-11 text-center font-mono text-lg font-extrabold tabular-nums text-emerald-100 outline-none transition focus:border-emerald-300 focus:ring-2 focus:ring-emerald-400/25"
+              className="h-10 w-full rounded-lg border border-emerald-500/70 bg-zinc-950/80 px-3 pr-11 text-center font-mono text-lg font-extrabold tabular-nums text-emerald-100 outline-none transition focus:border-emerald-300 focus:ring-2 focus:ring-emerald-400/25"
             />
             <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-zinc-400">
               BB
@@ -208,49 +212,46 @@ function BetAmountInput({
             type="button"
             aria-label={isEn ? "Increase by 0.5 BB" : "0.5BB 증가"}
             onClick={() => setChips(value + step)}
-            className="min-w-12 rounded-lg border border-zinc-600/80 bg-zinc-800 px-2 text-xs font-bold text-zinc-200 hover:bg-zinc-700"
+            className="min-w-11 rounded-lg border border-zinc-600/80 bg-zinc-800 px-2 text-xs font-bold text-zinc-200 hover:bg-zinc-700"
           >
             +0.5
           </button>
         </div>
-        <div className="mt-1.5 flex items-start justify-between gap-2">
-          <span className="rounded-md border border-zinc-600/70 bg-zinc-900/65 px-2 py-1 font-mono text-[11px] font-semibold tabular-nums text-zinc-200">
-            {isEn ? "Range" : "가능 범위"} {formatBb(min)}–{formatBb(max)} BB
-          </span>
-          {message ? (
-            <span id="bet-amount-message" className="text-right text-[10px] text-amber-300">{message}</span>
-          ) : null}
-        </div>
+        {message ? (
+          <p id="bet-amount-message" className="mt-1 text-right text-[10px] text-amber-300">
+            {message}
+          </p>
+        ) : null}
       </div>
 
       <div className="grid grid-cols-4 gap-1.5">
         <button
           type="button"
+          onClick={() => setChips(thirdPot)}
+          className="rounded border border-zinc-600/70 bg-zinc-700/60 py-1 text-[10px] font-semibold text-zinc-300 hover:bg-zinc-600/60 active:scale-95"
+        >
+          1/3 Pot
+        </button>
+        <button
+          type="button"
           onClick={() => setChips(halfPot)}
-          className="rounded border border-zinc-600/70 bg-zinc-700/60 py-1.5 text-[10px] font-semibold text-zinc-300 hover:bg-zinc-600/60 active:scale-95"
+          className="rounded border border-zinc-600/70 bg-zinc-700/60 py-1 text-[10px] font-semibold text-zinc-300 hover:bg-zinc-600/60 active:scale-95"
         >
           1/2 Pot
         </button>
         <button
           type="button"
           onClick={() => setChips(threeQPot)}
-          className="rounded border border-zinc-600/70 bg-zinc-700/60 py-1.5 text-[10px] font-semibold text-zinc-300 hover:bg-zinc-600/60 active:scale-95"
+          className="rounded border border-zinc-600/70 bg-zinc-700/60 py-1 text-[10px] font-semibold text-zinc-300 hover:bg-zinc-600/60 active:scale-95"
         >
           3/4 Pot
         </button>
         <button
           type="button"
           onClick={() => setChips(fullPot)}
-          className="rounded border border-zinc-600/70 bg-zinc-700/60 py-1.5 text-[10px] font-semibold text-zinc-300 hover:bg-zinc-600/60 active:scale-95"
+          className="rounded border border-zinc-600/70 bg-zinc-700/60 py-1 text-[10px] font-semibold text-zinc-300 hover:bg-zinc-600/60 active:scale-95"
         >
           Pot
-        </button>
-        <button
-          type="button"
-          onClick={() => setChips(max)}
-          className="rounded border border-amber-500/55 bg-amber-950/40 py-1.5 text-[10px] font-semibold text-amber-200 hover:bg-amber-900/50 active:scale-95"
-        >
-          MAX
         </button>
       </div>
     </div>
@@ -779,11 +780,13 @@ export function ActionPanel({
     );
   }
 
-  const posShort = headsUpPositionLabel(state, p);
+  const rawPosShort = headsUpPositionLabel(state, p);
+  const posShort =
+    isEn && rawPosShort === HU_DEALER_SB_LABEL ? "BTN · SB" : rawPosShort;
   // ── 프리플랍 레이즈 입력 블록 ─────────────────────────────────────────────
   const preflopRaiseBlock =
     showPreflopRaise && preflopRange != null && !hideReraiseStreet ? (
-      <div className="space-y-2 rounded-lg border border-zinc-600/45 bg-zinc-800/30 px-3 pb-3 pt-2.5">
+      <div className="space-y-1.5 rounded-lg border border-zinc-600/45 bg-zinc-800/30 p-2">
         <BetAmountInput
           value={preflopRaiseClamped}
           min={preflopRange.min}
@@ -1054,7 +1057,7 @@ export function ActionPanel({
         <div className="space-y-2">
           {/* Bet 입력 (베팅 없는 상황) */}
           {bettingMatched(betting) && maxBet >= minOpenBet - 1e-9 && !isAllIn ? (
-            <div className="space-y-2 rounded-lg border border-zinc-600/45 bg-zinc-800/30 px-3 pb-3 pt-2.5">
+            <div className="space-y-1.5 rounded-lg border border-zinc-600/45 bg-zinc-800/30 p-2">
               <BetAmountInput
                 value={betClamped}
                 min={minOpenBet}
@@ -1078,7 +1081,7 @@ export function ActionPanel({
 
           {/* Raise 입력 */}
           {canPostflopRaise && !hideReraiseStreet ? (
-            <div className="space-y-2 rounded-lg border border-zinc-600/45 bg-zinc-800/30 px-3 pb-3 pt-2.5">
+            <div className="space-y-1.5 rounded-lg border border-zinc-600/45 bg-zinc-800/30 p-2">
               <BetAmountInput
                 value={postRaiseClamped}
                 min={postRaiseMin}

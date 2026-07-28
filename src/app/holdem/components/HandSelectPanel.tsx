@@ -263,6 +263,9 @@ function HandPickerColumn({
     canSelectHandTemplate(state, player, t),
   );
   const mysteryAvailable = canUseMysteryHand(state, player);
+  const mysteryUsed = state.mysteryHandUsed[player];
+  const mysteryTooExpensive =
+    !mysteryUsed && costForActor < MYSTERY_HAND_COST;
 
   return (
     <div
@@ -304,13 +307,17 @@ function HandPickerColumn({
           className={[
             "mb-2 w-full rounded-lg border px-3 py-2 text-left text-xs font-semibold",
             mysteryAvailable && pending == null
-              ? "border-fuchsia-400/55 bg-fuchsia-950/35 text-fuchsia-100 hover:bg-fuchsia-900/45"
-              : "cursor-not-allowed border-zinc-700 bg-zinc-900/45 text-zinc-500",
+              ? "border-fuchsia-300/75 bg-fuchsia-950/45 text-fuchsia-50 shadow-[0_0_12px_rgba(232,121,249,0.12)] hover:bg-fuchsia-900/55"
+              : mysteryUsed
+                ? "cursor-not-allowed border-zinc-700 bg-zinc-950/70 text-zinc-500 opacity-65 grayscale"
+                : mysteryTooExpensive
+                  ? "cursor-not-allowed border-rose-700/75 bg-rose-950/35 text-rose-300"
+                  : "cursor-not-allowed border-zinc-700 bg-zinc-900/45 text-zinc-500",
           ].join(" ")}
         >
           <span className="flex items-center justify-between gap-2">
             <span>Mystery Hand · {MYSTERY_HAND_COST} COST · {isEn ? "once per match" : "경기당 1회"}</span>
-            <span>{state.mysteryHandUsed[player] ? (isEn ? "Used" : "사용 완료") : !mysteryAvailable ? (isEn ? "Not enough Cost" : "Cost 부족") : ""}</span>
+            <span>{mysteryUsed ? (isEn ? "Used" : "사용 완료") : !mysteryAvailable ? (isEn ? "Not enough Cost" : "Cost 부족") : ""}</span>
           </span>
         </button>
       ) : null}
@@ -392,19 +399,43 @@ function HandPickerColumn({
                       className={[
                         "group relative flex w-[3.75rem] flex-none flex-col items-center justify-center rounded-md border px-0.5 py-1 text-center transition-all",
                         btnMinH,
-                        dead && isCostMode
+                        dead
                           ? usedUp
-                            ? "cursor-not-allowed border-zinc-600/70 bg-zinc-800/45 opacity-80"
-                            : "cursor-not-allowed border-zinc-700/80 bg-zinc-800/35 opacity-75"
-                          : dead
-                            ? "cursor-not-allowed border-zinc-700/80 bg-zinc-800/35 opacity-50 grayscale"
+                            ? "cursor-not-allowed border-zinc-700/80 bg-zinc-950/75 grayscale"
+                            : "cursor-not-allowed border-rose-700/80 bg-rose-950/35 saturate-50"
                           : sel
                             ? "border-violet-400 bg-gradient-to-b from-violet-800/55 to-violet-900/65 shadow-[0_0_14px_rgba(167,139,250,0.4)] ring-1 ring-violet-400/55"
-                            : "border-zinc-500/90 bg-zinc-700/55 hover:border-violet-500/55 hover:bg-zinc-600/65",
+                            : "border-zinc-400/90 bg-zinc-700/80 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] hover:border-violet-400/75 hover:bg-zinc-600/80 hover:shadow-[0_0_12px_rgba(167,139,250,0.18)]",
                       ].join(" ")}
                     >
                       <HandTemplateCardPreview template={t} />
                       <span className="sr-only">{templateLabel(t)}</span>
+                      {dead ? (
+                        <span
+                          aria-hidden
+                          className={[
+                            "pointer-events-none absolute inset-0 z-10 flex items-center justify-center rounded-[inherit] px-0.5",
+                            usedUp ? "bg-zinc-950/75" : "bg-rose-950/65",
+                          ].join(" ")}
+                        >
+                          <span
+                            className={[
+                              "rounded border px-1 py-0.5 text-[8px] font-black leading-none tracking-tight shadow-lg",
+                              usedUp
+                                ? "border-zinc-500/70 bg-zinc-900/95 text-zinc-300"
+                                : "border-rose-400/70 bg-rose-950/95 text-rose-100",
+                            ].join(" ")}
+                          >
+                            {usedUp
+                              ? isEn
+                                ? "USED"
+                                : "사용 완료"
+                              : isEn
+                                ? "LOW COST"
+                                : "COST 부족"}
+                          </span>
+                        </span>
+                      ) : null}
                       {isCostMode ? (
                         <span
                           className={[

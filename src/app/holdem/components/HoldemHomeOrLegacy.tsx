@@ -1,21 +1,21 @@
 "use client";
 
 import * as React from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import type { PlayerIndex } from "@/holdem/types";
 import { saveRoomAuth } from "@/holdem/roomCredentials";
 import { HoldemHomeHub } from "./HoldemHomeHub";
 
 const ROOM_ID_RE = /^[a-f0-9]{8}$/;
+const IS_STATIC = process.env.NEXT_PUBLIC_STATIC_EXPORT === "1";
 
 export function HoldemHomeOrLegacy() {
-  const searchParams = useSearchParams();
   const router = useRouter();
-  const [mode, setMode] = React.useState<"pending" | "legacy" | "home">(
-    "pending",
-  );
 
   React.useEffect(() => {
+    if (IS_STATIC) return;
+
+    const searchParams = new URLSearchParams(window.location.search);
     const room = searchParams.get("room")?.toLowerCase() ?? "";
     const seatRaw = searchParams.get("seat");
     const token = searchParams.get("token") ?? "";
@@ -27,21 +27,9 @@ export function HoldemHomeOrLegacy() {
     ) {
       const mySeat = Number(seatRaw) as PlayerIndex;
       saveRoomAuth(room, { seat: mySeat, token });
-      setMode("legacy");
       router.replace(`/holdem/room/${room}`);
-      return;
     }
-
-    setMode("home");
-  }, [searchParams, router]);
-
-  if (mode === "pending" || mode === "legacy") {
-    return (
-      <div className="flex min-h-dvh items-center justify-center bg-zinc-900 text-zinc-400">
-        이동 중…
-      </div>
-    );
-  }
+  }, [router]);
 
   return <HoldemHomeHub />;
 }

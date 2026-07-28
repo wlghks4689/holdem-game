@@ -4,8 +4,8 @@
 #  스텁 교체가 아닌 파일 삭제 방식을 사용합니다)
 #
 # 변경 사항:
-#   - assetPrefix "./" → ./_next/... 상대경로 생성
-#   - HTML 포스트 처리: favicon 및 인라인 RSC 페이로드 절대경로 수정
+#   - Next.js 공식 output:"export" 사용
+#   - HTML 포스트 처리: 스크립트, CSS, favicon 및 인라인 RSC 경로를 상대경로로 수정
 #   - Next.js 절대 라우트 링크를 정적 HTML 파일로 연결하는 itch 내비게이션 추가
 #   - 빌드 완료 후 itch-build.zip 자동 생성
 #
@@ -56,7 +56,7 @@ try {
 
     # ── Step 2: next build ───────────────────────────────────────────────────────
     Write-Host ""
-    Write-Host "[ 2 / 4 ] Running next build (output:export, assetPrefix:./)..." -ForegroundColor DarkGray
+    Write-Host "[ 2 / 5 ] Running next build (output:export)..." -ForegroundColor DarkGray
     if (Test-Path -LiteralPath ".next") {
         Remove-Item ".next" -Recurse -Force -ErrorAction SilentlyContinue
         Write-Host "  Cleared .next cache" -ForegroundColor DarkGray
@@ -65,13 +65,14 @@ try {
     $env:STATIC_EXPORT             = "1"
     $env:NEXT_PUBLIC_STATIC_EXPORT = "1"
 
-    npm run build
+    $npmCommand = if ($env:OS -eq "Windows_NT") { "npm.cmd" } else { "npm" }
+    & $npmCommand run build
     if ($LASTEXITCODE -ne 0) { throw "next build failed (exit $LASTEXITCODE)" }
 
     # ── Step 3: HTML 포스트 처리 ──────────────────────────────────────────────────
-    # assetPrefix "./" 는 <link href> / <script src> 는 고쳐주지만,
-    # 인라인 RSC JSON 페이로드 안의 "/_next/" 와 public 폴더 /favicon.ico 는
-    # 그대로 절대경로로 남으므로 별도로 처리합니다.
+    # Next.js는 <link href>, <script src>, 인라인 RSC JSON 페이로드에
+    # "/_next/" 절대경로를 생성합니다. itch.io의 가변 하위 경로에서도
+    # 동작하도록 HTML 파일의 깊이에 맞는 상대경로로 바꿉니다.
     Write-Host ""
     Write-Host "[ 3 / 4 ] Post-processing HTML paths for relative embedding..." -ForegroundColor DarkGray
 
@@ -88,35 +89,20 @@ try {
 
         $fixed = $content
 
-        if ($depth -eq 0) {
-            # ─ root 레벨 HTML ─────────────────────────────────────────────────
-            # assetPrefix 가 <link>/<script> 의 /_next/ → ./_next/ 는 처리함.
-            # 인라인 JSON 안에 남은 "/_next/" 도 "./" 상대경로로 통일.
-            # (?<!\.) : 이미 "./_next/" 인 경우 중복 치환 방지
-            $fixed = $fixed -replace '(?<!\.)/_next/', './_next/'
-            # favicon: public 폴더 자산은 assetPrefix 가 건드리지 않음
-            $fixed = $fixed -replace '"/favicon\.ico', '"./favicon.ico'
-            $itchNavSrc = "./itch-navigation.js"
-        } else {
-            # ─ 서브디렉토리 HTML (holdem/*.html 등) ───────────────────────────
-            # <link>/<script> 에 assetPrefix 가 이미 "./_next/" 로 만들었지만
-            # 이 파일들은 _next/ 폴더보다 한 단계 깊으므로 "../_next/" 필요.
-            $up = "../" * $depth   # depth=1 → "../"
+        # 모든 HTML과 인라인 RSC 모듈 맵에서 같은 "./_next/" 경로를 사용합니다.
+        # 각 HTML의 <base>가 ZIP 루트를 가리키므로 서브디렉토리에서도 동일하게
+        # 해석되고, Next hydration의 모듈 경로도 일치합니다.
+        $fixed = $fixed -replace '(?<!\.)/_next/', './_next/'
+        $fixed = $fixed -replace '"/favicon\.ico', '"./favicon.ico'
 
-            # 1) assetPrefix 가 생성한 "./_next/" → "../_next/"
-            $fixed = $fixed -replace '\./_next/', ($up + '_next/')
-            # 2) 인라인 JSON 의 "/_next/" → "../_next/" (lookbehind 로 중복 방지)
-            $fixed = $fixed -replace '(?<!\.)/_next/', ($up + '_next/')
-            # 3) favicon
-            $fixed = $fixed -replace '"/favicon\.ico', ('"' + $up + 'favicon.ico')
-            $itchNavSrc = $up + "itch-navigation.js"
-        }
+        $baseHref = if ($depth -eq 0) { "./" } else { "../" * $depth }
 
         # Next Link는 정적 export에서도 /holdem/... 절대 경로를 생성합니다.
         # itch.io는 업로드물을 CDN 하위 경로에 호스팅하므로, 조기 로드되는
-        # 내비게이션 어댑터가 링크를 실제 *.html 상대 파일로 연결합니다.
-        $navTag = '<script src="' + $itchNavSrc + '"></script>'
-        $fixed = $fixed -replace '<head>', ('<head>' + $navTag)
+        # 내비게이션 어댑터가 클릭 시 실제 *.html 파일로 연결합니다.
+        # <base>는 반드시 Next 스크립트보다 먼저 선언되어야 합니다.
+        $headTags = '<base href="' + $baseHref + '"><script src="./itch-navigation.js"></script>'
+        $fixed = $fixed -replace '<head>', ('<head>' + $headTags)
 
         if ($content -ne $fixed) {
             [System.IO.File]::WriteAllText($file.FullName, $fixed)
@@ -162,15 +148,123 @@ try {
         Write-Host "  renamed: $oldAsset/ → $newAsset/" -ForegroundColor DarkGray
     }
 
-    # ── Step 4: ZIP 생성 ─────────────────────────────────────────────────────────
+    # ── Step 4: 정적 결과 검증 ────────────────────────────────────────────────────
     Write-Host ""
-    Write-Host "[ 4 / 4 ] Creating itch-build.zip..." -ForegroundColor DarkGray
+    Write-Host "[ 4 / 5 ] Validating static export..." -ForegroundColor DarkGray
+
+    $indexPath = Join-Path $outDir "index.html"
+    $assetDir = Join-Path $outDir $newAsset
+    if (-not (Test-Path -LiteralPath $indexPath -PathType Leaf)) {
+        throw "Static export is missing out/index.html"
+    }
+    if (-not (Test-Path -LiteralPath $assetDir -PathType Container)) {
+        throw "Static export is missing out/$newAsset/"
+    }
+
+    $badAbsoluteResources = @()
+    $missingResources = @()
+    Get-ChildItem $outDir -Recurse -Filter "*.html" -File | ForEach-Object {
+        $htmlFile = $_
+        $html = [System.IO.File]::ReadAllText($htmlFile.FullName)
+        $baseMatch = [regex]::Match($html, '<base\s+href="([^"]+)"')
+        if (-not $baseMatch.Success) {
+            throw "HTML is missing a project-root base URL: $($htmlFile.FullName)"
+        }
+        $baseHref = $baseMatch.Groups[1].Value
+        $baseDirectory = [System.IO.Path]::GetFullPath(
+            (Join-Path $htmlFile.DirectoryName $baseHref)
+        )
+
+        foreach ($match in [regex]::Matches($html, '(?:src|href)="([^"]+)"')) {
+            $raw = $match.Groups[1].Value
+            if ($raw -match '^(?:https?:|data:|mailto:|javascript:|#)') { continue }
+            if ($raw -eq $baseHref) { continue }
+
+            $pathOnly = ($raw -split '[?#]', 2)[0]
+            if ($pathOnly -match '^/(?:_next|na|favicon\.ico)(?:/|$)') {
+                $badAbsoluteResources += "$($htmlFile.FullName): $raw"
+                continue
+            }
+
+            # /holdem/...은 itch-navigation.js가 상대 *.html 경로로 바꾸는 앱 라우트입니다.
+            if ($pathOnly.StartsWith("/")) { continue }
+            if ([string]::IsNullOrWhiteSpace($pathOnly)) { continue }
+
+            $candidate = [System.IO.Path]::GetFullPath(
+                (Join-Path $baseDirectory $pathOnly)
+            )
+            if (-not (Test-Path -LiteralPath $candidate)) {
+                $missingResources += "$($htmlFile.FullName): $raw"
+            }
+        }
+    }
+
+    if ($badAbsoluteResources.Count -gt 0) {
+        throw "Absolute static resource paths remain:`n$($badAbsoluteResources -join "`n")"
+    }
+    if ($missingResources.Count -gt 0) {
+        throw "Referenced static resources are missing:`n$($missingResources -join "`n")"
+    }
+
+    Write-Host "  index.html present" -ForegroundColor DarkGray
+    Write-Host "  $newAsset/ asset directory present" -ForegroundColor DarkGray
+    Write-Host "  HTML static resource paths are relative and resolve to files" -ForegroundColor DarkGray
+
+    # ── Step 5: ZIP 생성 ─────────────────────────────────────────────────────────
+    Write-Host ""
+    Write-Host "[ 5 / 5 ] Creating itch-build.zip..." -ForegroundColor DarkGray
     $zipPath = Join-Path $root "itch-build.zip"
     if (Test-Path -LiteralPath $zipPath) { Remove-Item $zipPath -Force }
-    Push-Location $outDir
-    try { Compress-Archive -Path ".\*" -DestinationPath $zipPath -Force }
-    finally { Pop-Location }
+
+    # Compress-Archive는 Windows에서 ZIP 엔트리에 역슬래시를 기록할 수 있습니다.
+    # itch.io가 웹 경로로 확실히 해석하도록 모든 엔트리 이름을 "/"로 생성합니다.
+    Add-Type -AssemblyName System.IO.Compression
+    Add-Type -AssemblyName System.IO.Compression.FileSystem
+    $archive = [System.IO.Compression.ZipFile]::Open(
+        $zipPath,
+        [System.IO.Compression.ZipArchiveMode]::Create
+    )
+    try {
+        Get-ChildItem $outDir -Recurse -File | ForEach-Object {
+            $entryName = $_.FullName.Substring($outDir.Length + 1).Replace('\', '/')
+            $entry = $archive.CreateEntry(
+                $entryName,
+                [System.IO.Compression.CompressionLevel]::Optimal
+            )
+            $sourceStream = [System.IO.File]::OpenRead($_.FullName)
+            $entryStream = $entry.Open()
+            try {
+                $sourceStream.CopyTo($entryStream)
+            } finally {
+                $entryStream.Dispose()
+                $sourceStream.Dispose()
+            }
+        }
+    } finally {
+        $archive.Dispose()
+    }
+
+    $verifyArchive = [System.IO.Compression.ZipFile]::OpenRead($zipPath)
+    try {
+        $entryNames = @($verifyArchive.Entries | ForEach-Object { $_.FullName })
+        if ($entryNames -notcontains "index.html") {
+            throw "ZIP root is missing index.html"
+        }
+        if ($entryNames | Where-Object { $_ -match '\\' }) {
+            throw "ZIP contains non-web backslash paths"
+        }
+        if ($entryNames | Where-Object { $_ -match '^out/' }) {
+            throw "ZIP incorrectly contains an out/ wrapper directory"
+        }
+        if (-not ($entryNames | Where-Object { $_ -match "^$newAsset/" })) {
+            throw "ZIP is missing the $newAsset/ asset directory"
+        }
+    } finally {
+        $verifyArchive.Dispose()
+    }
+
     Write-Host "  Created: itch-build.zip  ($([math]::Round((Get-Item $zipPath).Length / 1MB, 1)) MB)" -ForegroundColor Green
+    Write-Host "  ZIP entries use web-standard forward slashes" -ForegroundColor DarkGray
 
     Write-Host ""
     Write-Host "=== Build complete! ===" -ForegroundColor Green

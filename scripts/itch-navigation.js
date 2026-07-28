@@ -8,6 +8,7 @@
   const routeFiles = new Map([
     ["/holdem", "holdem.html"],
     ["/holdem/feedback", "holdem/feedback.html"],
+    ["/holdem/fx-preview", "holdem/fx-preview.html"],
     ["/holdem/guide", "holdem/guide.html"],
     ["/holdem/practice", "holdem/practice.html"],
     ["/holdem/settings", "holdem/settings.html"],
@@ -29,41 +30,23 @@
     return target.href;
   }
 
-  function patchAnchor(anchor) {
-    const rawHref = anchor.dataset.itchRoute ?? anchor.getAttribute("href");
-    const mapped = staticUrl(rawHref);
-    if (mapped == null) return;
-    anchor.dataset.itchRoute = rawHref;
-    if (anchor.href !== mapped) anchor.href = mapped;
-  }
-
-  function patchAnchors(root) {
-    if (root instanceof HTMLAnchorElement) patchAnchor(root);
-    if (!(root instanceof Element) && root !== document) return;
-    root.querySelectorAll("a[href]").forEach(patchAnchor);
-  }
-
   document.addEventListener(
     "click",
     (event) => {
       if (event.defaultPrevented || event.button !== 0) return;
-      if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
       const target = event.target;
       const anchor = target instanceof Element ? target.closest("a") : null;
       if (!(anchor instanceof HTMLAnchorElement)) return;
-      const mapped = staticUrl(anchor.dataset.itchRoute);
+      const mapped = staticUrl(anchor.getAttribute("href"));
       if (mapped == null) return;
-      event.preventDefault();
+
+      // Let the browser perform the anchor's native navigation after the click
+      // finishes. Calling location.assign() while itch.io is still dispatching
+      // the iframe click can show Chrome's transient "page couldn't load"
+      // screen; rewriting only the clicked link avoids that failed first load.
+      anchor.href = mapped;
       event.stopImmediatePropagation();
-      window.location.assign(mapped);
     },
     true,
   );
-
-  document.addEventListener("DOMContentLoaded", () => patchAnchors(document));
-  new MutationObserver((records) => {
-    for (const record of records) {
-      for (const node of record.addedNodes) patchAnchors(node);
-    }
-  }).observe(document.documentElement, { childList: true, subtree: true });
 })();

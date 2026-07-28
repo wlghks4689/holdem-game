@@ -15,6 +15,9 @@ import {
 } from "@/holdem/roomCredentials";
 
 const IS_STATIC = process.env.NEXT_PUBLIC_STATIC_EXPORT === "1";
+const ONLINE_GAME_URL =
+  process.env.NEXT_PUBLIC_ONLINE_GAME_URL ??
+  "https://holdem-game.vercel.app/holdem";
 
 const cardClass =
   "flex flex-col gap-2 rounded-2xl border border-zinc-600/80 bg-zinc-800/60 p-5 shadow-lg transition hover:border-sky-500/50 hover:bg-zinc-800/90 active:scale-[0.99]";
@@ -292,16 +295,21 @@ export function HoldemHomeHub() {
           </div>
 
           {IS_STATIC && (
-            <div className="flex flex-col gap-2 rounded-2xl border border-zinc-700/50 bg-zinc-800/30 p-5 shadow-lg opacity-60 cursor-not-allowed">
-              <span className="text-lg font-semibold text-zinc-400">
+            <a
+              href={ONLINE_GAME_URL}
+              target="_top"
+              rel="noopener noreferrer"
+              className="flex flex-col gap-2 rounded-2xl border border-sky-700/60 bg-sky-950/25 p-5 shadow-lg transition hover:border-sky-500/80 hover:bg-sky-950/40"
+            >
+              <span className="text-lg font-semibold text-sky-100">
                 {locale === "en" ? "Multiplayer" : "멀티플레이"}
               </span>
-              <span className="text-xs leading-relaxed text-zinc-500">
+              <span className="text-xs leading-relaxed text-zinc-400">
                 {locale === "en"
-                  ? "Available on the web version only. Visit the web version to play online."
-                  : "웹 버전에서만 이용 가능합니다. 온라인 플레이는 웹 버전을 이용해주세요."}
+                  ? "Open the online version to create or join a room."
+                  : "온라인 버전으로 이동해 방을 만들거나 참가합니다."}
               </span>
-            </div>
+            </a>
           )}
 
           <Link href="/holdem/guide" className={cardClass}>
