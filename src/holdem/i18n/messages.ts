@@ -92,11 +92,11 @@ const KO: Record<MessageKey, string> = {
   "settings.sound": "사운드 효과",
   "settings.soundHint": "(준비 중 — 옵션만 저장됩니다)",
   "home.title": "핸드 셀렉 홀덤",
-  "home.subtitle": "헤즈업 · 핸드 셀렉",
+  "home.subtitle": "원하는 패를 선택하는 전략 텍사스 홀덤",
   "home.settings": "환경 설정",
   "home.guide": "게임 설명",
   "home.guideDesc":
-    "처음 하는 분도 이해할 수 있는 플레이 흐름 안내입니다.",
+    "핸드 선택부터 베팅, 승리 조건까지 기본 규칙과 플레이 방법을 확인하세요.",
   "home.feedback": "의견 보내기",
   "home.multiplayTitle": "멀티플레이",
   "home.multiplayDesc": "방 만들기, 방 참여, 비공개 방 선택 가능",

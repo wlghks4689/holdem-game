@@ -14,8 +14,8 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://holdem-game.vercel.app"),
-  title: "핸드 셀렉 홀덤",
-  description: "핸드를 직접 선택하는 캐주얼 텍사스 홀덤 게임. 친구와 온라인 멀티플레이를 즐기거나 AI 싱글플레이와 Classic·Cost 연습 모드에 도전하세요.",
+  title: "핸드 셀렉 홀덤 | 원하는 패를 선택하는 전략 텍사스 홀덤",
+  description: "정해진 핸드 풀에서 원하는 카드 조합을 선택해 플레이하는 전략형 텍사스 홀덤 게임입니다.",
   verification: {
     google: "7tro-Lz0PV4TGpW23xvxF7vdVNyVCOaf1gBvSV_758E",
   },
