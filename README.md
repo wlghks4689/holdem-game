@@ -37,6 +37,23 @@ Online rooms need one shared Redis database on Vercel. Local `npm run dev`
 uses in-process memory only when no storage variables are configured.
 Do not use in-memory fallback on Vercel: separate function instances cannot share rooms.
 
+Rooms are temporary snapshots, not permanent multiplayer match histories:
+
+- Waiting rooms expire 10 minutes after their last state change.
+- Running/paused games expire after 30 minutes without a state-changing action.
+- Finished matches allow 5 minutes for a rematch; polling or repeated acceptance
+  does not extend this deadline. A successful rematch starts a new active lifetime.
+- One player's explicit departure leaves a 60-second notification window.
+  Both players leaving, or the host cancelling an empty room, deletes the room immediately.
+- Closing a browser without sending leave is handled by the idle deadline.
+- Redis enforces expiration; the local memory store also checks deadlines and
+  sweeps expired entries every 30 seconds. The lobby index expires after 30 minutes
+  without new entries. Its sorted-set deadlines prune expired room IDs on both
+  room creation and listing, so continuous room creation cannot accumulate old IDs.
+
+Single-player Hard win counts stay on the player's device for Hell unlock (5 wins);
+they are not stored in the multiplayer database.
+
 Configure one of the following in the project's deployment environment:
 
 - TCP Redis: `REDIS_URL` with a `redis://` or `rediss://` connection string.

@@ -47,8 +47,8 @@ export async function POST(req: Request, ctx: Ctx) {
     blob.rematchAccepted[s] = false;
   }
   await roomSet(roomId, blob);
-  // 호스트가 나갔고 게스트가 아직 없는 공개 방이라면 목록에서 제거
-  if (s === 0 && blob.public && blob.tokens[1] == null) {
+  // Leaving rooms must disappear from the public lobby immediately.
+  if (blob.public) {
     await lobbyRemove(roomId);
   }
   return NextResponse.json({ ok: true });

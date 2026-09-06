@@ -122,7 +122,7 @@ export default function SinglePlayerEntry() {
           </button>
         ))}
 
-        {/* Hell — Hard 매치 승리 10회 잠금 해제 */}
+        {/* Hell — Hard 매치 승리 5회 잠금 해제 */}
         <div
           className={[
             "w-full rounded-xl border-2 px-6 py-4 text-left transition-all duration-150",

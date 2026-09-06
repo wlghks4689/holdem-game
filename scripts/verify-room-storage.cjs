@@ -39,7 +39,7 @@ process.env.VERCEL = "1";
 process.env.KV_REST_API_URL = endpoint;
 process.env.KV_REST_API_TOKEN = "test-token";
 const data = new Map();
-const lobby = new Set();
+const lobby = new Map();
 const ttls = [];
 let denyWrites = false;
 function command([op, key, ...args]) {
@@ -53,9 +53,14 @@ function command([op, key, ...args]) {
       result = "OK";
       break;
     case "get": result = data.get(key) ?? null; break;
-    case "sadd": args.forEach((id) => lobby.add(id)); result = 1; break;
-    case "srem": args.forEach((id) => lobby.delete(id)); result = 1; break;
-    case "smembers": result = [...lobby]; break;
+    case "del": result = data.delete(key) ? 1 : 0; break;
+    case "expire": assert.equal(args[0], 1800); result = 1; break;
+    case "zadd": lobby.set(args[1], Number(args[0])); result = 1; break;
+    case "zrem": args.forEach((id) => lobby.delete(id)); result = 1; break;
+    case "zremrangebyscore":
+      for (const [id, deadline] of lobby) if (deadline <= Number(args[1])) lobby.delete(id);
+      result = 1; break;
+    case "zrange": result = [...lobby.keys()]; break;
     default: throw new Error(`Unexpected command: ${op}`);
   }
   const encode = (value) => typeof value === "string" ? Buffer.from(value).toString("base64") : Array.isArray(value) ? value.map(encode) : value;
@@ -73,6 +78,7 @@ const join = require("../src/app/api/room/[roomId]/join/route.ts").POST;
 const read = require("../src/app/api/room/[roomId]/route.ts").GET;
 const action = require("../src/app/api/room/[roomId]/action/route.ts").POST;
 const leave = require("../src/app/api/room/[roomId]/leave/route.ts").POST;
+const rematch = require("../src/app/api/room/[roomId]/rematch/route.ts").POST;
 function request(body) {
   return new Request("http://localhost/api/test", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
 }
@@ -110,12 +116,14 @@ async function main() {
   await store.roomSet("12345678", { ...blob, tokens: ["test-host-token", null], public: true, disconnected: [false, false] });
   await store.lobbyAdd("12345678");
   assert.equal((await store.lobbyList())[0].roomId, "12345678", "Numeric hex IDs must stay strings");
-  assert.ok(ttls.every((ttl) => ttl === 60 * 60 * 72));
+  assert.ok(ttls.includes(600) && ttls.includes(1800) && ttls.includes(60));
+  assert.ok(ttls.every((ttl) => ttl > 0 && ttl <= 1800));
   // Demonstrate the old parser failure with the SDK's default behavior.
   const legacyClient = require("@vercel/kv").createClient({ url: endpoint, token: "test-token" });
   const legacyValue = await legacyClient.get(`holdem:room:${sampleId}`);
   assert.equal(typeof legacyValue, "object");
   assert.throws(() => JSON.parse(legacyValue));
+  await verifyLifetime();
   denyWrites = true;
   const failure = await json(await create(request({})), 503);
   assert.equal(failure.code, "ROOM_STORAGE_PERMISSION");
@@ -126,6 +134,81 @@ async function main() {
   assert.equal((await json(await create(request({})), 503)).code, "ROOM_STORAGE_CONFIG");
   delete process.env.VERCEL;
   await scenario("classic", true);
-  console.log("PASS: config, KV JSON regression, numeric room IDs, TTL, public/private rooms, two-seat auth, game start/sync/leave, safe storage errors, local memory.");
+  await verifyLifetime();
+  verifyHellUnlock();
+  console.log("PASS: storage config/serialization, two-player flow, temporary room expiry/deletion/rematch (REST and memory), hard-5 hell unlock.");
+}
+
+async function verifyLifetime() {
+  const originalNow = Date.now;
+  let now = originalNow();
+  Date.now = () => now;
+  try {
+    // A waiting room expires even if a client keeps polling it.
+    const waiting = await json(await create(request({ public: true })));
+    const initial = await store.roomGet(waiting.roomId);
+    assert.equal(initial.expiresAt, now + 600_000);
+    now += 599_000;
+    assert.equal((await store.roomGet(waiting.roomId)).expiresAt, initial.expiresAt);
+    now += 1000;
+    assert.equal(await store.roomGet(waiting.roomId), null);
+    assert.equal((await store.lobbyList()).some((r) => r.roomId === waiting.roomId), false);
+
+    const cancelled = await json(await create(request({ public: true })));
+    await json(await leave(request({ seat: 0, token: cancelled.token }), { params: Promise.resolve({ roomId: cancelled.roomId }) }));
+    assert.equal(await store.roomGet(cancelled.roomId), null);
+
+    const host = await json(await create(request({ gameMode: "cost" })));
+    const ctx = { params: Promise.resolve({ roomId: host.roomId }) };
+    const guest = await json(await join(request({}), ctx));
+    await json(await rematch(request({ seat: 0, token: host.token, cmd: "accept" }), ctx), 409);
+    const game = await store.roomGet(host.roomId);
+    game.state.phase = "hand_over";
+    game.state.matchEnded = true;
+    game.state.matchWinner = 0;
+    await store.roomSet(host.roomId, game);
+    const finishedDeadline = now + 300_000;
+    assert.equal((await store.roomGet(host.roomId)).expiresAt, finishedDeadline);
+    now += 60_000;
+    await json(await rematch(request({ seat: 0, token: host.token, cmd: "accept" }), ctx));
+    assert.equal((await store.roomGet(host.roomId)).expiresAt, finishedDeadline);
+    await json(await rematch(request({ seat: 1, token: guest.token, cmd: "accept" }), ctx));
+    const restarted = await store.roomGet(host.roomId);
+    assert.equal(restarted.state.matchEnded, false);
+    assert.equal(restarted.state.gameMode, "cost");
+    assert.equal(restarted.cleanupDeadline, undefined);
+    assert.equal(restarted.expiresAt, now + 1800_000);
+    await json(await leave(request({ seat: 1, token: guest.token }), ctx));
+    const leftDeadline = now + 60_000;
+    now += 15_000;
+    await json(await leave(request({ seat: 1, token: guest.token }), ctx));
+    assert.equal((await store.roomGet(host.roomId)).expiresAt, leftDeadline);
+    await json(await rematch(request({ seat: 0, token: host.token, cmd: "accept" }), ctx), 409);
+    await json(await leave(request({ seat: 0, token: host.token }), ctx));
+    assert.equal(await store.roomGet(host.roomId), null);
+
+    // A closed browser sends no leave request: idle expiry is the safety net.
+    const idle = await json(await create(request({})));
+    const idleBlob = await store.roomGet(idle.roomId);
+    idleBlob.state.phase = "hand_select";
+    await store.roomSet(idle.roomId, idleBlob);
+    now += 1800_000;
+    assert.equal(await store.roomGet(idle.roomId), null);
+  } finally { Date.now = originalNow; }
+}
+
+function verifyHellUnlock() {
+  process.env.NODE_ENV = "production";
+  delete process.env.NEXT_PUBLIC_HOLDEM_DEV_UNLOCK_HELL;
+  let savedWins = "4";
+  global.window = { localStorage: { getItem: () => savedWins, setItem: (_key, value) => { savedWins = value; } }, dispatchEvent() {} };
+  const progress = require("../src/holdem/singlePlayerProgress.ts");
+  assert.equal(progress.isHellModeUnlocked(), false);
+  progress.recordHardModeMatchWin();
+  assert.equal(progress.getHardModeMatchWins(), 5);
+  assert.equal(progress.isHellModeUnlocked(), true);
+  savedWins = "10";
+  assert.equal(progress.isHellModeUnlocked(), true);
+  delete global.window;
 }
 main().catch((error) => { console.error(error); process.exitCode = 1; });

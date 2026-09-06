@@ -151,7 +151,7 @@ const KO: Record<MessageKey, string> = {
   "single.hellTitle": "Hell",
   "single.hellDesc": "한계에 도전",
   "single.hellLockedHint":
-    "Hard 매치 승리 10회로 잠금 해제 · 현재 진행도는 아래에 표시됩니다",
+    "Hard 매치 승리 5회로 잠금 해제 · 현재 진행도는 아래에 표시됩니다",
 };
 
 const EN: Record<MessageKey, string> = {
@@ -231,7 +231,7 @@ const EN: Record<MessageKey, string> = {
   "single.hellTitle": "Hell",
   "single.hellDesc": "Challenge yourself — show what you've got",
   "single.hellLockedHint":
-    "Unlock by winning 10 Hard matches — progress shown below",
+    "Unlock by winning 5 Hard matches — progress shown below",
 };
 
 const MAP: Record<HoldemUiLocale, Record<MessageKey, string>> = {

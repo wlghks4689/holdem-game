@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { clearLastActiveRoom } from "./roomCredentials";
 import {
   actionTimerLimitMs,
   actionTimerSignature,
@@ -38,6 +39,7 @@ export function useHoldemOnlineGame(opts: {
     false,
   ]);
   const stateVersionRef = React.useRef(0);
+  const roomExpiredRef = React.useRef(false);
 
   const stateRef = React.useRef<GameState | null>(null);
   React.useLayoutEffect(() => {
@@ -45,6 +47,7 @@ export function useHoldemOnlineGame(opts: {
   }, [state]);
 
   const fetchSnapshot = React.useCallback(async () => {
+    if (roomExpiredRef.current) return;
     const r = await fetch(
       `/api/room/${roomId}?seat=${mySeat}&token=${encodeURIComponent(token)}`,
       { cache: "no-store" },
@@ -59,6 +62,13 @@ export function useHoldemOnlineGame(opts: {
       rematchAccepted?: [boolean, boolean];
     };
     if (!r.ok) {
+      if (r.status === 404 || r.status === 410) {
+        roomExpiredRef.current = true;
+        clearLastActiveRoom();
+        setState(null);
+        setLoadError("방이 종료되었거나 만료되었습니다. 새 방을 만들어 주세요.");
+        return;
+      }
       setLoadError(j.error ?? r.statusText);
       return;
     }
@@ -86,8 +96,10 @@ export function useHoldemOnlineGame(opts: {
   }, [roomId, mySeat, token]);
 
   React.useEffect(() => {
-    void fetchSnapshot();
-    const iv = window.setInterval(() => void fetchSnapshot(), 1200);
+    roomExpiredRef.current = false;
+    const poll = () => void fetchSnapshot().catch(() => setLoadError("네트워크 연결을 확인해 주세요."));
+    poll();
+    const iv = window.setInterval(poll, 1200);
     return () => window.clearInterval(iv);
   }, [fetchSnapshot]);
 

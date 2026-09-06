@@ -1,6 +1,7 @@
 import { createClient } from "@vercel/kv";
 import Redis from "ioredis";
 import { resolveRoomStorageConfig, roomStorageFailure } from "./roomStorageConfig";
+import { roomLifetime, ROOM_IDLE_TTL_SEC, ROOM_LOBBY_TTL_SEC } from "./roomLifetime";
 import type { RoomPauseState } from "@/holdem/roomPause";
 import type { GameState, PlayerIndex } from "@/holdem/types";
 
@@ -22,6 +23,9 @@ export type RoomBlob = {
   hostNickname?: string;
   /** 방 생성 시각(ms) */
   createdAt?: number;
+  /** Temporary room deadline; reads never extend it. */
+  expiresAt?: number;
+  cleanupDeadline?: number;
 };
 
 export type PublicRoomMeta = {
@@ -32,12 +36,12 @@ export type PublicRoomMeta = {
 
 const key = (roomId: string) => `holdem:room:${roomId}`;
 
-const ROOM_TTL_SEC = 60 * 60 * 72;
-
 // globalThis에 붙여 Next.js 핫 리로드(모듈 재평가) 시에도 유지
 const devMemGlobal = globalThis as unknown as {
   __holdemDevMem?: Map<string, string>;
   __holdemDevLobby?: Set<string>;
+  __holdemDevExpiry?: Map<string, number>;
+  __holdemDevSweep?: ReturnType<typeof setInterval>;
 };
 if (!devMemGlobal.__holdemDevMem) {
   devMemGlobal.__holdemDevMem = new Map<string, string>();
@@ -46,6 +50,19 @@ if (!devMemGlobal.__holdemDevLobby) {
   devMemGlobal.__holdemDevLobby = new Set<string>();
 }
 const devMem = devMemGlobal.__holdemDevMem;
+const devExpiry = devMemGlobal.__holdemDevExpiry ??= new Map<string, number>();
+if (!devMemGlobal.__holdemDevSweep) {
+  devMemGlobal.__holdemDevSweep = setInterval(() => {
+    for (const [roomId, expiresAt] of devExpiry) {
+      if (expiresAt <= Date.now()) {
+        devMem.delete(key(roomId));
+        devExpiry.delete(roomId);
+        devMemGlobal.__holdemDevLobby?.delete(roomId);
+      }
+    }
+  }, 30_000);
+  devMemGlobal.__holdemDevSweep.unref();
+}
 
 function redisUrl(): string | undefined {
   const config = resolveRoomStorageConfig();
@@ -88,7 +105,7 @@ function getKvClient(): ReturnType<typeof createClient> {
     redisGlobal.__holdemKv = createClient({
       url,
       token,
-      // roomGet owns JSON decoding. Also preserves numeric-looking hex room IDs in SMEMBERS.
+      // roomGet owns JSON decoding. Also preserves numeric-looking hex room IDs in ZRANGE.
       automaticDeserialization: false,
       cache: "no-store",
       retry: { retries: 1 },
@@ -141,36 +158,62 @@ export async function roomGet(roomId: string): Promise<RoomBlob | null> {
     raw = devMem.get(key(roomId)) ?? null;
   }
   if (raw == null) return null;
+  let parsed: RoomBlob;
   try {
-    const parsed = JSON.parse(raw) as RoomBlob & { stateVersion?: number };
-    return {
-      ...parsed,
-      stateVersion: Number.isFinite(parsed.stateVersion) ? parsed.stateVersion! : 0,
-      rematchAccepted:
-        Array.isArray(parsed.rematchAccepted) &&
-        parsed.rematchAccepted.length === 2
-          ? [Boolean(parsed.rematchAccepted[0]), Boolean(parsed.rematchAccepted[1])]
-          : [false, false],
-      disconnected:
-        Array.isArray(parsed.disconnected) &&
-        parsed.disconnected.length === 2
-          ? [Boolean(parsed.disconnected[0]), Boolean(parsed.disconnected[1])]
-          : [false, false],
-    };
+    parsed = JSON.parse(raw) as RoomBlob;
   } catch {
     return null;
   }
+  if (parsed.expiresAt != null && parsed.expiresAt <= Date.now()) {
+    await roomDelete(roomId);
+    return null;
+  }
+  // Bound legacy rooms as soon as they are encountered after the upgrade.
+  if (parsed.expiresAt == null) {
+    await roomSet(roomId, parsed);
+    if (parsed.expiresAt! <= Date.now()) return null;
+  }
+  return {
+    ...parsed,
+    stateVersion: Number.isFinite(parsed.stateVersion) ? parsed.stateVersion! : 0,
+    rematchAccepted:
+      Array.isArray(parsed.rematchAccepted) && parsed.rematchAccepted.length === 2
+        ? [Boolean(parsed.rematchAccepted[0]), Boolean(parsed.rematchAccepted[1])]
+        : [false, false],
+    disconnected:
+      Array.isArray(parsed.disconnected) && parsed.disconnected.length === 2
+        ? [Boolean(parsed.disconnected[0]), Boolean(parsed.disconnected[1])]
+        : [false, false],
+  };
 }
 
 export async function roomSet(roomId: string, blob: RoomBlob): Promise<void> {
+  const now = Date.now();
+  Object.assign(blob, roomLifetime(blob, now));
+  const ttl = Math.ceil((blob.expiresAt! - now) / 1000);
+  if (ttl <= 0) {
+    await roomDelete(roomId);
+    return;
+  }
   const raw = JSON.stringify(blob);
   if (hasRedisConfig()) {
-    await getRedis().set(key(roomId), raw, "EX", ROOM_TTL_SEC);
+    await getRedis().set(key(roomId), raw, "EX", ttl);
   } else if (hasKvConfig()) {
-    await getKvClient().set(key(roomId), raw, { ex: ROOM_TTL_SEC });
+    await getKvClient().set(key(roomId), raw, { ex: ttl });
   } else {
     devMem.set(key(roomId), raw);
+    devExpiry.set(roomId, blob.expiresAt!);
   }
+}
+
+export async function roomDelete(roomId: string): Promise<void> {
+  if (hasRedisConfig()) await getRedis().del(key(roomId));
+  else if (hasKvConfig()) await getKvClient().del(key(roomId));
+  else {
+    devMem.delete(key(roomId));
+    devExpiry.delete(roomId);
+  }
+  await lobbyRemove(roomId);
 }
 
 export function assertValidRoomId(roomId: string): roomId is string {
@@ -183,14 +226,21 @@ export function parseSeat(s: string | null): PlayerIndex | null {
   return null;
 }
 
-const LOBBY_KEY = "holdem:lobby";
+// New key avoids mixing the legacy Set with the expiring sorted-set index.
+const LOBBY_KEY = "holdem:lobby:temporary:v1";
 
 /** 공개 방 인덱스에 roomId 추가 */
 export async function lobbyAdd(roomId: string): Promise<void> {
+  const now = Date.now();
+  const expiresAt = now + ROOM_LOBBY_TTL_SEC * 1000;
   if (hasRedisConfig()) {
-    await getRedis().sadd(LOBBY_KEY, roomId);
+    await getRedis().zremrangebyscore(LOBBY_KEY, "-inf", now);
+    await getRedis().zadd(LOBBY_KEY, expiresAt, roomId);
+    await getRedis().expire(LOBBY_KEY, ROOM_IDLE_TTL_SEC);
   } else if (hasKvConfig()) {
-    await (getKvClient() as unknown as { sadd: (key: string, ...members: string[]) => Promise<unknown> }).sadd(LOBBY_KEY, roomId);
+    await getKvClient().zremrangebyscore(LOBBY_KEY, "-inf", now);
+    await getKvClient().zadd(LOBBY_KEY, { score: expiresAt, member: roomId });
+    await getKvClient().expire(LOBBY_KEY, ROOM_IDLE_TTL_SEC);
   } else {
     devMemGlobal.__holdemDevLobby!.add(roomId);
   }
@@ -199,9 +249,9 @@ export async function lobbyAdd(roomId: string): Promise<void> {
 /** 공개 방 인덱스에서 roomId 제거 */
 export async function lobbyRemove(roomId: string): Promise<void> {
   if (hasRedisConfig()) {
-    await getRedis().srem(LOBBY_KEY, roomId);
+    await getRedis().zrem(LOBBY_KEY, roomId);
   } else if (hasKvConfig()) {
-    await (getKvClient() as unknown as { srem: (key: string, ...members: string[]) => Promise<unknown> }).srem(LOBBY_KEY, roomId);
+    await getKvClient().zrem(LOBBY_KEY, roomId);
   } else {
     devMemGlobal.__holdemDevLobby!.delete(roomId);
   }
@@ -211,9 +261,11 @@ export async function lobbyRemove(roomId: string): Promise<void> {
 export async function lobbyList(): Promise<PublicRoomMeta[]> {
   let ids: string[];
   if (hasRedisConfig()) {
-    ids = await getRedis().smembers(LOBBY_KEY);
+    await getRedis().zremrangebyscore(LOBBY_KEY, "-inf", Date.now());
+    ids = await getRedis().zrange(LOBBY_KEY, 0, -1);
   } else if (hasKvConfig()) {
-    ids = (await (getKvClient() as unknown as { smembers: (key: string) => Promise<string[]> }).smembers(LOBBY_KEY)) ?? [];
+    await getKvClient().zremrangebyscore(LOBBY_KEY, "-inf", Date.now());
+    ids = await getKvClient().zrange<string[]>(LOBBY_KEY, 0, -1);
   } else {
     ids = Array.from(devMemGlobal.__holdemDevLobby ?? []);
   }

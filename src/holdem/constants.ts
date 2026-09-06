@@ -14,7 +14,7 @@ export const STARTING_CHIPS = 200;
 export const HELL_AI_EXTRA_STARTING_CHIPS = 100;
 
 /** Hell 모드 잠금 해제: Hard 매치 승리 횟수 */
-export const HELL_UNLOCK_HARD_MATCH_WINS = 10;
+export const HELL_UNLOCK_HARD_MATCH_WINS = 5;
 export const TOTAL_ROUNDS = 30;
 
 /** Hell: 마지막 N라운드에서 배당·엔드게임 보정(역전/칩 우위 운영) */

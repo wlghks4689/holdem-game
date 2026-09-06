@@ -57,6 +57,10 @@ export async function POST(req: Request, ctx: Ctx) {
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
   }
 
+  if (!blob.state.matchEnded || blob.tokens[1] == null || blob.disconnected?.some(Boolean)) {
+    return NextResponse.json({ error: "rematch unavailable" }, { status: 409 });
+  }
+
   blob.rematchAccepted = blob.rematchAccepted ?? [false, false];
   blob.rematchAccepted[s] = cmd === "accept";
 
