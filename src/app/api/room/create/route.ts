@@ -4,23 +4,13 @@ import { createRoomInitialGameState } from "@/holdem/gameReducer";
 import { normalizeGameMode } from "@/holdem/handPool";
 import type { HoldemGameMode } from "@/holdem/types";
 import {
-  isRoomPersistenceConfigured,
   lobbyAdd,
   roomSet,
   type RoomBlob,
 } from "@/server/roomStore";
+import { roomStorageFailure } from "@/server/roomStorageConfig";
 
 export async function POST(req: Request) {
-  if (!isRoomPersistenceConfigured()) {
-    return NextResponse.json(
-      {
-        error: "온라인 방 저장소가 없습니다.",
-        hint: "Vercel Redis를 프로젝트에 연결한 뒤 REDIS_URL 또는 STORAGE_URL이 Production 환경에 등록됐는지 확인하고 다시 배포하세요.",
-      },
-      { status: 503 },
-    );
-  }
-
   let isPublic = false;
   let hostNickname = "";
   let gameMode: HoldemGameMode = "classic";
@@ -57,11 +47,12 @@ export async function POST(req: Request) {
     await roomSet(roomId, blob);
     if (isPublic) await lobbyAdd(roomId);
   } catch (error) {
-    console.error("[holdem-room-create] persistence failed", error);
+    const failure = roomStorageFailure(error);
+    console.error("[holdem-room-create]", failure.code);
     return NextResponse.json(
       {
         error: "온라인 방 저장소 연결에 실패했습니다.",
-        hint: "Vercel 프로젝트의 Redis 연결과 REDIS_URL 또는 STORAGE_URL 환경변수를 확인한 뒤 다시 배포하세요.",
+        ...failure,
       },
       { status: 503 },
     );

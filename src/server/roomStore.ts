@@ -1,5 +1,6 @@
 import { createClient } from "@vercel/kv";
 import Redis from "ioredis";
+import { resolveRoomStorageConfig, roomStorageFailure } from "./roomStorageConfig";
 import type { RoomPauseState } from "@/holdem/roomPause";
 import type { GameState, PlayerIndex } from "@/holdem/types";
 
@@ -47,12 +48,8 @@ if (!devMemGlobal.__holdemDevLobby) {
 const devMem = devMemGlobal.__holdemDevMem;
 
 function redisUrl(): string | undefined {
-  const u =
-    process.env.HOLDEM_LIMIT_GAME_REDIS_URL?.trim() ||
-    process.env.REDIS_URL?.trim() ||
-    process.env.STORAGE_URL?.trim() ||
-    process.env.UPSTASH_REDIS_URL?.trim();
-  return u && u.length > 0 ? u : undefined;
+  const config = resolveRoomStorageConfig();
+  return config.kind === "redis" ? config.url : undefined;
 }
 
 function hasRedisConfig(): boolean {
@@ -60,17 +57,13 @@ function hasRedisConfig(): boolean {
 }
 
 function kvRestUrl(): string | undefined {
-  const u =
-    process.env.KV_REST_API_URL?.trim() ||
-    process.env.UPSTASH_REDIS_REST_URL?.trim();
-  return u && u.length > 0 ? u : undefined;
+  const config = resolveRoomStorageConfig();
+  return config.kind === "rest" ? config.url : undefined;
 }
 
 function kvRestToken(): string | undefined {
-  const t =
-    process.env.KV_REST_API_TOKEN?.trim() ||
-    process.env.UPSTASH_REDIS_REST_TOKEN?.trim();
-  return t && t.length > 0 ? t : undefined;
+  const config = resolveRoomStorageConfig();
+  return config.kind === "rest" ? config.token : undefined;
 }
 
 function hasKvConfig(): boolean {
@@ -80,6 +73,8 @@ function hasKvConfig(): boolean {
 const redisGlobal = globalThis as unknown as {
   __holdemRedis?: Redis;
   __holdemKv?: ReturnType<typeof createClient>;
+  __holdemRedisUrl?: string;
+  __holdemKvConfig?: string;
 };
 
 function getKvClient(): ReturnType<typeof createClient> {
@@ -88,8 +83,18 @@ function getKvClient(): ReturnType<typeof createClient> {
   if (!url || !token) {
     throw new Error("KV REST URL/token not configured");
   }
-  if (!redisGlobal.__holdemKv) {
-    redisGlobal.__holdemKv = createClient({ url, token });
+  const configKey = JSON.stringify([url, token, "raw-v1"]);
+  if (!redisGlobal.__holdemKv || redisGlobal.__holdemKvConfig !== configKey) {
+    redisGlobal.__holdemKv = createClient({
+      url,
+      token,
+      // roomGet owns JSON decoding. Also preserves numeric-looking hex room IDs in SMEMBERS.
+      automaticDeserialization: false,
+      cache: "no-store",
+      retry: { retries: 1 },
+      signal: () => AbortSignal.timeout(5_000),
+    });
+    redisGlobal.__holdemKvConfig = configKey;
   }
   return redisGlobal.__holdemKv;
 }
@@ -99,11 +104,18 @@ function getRedis(): Redis {
   if (!url) {
     throw new Error("Redis URL not configured");
   }
-  if (!redisGlobal.__holdemRedis) {
+  if (!redisGlobal.__holdemRedis || redisGlobal.__holdemRedisUrl !== url || redisGlobal.__holdemRedis.status === "end") {
+    redisGlobal.__holdemRedis?.disconnect();
     redisGlobal.__holdemRedis = new Redis(url, {
       maxRetriesPerRequest: 2,
-      connectTimeout: 10_000,
+      connectTimeout: 5_000,
+      commandTimeout: 8_000,
+      retryStrategy: (attempt) => attempt <= 2 ? attempt * 200 : null,
       lazyConnect: false,
+    });
+    redisGlobal.__holdemRedisUrl = url;
+    redisGlobal.__holdemRedis.on("error", (error) => {
+      console.error("[holdem-redis]", roomStorageFailure(error).code);
     });
   }
   return redisGlobal.__holdemRedis;
@@ -111,10 +123,12 @@ function getRedis(): Redis {
 
 /** 프로덕션(Vercel)에서 영구 저장소: Redis URL 또는 Vercel KV */
 export function isRoomPersistenceConfigured(): boolean {
-  if (process.env.VERCEL === "1") {
-    return hasRedisConfig() || hasKvConfig();
+  try {
+    resolveRoomStorageConfig();
+    return true;
+  } catch {
+    return false;
   }
-  return true;
 }
 
 export async function roomGet(roomId: string): Promise<RoomBlob | null> {
