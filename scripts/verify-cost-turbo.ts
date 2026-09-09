@@ -196,7 +196,15 @@ const turboAggression = (mediumTurbo.PREFLOP_RAISE ?? 0) + (mediumTurbo.PREFLOP_
 assert.ok(turboAggression > deepAggression, "late trailing Turbo AI should widen preflop aggression");
 
 const weakTurbo = sampleActions(preflopDecisionState("turbo", "conn_76s"));
-assert.ok((weakTurbo.FOLD ?? 0) > 0, "late trailing Turbo AI must still fold weak hands sometimes");
+assert.equal(
+  weakTurbo.FOLD ?? 0,
+  0,
+  "a playable pool hand must defend against a single 2bb raise",
+);
+assert.ok(
+  (weakTurbo.PREFLOP_CALL ?? 0) + (weakTurbo.PREFLOP_RAISE ?? 0) > 0,
+  "the defended hand should still mix calls and raises",
+);
 
 const shortTurbo = sampleActions(preflopDecisionState("turbo", "axs_AKs", [190, 10]));
 const shortDeep = sampleActions(preflopDecisionState("deep", "axs_AKs", [190, 10]));

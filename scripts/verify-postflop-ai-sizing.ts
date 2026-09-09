@@ -8,6 +8,7 @@ import {
   postflopAiMaxRaiseTargetForActor,
   postflopRaiseTargetCappedByOpponent,
 } from "../src/holdem/bettingHelpers";
+import type { Card } from "../src/holdem/cards";
 import { createInitialGameState } from "../src/holdem/gameReducer";
 import type { GameState } from "../src/holdem/types";
 
@@ -16,6 +17,8 @@ const aggressive: AIPersonality = {
   bluffRate: 0,
   raiseFreq: 1,
 };
+
+const card = (rank: number, suit: Card["suit"]): Card => ({ rank, suit });
 
 function postflopState(options: {
   pot: number;
@@ -37,7 +40,12 @@ function postflopState(options: {
       raisesThisStreet: 0,
     },
     toAct: 1,
-    holes: [null, { templateId: "hi_AA" }],
+    holes: [null, {
+      templateId: "hi_AA",
+      hole: [card(14, "s"), card(14, "h")],
+    }],
+    board: [card(9, "c"), card(7, "d"), card(2, "s")],
+    boardRevealed: 3,
     isAllIn: false,
   } as unknown as GameState;
 }
