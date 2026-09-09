@@ -31,7 +31,7 @@ body {
  * 로컬 개발 서버에서 보이던 형태로 동일하게 렌더링된다.
  */
 @font-face {
-  font-family: "Holdem Preview Rank";
+  font-family: "Holdem Local Font";
   src: local("Arial");
   ascent-override: 74.67%;
   descent-override: 21.92%;
@@ -39,8 +39,8 @@ body {
   size-adjust: 134.59%;
 }
 
-.holdem-preview-rank-font {
-  font-family: "Holdem Preview Rank", Arial, Helvetica, sans-serif;
+.holdem-local-font {
+  font-family: "Holdem Local Font", Arial, Helvetica, sans-serif;
 }
 
 /** 커뮤니티 카드 딜 — scale 0.8→1, fade-in, 약간 아래에서 상승 */

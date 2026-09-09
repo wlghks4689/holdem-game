@@ -71,7 +71,7 @@ function HandTemplateCardPreview({
           >
             <span
               className={[
-                "holdem-preview-rank-font flex w-full items-center justify-center text-center font-black leading-none tabular-nums",
+                "holdem-local-font flex w-full items-center justify-center text-center font-black leading-none tabular-nums",
                 emphasis
                   ? "h-5 text-xl lg:h-6 lg:text-2xl"
                   : "h-[14px] text-[14px] lg:h-[15.1px] lg:text-[15.1px]",
@@ -84,8 +84,8 @@ function HandTemplateCardPreview({
               className={[
                 "mt-px flex w-full items-center justify-center text-center leading-none",
                 emphasis
-                  ? "h-7 text-3xl lg:h-8 lg:text-[2rem]"
-                  : "h-[18.6px] text-[18.6px] lg:h-[19.85px] lg:text-[19.85px]",
+                  ? "h-[31.2px] text-[31.2px] lg:h-[33.2px] lg:text-[33.2px]"
+                  : "h-[19.8px] text-[19.8px] lg:h-[21.05px] lg:text-[21.05px]",
                 red ? "text-red-600" : "text-zinc-950",
               ].join(" ")}
             >
@@ -468,7 +468,7 @@ function HandPickerColumn({
                         className={[
                           isCostMode ? "hidden" : "",
                           "mt-1.5 font-medium leading-none",
-                          compact ? "text-[10.35px]" : "text-[11.5px]",
+                          compact ? "text-[11.35px]" : "text-[12.5px]",
                           dead ? "text-zinc-500" : "text-zinc-400",
                         ].join(" ")}
                       >

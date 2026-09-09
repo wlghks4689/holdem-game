@@ -47,7 +47,7 @@ const BLIND_UP_TOAST_MS = 1200;
 const GAIN_EPS = 1e-6;
 
 const headerMetaMono =
-  "font-mono text-[13px] font-semibold tabular-nums tracking-tight sm:text-sm";
+  "holdem-local-font text-[13px] font-semibold tabular-nums tracking-tight sm:text-sm";
 
 function flashMagnitude(f: [number, number] | null): boolean {
   if (f == null) return false;
