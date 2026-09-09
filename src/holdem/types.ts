@@ -14,6 +14,8 @@ export type Street = "lobby" | "hand_select" | "preflop" | "flop" | "turn" | "ri
 export type PlayerIndex = 0 | 1;
 
 export type HoldemGameMode = "classic" | "cost";
+export type CostGameStructure = "deep" | "turbo";
+export type GameEndReason = "bust" | "round_limit_stack_lead" | "round_limit_draw";
 export type HandAcquisitionType = "selected" | "mystery" | "forced-random";
 
 export type HandPoolTemplateKind = "pair" | "offsuit" | "suited";
@@ -101,6 +103,8 @@ export type GameMessage =
 
 export type GameState = {
   gameMode: HoldemGameMode;
+  /** Cost 전용 구조. Classic과 구버전 Cost 저장본은 deep으로 정규화됩니다. */
+  costStructure: CostGameStructure;
   phase: Street;
   roundNumber: number;
   handBlinds: HandBlinds;
@@ -160,6 +164,7 @@ export type GameState = {
   /** 전체 승자 (30라운드 후 또는 버스트) */
   matchWinner: PlayerIndex | null;
   matchEnded: boolean;
+  matchEndReason: GameEndReason | null;
   logs: GameMessage[];
   /** 마지막 액션 설명 (UI) */
   lastActionNote: string;

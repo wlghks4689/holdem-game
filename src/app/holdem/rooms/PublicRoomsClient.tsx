@@ -152,7 +152,10 @@ export function PublicRoomsClient() {
                     </span>
                   </div>
                   <p className="mt-0.5 pl-4 text-[11px] text-zinc-500">
-                    {timeAgo(room.createdAt, locale)}
+                    {room.gameMode === "cost"
+                      ? room.costStructure === "turbo" ? "Cost · Short Stack Turbo" : "Cost · Deep Stack"
+                      : "Classic"}
+                    {" · "}{timeAgo(room.createdAt, locale)}
                   </p>
                 </div>
 

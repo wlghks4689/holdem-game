@@ -4,7 +4,7 @@ import * as React from "react";
 import type { Difficulty } from "@/holdem/aiPlayer";
 import { HELL_UNLOCK_HARD_MATCH_WINS } from "@/holdem/constants";
 import { useHoldemI18n } from "@/holdem/i18n/HoldemLocaleProvider";
-import type { HoldemGameMode } from "@/holdem/types";
+import type { CostGameStructure, HoldemGameMode } from "@/holdem/types";
 import {
   getHardModeMatchWins,
   isHellModeUnlocked,
@@ -48,6 +48,7 @@ export default function SinglePlayerEntry() {
   const isEn = locale === "en";
   const [difficulty, setDifficulty] = React.useState<Difficulty | null>(null);
   const [gameMode, setGameMode] = React.useState<HoldemGameMode>("classic");
+  const [costStructure, setCostStructure] = React.useState<CostGameStructure>("deep");
   const [hardWins, setHardWins] = React.useState(0);
 
   React.useEffect(() => {
@@ -60,7 +61,13 @@ export default function SinglePlayerEntry() {
   const hellUnlocked = isHellModeUnlocked();
 
   if (difficulty) {
-    return <HoldemSinglePlayerClient difficulty={difficulty} gameMode={gameMode} />;
+    return (
+      <HoldemSinglePlayerClient
+        difficulty={difficulty}
+        gameMode={gameMode}
+        costStructure={costStructure}
+      />
+    );
   }
 
   return (
@@ -76,8 +83,12 @@ export default function SinglePlayerEntry() {
         >
           {gameMode === "cost"
             ? isEn
-              ? "Manage 100 Cost to select the hands you want. Recover 1 Cost each round; after 20 rounds, the player with more chips wins."
-              : "cost를 소모하여 핸드를 선택, 20라운드 동안 상대보다 더 많은 칩을 보유한 플레이어가 승리합니다"
+              ? costStructure === "turbo"
+                ? "Start with 100 chips. Blinds rise every 5 rounds; after 15 rounds, the player with more chips wins."
+                : "Manage 100 Cost to select the hands you want. Recover 1 Cost each round; after 20 rounds, the player with more chips wins."
+              : costStructure === "turbo"
+                ? "100칩으로 시작해 5라운드마다 블라인드가 상승합니다. 15라운드 종료 후 더 많은 칩을 보유한 플레이어가 승리합니다."
+                : "cost를 소모하여 핸드를 선택, 20라운드 동안 상대보다 더 많은 칩을 보유한 플레이어가 승리합니다"
             : isEn
               ? "Choose your hands against the AI. Read its selections and bets, then secure more chips over 30 rounds."
               : "AI를 상대로 핸드를 직접 선택하며 플레이합니다. 상대의 선택과 베팅을 읽고 30라운드 동안 더 많은 칩을 확보하세요."}
@@ -103,6 +114,27 @@ export default function SinglePlayerEntry() {
             </button>
           ))}
         </div>
+        {gameMode === "cost" ? (
+          <div className="mb-4 grid grid-cols-2 gap-2 rounded-xl border border-emerald-800/60 bg-emerald-950/20 p-1.5">
+            {(["deep", "turbo"] as CostGameStructure[]).map((structure) => (
+              <button
+                key={structure}
+                type="button"
+                onClick={() => setCostStructure(structure)}
+                className={[
+                  "rounded-lg px-2 py-2 text-[11px] font-bold transition",
+                  costStructure === structure
+                    ? structure === "turbo"
+                      ? "bg-rose-600 text-white"
+                      : "bg-emerald-600 text-white"
+                    : "text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100",
+                ].join(" ")}
+              >
+                {structure === "deep" ? "Deep Stack" : "Short Stack Turbo"}
+              </button>
+            ))}
+          </div>
+        ) : null}
         {DIFFICULTIES.map(({ id, label, descKo, descEn, color }) => (
           <button
             key={id}

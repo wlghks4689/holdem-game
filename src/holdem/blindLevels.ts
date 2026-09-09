@@ -1,4 +1,5 @@
-import type { HandBlinds, HoldemGameMode } from "./types";
+import { getCostBlindLevel, getCostGameStructureConfig } from "./costGameStructures";
+import type { CostGameStructure, HandBlinds, HoldemGameMode } from "./types";
 
 /** 구조적 블라인드(칩 단위 — 기존 CHIPS_PER_BB=1 스케일과 동일한 숫자 체계) */
 export type BlindLevelSpec = {
@@ -10,13 +11,20 @@ export type BlindLevelSpec = {
 /**
  * 매치 라운드(1–30) → SB/BB/Ante. 30R 초과는 마지막 티어 유지(정합용).
  */
-export function getBlindLevel(round: number, gameMode: HoldemGameMode = "classic"): BlindLevelSpec {
+export function getBlindLevel(
+  round: number,
+  gameMode: HoldemGameMode = "classic",
+  costStructure: CostGameStructure = "deep",
+): BlindLevelSpec {
   const r = Math.floor(round);
   const clamped = r < 1 ? 1 : r;
   if (gameMode === "cost") {
-    if (clamped <= 10) return { smallBlind: 0.5, bigBlind: 1, ante: 1 };
-    if (clamped <= 15) return { smallBlind: 1, bigBlind: 2, ante: 2 };
-    return { smallBlind: 2, bigBlind: 4, ante: 4 };
+    const level = getCostBlindLevel(clamped, costStructure);
+    return {
+      smallBlind: level.smallBlind,
+      bigBlind: level.bigBlind,
+      ante: level.ante,
+    };
   }
   if (clamped <= 10) return { smallBlind: 0.5, bigBlind: 1, ante: 1 };
   if (clamped <= 20) return { smallBlind: 1, bigBlind: 2, ante: 2 };
@@ -24,8 +32,12 @@ export function getBlindLevel(round: number, gameMode: HoldemGameMode = "classic
   return { smallBlind: 3, bigBlind: 6, ante: 6 };
 }
 
-export function handBlindsFromRound(round: number, gameMode: HoldemGameMode = "classic"): HandBlinds {
-  const L = getBlindLevel(round, gameMode);
+export function handBlindsFromRound(
+  round: number,
+  gameMode: HoldemGameMode = "classic",
+  costStructure: CostGameStructure = "deep",
+): HandBlinds {
+  const L = getBlindLevel(round, gameMode, costStructure);
   return { sb: L.smallBlind, bb: L.bigBlind, ante: L.ante };
 }
 
@@ -34,6 +46,7 @@ export function resolveHandBlinds(s: {
   roundNumber: number;
   handBlinds?: HandBlinds | null;
   gameMode?: HoldemGameMode;
+  costStructure?: CostGameStructure;
 }): HandBlinds {
   const h = s.handBlinds;
   if (
@@ -46,7 +59,11 @@ export function resolveHandBlinds(s: {
   ) {
     return h;
   }
-  return handBlindsFromRound(s.roundNumber, s.gameMode === "cost" ? "cost" : "classic");
+  return handBlindsFromRound(
+    s.roundNumber,
+    s.gameMode === "cost" ? "cost" : "classic",
+    s.costStructure,
+  );
 }
 
 /** 디버그·헤더: R{n} · SB/BB/Ante */
@@ -73,9 +90,11 @@ export function isBlindTierUpTransition(
   prevRound: number,
   nextRound: number,
   gameMode: HoldemGameMode = "classic",
+  costStructure: CostGameStructure = "deep",
 ): boolean {
   if (gameMode === "cost") {
-    return (prevRound === 10 && nextRound === 11) || (prevRound === 15 && nextRound === 16);
+    return getBlindLevel(prevRound, gameMode, costStructure).bigBlind
+      !== getBlindLevel(nextRound, gameMode, costStructure).bigBlind;
   }
   return (
     (prevRound === 10 && nextRound === 11) ||
@@ -88,11 +107,13 @@ export function isBlindTierUpTransition(
 export function nextBlindTierStartRound(
   currentRound: number,
   gameMode: HoldemGameMode = "classic",
+  costStructure: CostGameStructure = "deep",
 ): number | null {
   if (gameMode === "cost") {
-    if (currentRound < 11) return 11;
-    if (currentRound < 16) return 16;
-    return null;
+    const config = getCostGameStructureConfig(costStructure);
+    return config.blindLevels
+      .map((level) => level.fromRound)
+      .find((fromRound) => fromRound > currentRound) ?? null;
   }
   if (currentRound < 11) return 11;
   if (currentRound < 21) return 21;

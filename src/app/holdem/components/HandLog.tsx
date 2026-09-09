@@ -17,7 +17,7 @@ import {
   handValueDisplayForLocale,
 } from "@/holdem/pokerEval";
 import type { HoldemUiLocale } from "@/holdem/holdemPrefs";
-import type { GameMessage, HoldemGameMode, PlayerIndex, SelectedHand, Street } from "@/holdem/types";
+import type { CostGameStructure, GameMessage, HoldemGameMode, PlayerIndex, SelectedHand, Street } from "@/holdem/types";
 
 type Pl = (p: PlayerIndex) => string;
 
@@ -41,6 +41,7 @@ function legacyHandSummaryForLocale(
   locale: HoldemUiLocale,
 ): string {
   if (locale !== "en") return summary;
+  if (summary === "로얄 스트레이트 플러시") return "Royal Flush";
   const pair = summary.match(/^([2-9TJQKA]) 원페어$/);
   if (pair) return `Pair of ${pair[1]}`;
   const twoPair = summary.match(/^([2-9TJQKA]), ([2-9TJQKA]) 투페어$/);
@@ -158,6 +159,7 @@ function buildSections(
   showdownHoleCtx: { holes: [SelectedHand, SelectedHand]; board: Card[] } | null,
   playMode: "local" | "online" | "single" | undefined,
   gameMode: HoldemGameMode,
+  costStructure: CostGameStructure,
   locale: HoldemUiLocale,
 ): Section[] {
   const isEn = locale === "en";
@@ -192,7 +194,7 @@ function buildSections(
   let streetPost: { title: string; lines: string[] } | null = null;
   let endLines: string[] | null = null;
   /** 로그 상 해당 시점 라운드의 BB 칩 크기(금액→bb 표기용) */
-  let logBlindBbUnit = getBlindLevel(1, gameMode).bigBlind;
+  let logBlindBbUnit = getBlindLevel(1, gameMode, costStructure).bigBlind;
 
   const pushStreet = () => {
     if (streetPost != null && streetPost.lines.length > 0) {
@@ -263,7 +265,7 @@ function buildSections(
         pushEnd();
         pushStreet();
         pushPreflop();
-        logBlindBbUnit = getBlindLevel(m.round, gameMode).bigBlind;
+        logBlindBbUnit = getBlindLevel(m.round, gameMode, costStructure).bigBlind;
         setup = [isEn ? `Round ${m.round} started` : `라운드 ${m.round} 시작`];
         break;
       case "hand_pick_conflict":
@@ -431,6 +433,7 @@ export type HandLogProps = {
   /** 온라인: 풀 핸드 라벨·홀 상세 로그 비표시(동일 기기 공유 시 정보 누출 방지). */
   playMode?: "local" | "online" | "single";
   gameMode?: HoldemGameMode;
+  costStructure?: CostGameStructure;
 };
 
 export function HandLog({
@@ -439,6 +442,7 @@ export function HandLog({
   showdownHoleCtx = null,
   playMode = "local",
   gameMode = "classic",
+  costStructure = "deep",
 }: HandLogProps) {
   const { locale } = useHoldemI18n();
   const isEn = locale === "en";
@@ -452,9 +456,10 @@ export function HandLog({
         showdownHoleCtx ?? null,
         playMode,
         gameMode,
+        costStructure,
         locale,
       ),
-    [recent, playerNames, showdownHoleCtx, playMode, gameMode, locale],
+    [recent, playerNames, showdownHoleCtx, playMode, gameMode, costStructure, locale],
   );
   const tail = sections.slice(-10);
 

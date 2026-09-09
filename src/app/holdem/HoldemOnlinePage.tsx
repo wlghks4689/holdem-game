@@ -194,7 +194,9 @@ export function HoldemOnlinePage(props: {
   if (state.phase === "lobby") {
     const isHost = mySeat === 0;
     const canStart = isHost && guestJoined;
-    const gameModeLabel = state.gameMode === "cost" ? "Cost" : "Classic";
+    const gameModeLabel = state.gameMode === "cost"
+      ? state.costStructure === "turbo" ? "Cost · Short Stack Turbo" : "Cost · Deep Stack"
+      : "Classic";
     const inviteUrl =
       typeof window !== "undefined"
         ? `${window.location.origin}/holdem/room/${roomId}`

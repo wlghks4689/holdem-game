@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useHoldemI18n } from "@/holdem/i18n/HoldemLocaleProvider";
 import { loadRoomNickname } from "@/holdem/holdemPrefs";
-import type { HoldemGameMode } from "@/holdem/types";
+import type { CostGameStructure, HoldemGameMode } from "@/holdem/types";
 import {
   saveRoomAuth,
   loadLastActiveRoom,
@@ -31,6 +31,7 @@ export function HoldemHomeHub() {
   const [multiOpen, setMultiOpen] = React.useState(false);
   const [creating, setCreating] = React.useState<"private" | "public" | null>(null);
   const [roomGameMode, setRoomGameMode] = React.useState<HoldemGameMode>("classic");
+  const [roomCostStructure, setRoomCostStructure] = React.useState<CostGameStructure>("deep");
   const [err, setErr] = React.useState<string | null>(null);
   const [lastRoom, setLastRoom] = React.useState<LastActiveRoom | null>(null);
 
@@ -49,8 +50,13 @@ export function HoldemHomeHub() {
     try {
       const nick = loadRoomNickname();
       const body = isPublic
-        ? { public: true, hostNickname: nick || "Player 1", gameMode: roomGameMode }
-        : { gameMode: roomGameMode };
+        ? {
+            public: true,
+            hostNickname: nick || "Player 1",
+            gameMode: roomGameMode,
+            costStructure: roomCostStructure,
+          }
+        : { gameMode: roomGameMode, costStructure: roomCostStructure };
       const r = await fetch("/api/room/create", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -213,6 +219,27 @@ export function HoldemHomeHub() {
                     </button>
                   ))}
                 </div>
+                {roomGameMode === "cost" ? (
+                  <div className="grid grid-cols-2 gap-2 rounded-xl border border-emerald-800/60 bg-emerald-950/20 p-1.5">
+                    {(["deep", "turbo"] as CostGameStructure[]).map((structure) => (
+                      <button
+                        key={structure}
+                        type="button"
+                        onClick={() => setRoomCostStructure(structure)}
+                        className={[
+                          "rounded-lg px-2 py-2 text-[10px] font-bold transition",
+                          roomCostStructure === structure
+                            ? structure === "turbo"
+                              ? "bg-rose-600 text-white"
+                              : "bg-emerald-600 text-white"
+                            : "text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100",
+                        ].join(" ")}
+                      >
+                        {structure === "deep" ? "Deep Stack" : "Short Stack Turbo"}
+                      </button>
+                    ))}
+                  </div>
+                ) : null}
                 {/* 비공개 방 만들기 */}
                 <button
                   type="button"
@@ -285,12 +312,20 @@ export function HoldemHomeHub() {
               >
                 Classic
               </Link>
-              <Link
-                href="/holdem/practice?mode=cost"
-                className="rounded-lg border border-emerald-700/60 bg-emerald-950/30 px-3 py-2 text-center text-xs font-bold uppercase text-emerald-100 hover:bg-emerald-900/35"
-              >
-                Cost
-              </Link>
+              <div className="grid grid-cols-2 gap-1.5">
+                <Link
+                  href="/holdem/practice?mode=cost&structure=deep"
+                  className="rounded-lg border border-emerald-700/60 bg-emerald-950/30 px-2 py-2 text-center text-[10px] font-bold text-emerald-100 hover:bg-emerald-900/35"
+                >
+                  Cost Deep
+                </Link>
+                <Link
+                  href="/holdem/practice?mode=cost&structure=turbo"
+                  className="rounded-lg border border-rose-700/60 bg-rose-950/30 px-2 py-2 text-center text-[10px] font-bold text-rose-100 hover:bg-rose-900/35"
+                >
+                  Cost Turbo
+                </Link>
+              </div>
             </div>
           </div>
 

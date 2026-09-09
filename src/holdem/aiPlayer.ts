@@ -7,6 +7,7 @@ import {
   effectiveCallPay,
   facingFor,
   postflopAiMaxOpenBetForActor,
+  postflopMaxOpenBetForActor,
   postflopAiMaxRaiseTargetForActor,
   iaAppliedCostFromStack,
   postflopRaiseTargetCappedByOpponent,
@@ -40,6 +41,7 @@ import {
   scorePreflopActions,
 } from "./preflopAiPolicy";
 import type { GameAction, GameState, PlayerIndex } from "./types";
+import { turboAiUrgency } from "./turboAiUrgency";
 import {
   actionForAllInCallDecision,
   debugAllInCallDecision,
@@ -224,6 +226,11 @@ function preflopAction(
   const context = buildPreflopAiContext(state, aiSeat);
   const scores = scorePreflopActions(state, aiSeat, templateId, tier);
   const { agg, loose } = personalityBonus(p);
+  const turbo = turboAiUrgency(state, aiSeat);
+  const urgency = turbo?.urgency ?? 0;
+  const raiseUrgencyBonus = urgency * (tier >= 4 ? 0.28 : tier >= 3 ? 0.18 : 0.06);
+  const defendUrgencyBonus = urgency * (tier >= 3 ? 0.2 : 0.07);
+  const shoveUrgencyBonus = urgency * (tier >= 4 ? 0.34 : tier >= 3 ? 0.2 : 0);
 
   // Deep/medium premium opens are always standard raises, never open jams.
   if (
@@ -249,14 +256,14 @@ function preflopAction(
   if (difficulty === "easy") {
     const r = Math.random();
     if (state.preflopStage === "button_acts") {
-      if (canRaise && r < 0.35 + tier * 0.07) {
+      if (canRaise && r < 0.35 + tier * 0.07 + raiseUrgencyBonus) {
         return { type: "PREFLOP_RAISE", toLevelChips: preflopRaiseTo(state, aiSeat, templateId) };
       }
       return { type: "PREFLOP_CALL" };
     }
     if (state.preflopStage === "bb_option") {
       if (facing === 0) {
-        if (canRaise && r < 0.20 + tier * 0.05) {
+        if (canRaise && r < 0.20 + tier * 0.05 + raiseUrgencyBonus * 0.75) {
           return { type: "PREFLOP_RAISE", toLevelChips: preflopRaiseTo(state, aiSeat, templateId) };
         }
         return { type: "PREFLOP_CHECK" };
@@ -264,15 +271,15 @@ function preflopAction(
     }
     if (state.preflopStage === "facing_raise") {
       if (aiSeat === state.button) {
-        if (canRaise && r < 0.14 + tier * 0.03) {
+        if (canRaise && r < 0.14 + tier * 0.03 + raiseUrgencyBonus * 0.65) {
           return { type: "PREFLOP_RAISE", toLevelChips: preflopRaiseTo(state, aiSeat, templateId) };
         }
         const r2 = Math.random();
-        if (r2 < 0.58) return { type: "PREFLOP_CALL" };
+        if (r2 < 0.58 + defendUrgencyBonus) return { type: "PREFLOP_CALL" };
         if (facing > 0) return { type: "FOLD" };
         return { type: "PREFLOP_CALL" };
       }
-      if (r < 0.55) return { type: "PREFLOP_CALL" };
+      if (r < 0.55 + defendUrgencyBonus) return { type: "PREFLOP_CALL" };
       if (facing > 0) return { type: "FOLD" };
     }
     return { type: "PREFLOP_CALL" };
@@ -280,25 +287,54 @@ function preflopAction(
 
   // ── Hell: 프리플랍 솔버 테이블 (`hellSolverPolicy` — 실제 솔버로 교체 가능) ──
   if (difficulty === "hell") {
-    return hellPreflopSolverAction(state, aiSeat, tier, templateId);
+    const solverAction = hellPreflopSolverAction(state, aiSeat, tier, templateId);
+    if (
+      urgency > 0
+      && tier >= 3
+      && solverAction.type === "FOLD"
+      && facing > 0
+      && Math.random() < defendUrgencyBonus
+    ) {
+      return { type: "PREFLOP_CALL" };
+    }
+    if (
+      urgency > 0.45
+      && tier >= 3
+      && solverAction.type === "PREFLOP_CALL"
+      && canRaise
+      && Math.random() < raiseUrgencyBonus
+    ) {
+      return { type: "PREFLOP_RAISE", toLevelChips: preflopRaiseTo(state, aiSeat, templateId) };
+    }
+    return solverAction;
   }
 
   // ── Normal / Hard: 티어 기반 ───────────────────────────────────────────────
   const raisePBase = [0, 0.10, 0.20, 0.42, 0.68, 0.88][tier] ?? 0.35;
   const raiseP = clamp(
-    raisePBase + agg + p.raiseFreq * 0.18 + scores.raise * 0.12 - scores.call * 0.04,
+    raisePBase + agg + p.raiseFreq * 0.18 + scores.raise * 0.12
+      - scores.call * 0.04 + raiseUrgencyBonus,
     0,
     0.95,
   );
 
   const foldPBase = [0, 0.55, 0.48, 0.28, 0.10, 0.04][tier] ?? 0.35;
-  const foldP = clamp(foldPBase - agg - loose, 0.03, 0.92);
+  const foldP = clamp(
+    foldPBase - agg - loose - defendUrgencyBonus,
+    tier >= 3 ? 0.03 : 0.12,
+    0.92,
+  );
 
   const r = Math.random();
 
   // button_acts — 폴드 불가
   if (state.preflopStage === "button_acts" && aiSeat === state.button) {
-    if (canAllIn && context.effectiveStackBb <= 15 && Math.random() < scores.allIn) {
+    if (
+      canAllIn
+      && context.effectiveStackBb <= 15
+      && tier >= 3
+      && Math.random() < scores.allIn + shoveUrgencyBonus
+    ) {
       return { type: "PREFLOP_ALL_IN" };
     }
     if (canRaise && isPremiumOpeningHand(templateId)) {
@@ -313,7 +349,11 @@ function preflopAction(
   // bb_option
   if (state.preflopStage === "bb_option" && aiSeat !== state.button) {
     if (facing === 0) {
-      if (canAllIn && tier >= 5 && r < 0.55) return { type: "PREFLOP_ALL_IN" };
+      if (
+        canAllIn
+        && tier >= 3
+        && r < (tier >= 5 ? 0.55 : 0.08) + shoveUrgencyBonus
+      ) return { type: "PREFLOP_ALL_IN" };
       if (canRaise && r < raiseP * 0.72) {
         return { type: "PREFLOP_RAISE", toLevelChips: preflopRaiseTo(state, aiSeat, templateId) };
       }
@@ -323,8 +363,9 @@ function preflopAction(
 
   // facing_raise — BB 리레이즈 응답
   if (state.preflopStage === "facing_raise" && aiSeat !== state.button) {
-    if (canAllIn && tier >= 4 && r < scores.allIn * 0.65) return { type: "PREFLOP_ALL_IN" };
-    const reraiseThreshold = raiseP * (isPremiumJamHand(templateId) ? 0.75 : 0.48);
+    if (canAllIn && tier >= 3 && r < scores.allIn * 0.65 + shoveUrgencyBonus) return { type: "PREFLOP_ALL_IN" };
+    const reraiseThreshold = raiseP * (isPremiumJamHand(templateId) ? 0.75 : 0.48)
+      + raiseUrgencyBonus * 0.7;
     if (canRaise && r < reraiseThreshold) {
       return { type: "PREFLOP_RAISE", toLevelChips: preflopRaiseTo(state, aiSeat, templateId) };
     }
@@ -335,8 +376,9 @@ function preflopAction(
 
   // facing_raise — 버튼 4-bet+·콜·폴드
   if (state.preflopStage === "facing_raise" && aiSeat === state.button) {
-    if (canAllIn && tier >= 4 && r < scores.allIn * 0.45) return { type: "PREFLOP_ALL_IN" };
-    const reraiseThreshold = raiseP * (isPremiumJamHand(templateId) ? 0.65 : 0.38);
+    if (canAllIn && tier >= 3 && r < scores.allIn * 0.45 + shoveUrgencyBonus) return { type: "PREFLOP_ALL_IN" };
+    const reraiseThreshold = raiseP * (isPremiumJamHand(templateId) ? 0.65 : 0.38)
+      + raiseUrgencyBonus * 0.65;
     if (canRaise && r < reraiseThreshold) {
       return { type: "PREFLOP_RAISE", toLevelChips: preflopRaiseTo(state, aiSeat, templateId) };
     }
@@ -369,6 +411,14 @@ function postflopAction(
     hellCtx?.opponentTemplateRemaining,
   );
   if (strength == null) return null;
+  const turbo = turboAiUrgency(state, aiSeat);
+  const urgency = turbo?.urgency ?? 0;
+  const strongDraw = strength.drawWeight >= 0.45;
+  const postflopAggressionBonus = urgency * (
+    strength.actionTier >= 4 ? 0.18
+      : strength.actionTier >= 3 || strongDraw ? 0.13
+        : 0.025
+  );
 
   const hellAd = difficulty === "hell" ? hellCtx?.adaptation : null;
   const brHell =
@@ -390,22 +440,31 @@ function postflopAction(
       const maxB = postflopAiMaxOpenBetForActor(state);
       const minBet = headsUpSubBbVoluntaryEnabled(state) ? SMALLEST_CHIP : bb;
       const easyBetThreshold = clamp(
-        0.12 + strength.equity * 0.48 + valuePressure + bluffBonus,
+        0.12 + strength.equity * 0.48 + valuePressure + bluffBonus
+          + postflopAggressionBonus,
         0.08,
         0.82,
       );
       if (!isAllIn && r < easyBetThreshold && maxB >= minBet - 1e-9) {
+        const turboShove = turbo != null
+          && turbo.effectiveStackBb <= 10
+          && urgency >= 0.55
+          && (strength.actionTier >= 4 || strongDraw)
+          && Math.random() < urgency * 0.4;
         const sizeFloor = 0.2 + strength.equity * 0.3 + valuePressure;
         return {
           type: "POSTFLOP_BET",
-          amount: clamp(pot * rng(sizeFloor, Math.min(1, sizeFloor + 0.28)), minBet, maxB),
+          amount: turboShove
+            ? postflopMaxOpenBetForActor(state)
+            : clamp(pot * rng(sizeFloor, Math.min(1, sizeFloor + 0.28)), minBet, maxB),
         };
       }
       return { type: "POSTFLOP_CHECK" };
     } else {
       const potOdds = callPay / Math.max(1e-9, pot + callPay);
       const easyRaiseThreshold = clamp(
-        0.02 + Math.max(0, strength.equity - 0.48) * 0.42 + valuePressure,
+        0.02 + Math.max(0, strength.equity - 0.48) * 0.42 + valuePressure
+          + postflopAggressionBonus,
         0.02,
         0.5,
       );
@@ -419,11 +478,18 @@ function postflopAction(
         const legalMaxR = postflopRaiseTargetCappedByOpponent(state);
         const maxR = postflopAiMaxRaiseTargetForActor(state);
         const level = state.betting.currentLevel;
+        const turboShove = turbo != null
+          && turbo.effectiveStackBb <= 10
+          && urgency >= 0.55
+          && (strength.actionTier >= 4 || strongDraw)
+          && Math.random() < urgency * 0.4;
         // 노리밋: 스택이 min-raise를 못 맞추더라도 "올인 레이즈"는 허용
         if (minR <= maxR + 1e-9) {
           return {
             type: "POSTFLOP_RAISE",
-            toLevelChips: clamp(rng(minR, maxR), minR, maxR),
+            toLevelChips: turboShove
+              ? legalMaxR
+              : clamp(rng(minR, maxR), minR, maxR),
           };
         }
         if (legalMaxR + 1e-9 < minR && legalMaxR > level + 1e-9) {
@@ -452,7 +518,7 @@ function postflopAction(
         ? [0, 0.10, 0.18, 0.36, 0.62, 0.78][effectiveTier]
         : [0, 0.15, 0.25, 0.45, 0.68, 0.82][effectiveTier] ?? 0.4) +
         agg + valuePressure + bluffBonus +
-        (egHellPost ? egHellPost.openBetBonus : 0)) *
+        (egHellPost ? egHellPost.openBetBonus : 0) + postflopAggressionBonus) *
         (isHellPf ? rm : 1),
       0, 0.95,
     );
@@ -460,6 +526,11 @@ function postflopAction(
     const minBet = headsUpSubBbVoluntaryEnabled(state) ? SMALLEST_CHIP : bb;
 
     if (!isAllIn && Math.random() < betThresh && maxB >= minBet - 1e-9) {
+      const turboShove = turbo != null
+        && turbo.effectiveStackBb <= 10
+        && urgency >= 0.55
+        && (effectiveTier >= 4 || strongDraw)
+        && Math.random() < urgency * 0.45;
       const baseFrac =
         difficulty === "normal"
           ? effectiveTier >= 4 ? rng(0.50, 0.75) : rng(0.30, 0.50)
@@ -471,7 +542,9 @@ function postflopAction(
               effectiveTier >= 4 ? rng(0.55, 0.80) :
               effectiveTier >= 3 ? rng(0.40, 0.60) : rng(0.25, 0.42);
       const frac = Math.min(1.15, baseFrac + valuePressure * 0.65);
-      const amt = clamp(pot * frac, minBet, maxB);
+      const amt = turboShove
+        ? postflopMaxOpenBetForActor(state)
+        : clamp(pot * frac, minBet, maxB);
       return { type: "POSTFLOP_BET", amount: amt };
     }
     return { type: "POSTFLOP_CHECK" };
@@ -481,7 +554,7 @@ function postflopAction(
         ? [0, 0.03, 0.07, 0.14, 0.26, 0.40][effectiveTier]
         : [0, 0.05, 0.10, 0.18, 0.30, 0.45][effectiveTier] ?? 0.15) +
         agg * 0.5 + valuePressure + bluffBonus +
-        (egHellPost ? egHellPost.raiseBonus : 0)) *
+        (egHellPost ? egHellPost.raiseBonus : 0) + postflopAggressionBonus) *
         (isHellPf ? rm : 1),
       0, 0.8,
     );
@@ -493,7 +566,12 @@ function postflopAction(
         : [0, 0.18, 0.28, 0.50, 0.68, 0.78][effectiveTier] ?? 0.40) +
         agg * 0.2 +
         poHell + equityCallAdjustment + strength.drawWeight * 0.05 +
-        (egHellPost ? egHellPost.callBonus : 0)) *
+        (egHellPost ? egHellPost.callBonus : 0)
+        + urgency * (
+          strength.equity + 1e-9 >= potOdds
+            ? 0.1
+            : strongDraw ? 0.07 : 0
+        )) *
         (isHellPf ? cm : 1),
       0, 0.95,
     );
@@ -507,9 +585,16 @@ function postflopAction(
       const affordable = roundHalfChip(contrib + chips);
       const level = state.betting.currentLevel;
       if (minR <= maxR + 1e-9 && minR <= affordable + 1e-9) {
+        const turboShove = turbo != null
+          && turbo.effectiveStackBb <= 10
+          && urgency >= 0.55
+          && (effectiveTier >= 4 || strongDraw)
+          && Math.random() < urgency * 0.45;
         const baseFrac = effectiveTier >= 4 ? rng(0.6, 1.0) : rng(0.35, 0.7);
         const frac = Math.min(1, baseFrac + valuePressure * 0.55);
-        const to = clamp(minR + (maxR - minR) * frac, minR, maxR);
+        const to = turboShove
+          ? legalMaxR
+          : clamp(minR + (maxR - minR) * frac, minR, maxR);
         return { type: "POSTFLOP_RAISE", toLevelChips: to };
       }
       // 노리밋: 실제 스택 상한이 min-raise 미달인 숏스택 올인은 유지한다.

@@ -3,7 +3,8 @@ import Redis from "ioredis";
 import { resolveRoomStorageConfig, roomStorageFailure } from "./roomStorageConfig";
 import { roomLifetime, ROOM_IDLE_TTL_SEC, ROOM_LOBBY_TTL_SEC } from "./roomLifetime";
 import type { RoomPauseState } from "@/holdem/roomPause";
-import type { GameState, PlayerIndex } from "@/holdem/types";
+import type { CostGameStructure, GameState, HoldemGameMode, PlayerIndex } from "@/holdem/types";
+import { normalizeCostGameStructure } from "@/holdem/costGameStructures";
 
 export type RoomBlob = {
   state: GameState;
@@ -32,6 +33,8 @@ export type PublicRoomMeta = {
   roomId: string;
   hostNickname: string;
   createdAt: number;
+  gameMode: HoldemGameMode;
+  costStructure: CostGameStructure;
 };
 
 const key = (roomId: string) => `holdem:room:${roomId}`;
@@ -289,6 +292,8 @@ export async function lobbyList(): Promise<PublicRoomMeta[]> {
         roomId,
         hostNickname: blob.hostNickname ?? "Player 1",
         createdAt: blob.createdAt ?? 0,
+        gameMode: blob.state.gameMode === "cost" ? "cost" : "classic",
+        costStructure: normalizeCostGameStructure(blob.state.costStructure),
       };
     }),
   );

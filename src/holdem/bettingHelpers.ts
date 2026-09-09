@@ -6,6 +6,7 @@ import {
   SMALLEST_CHIP,
 } from "./constants";
 import { resolveHandBlinds } from "./blindLevels";
+import { getCostGameStructureConfig } from "./costGameStructures";
 import type { BettingRoundMeta, GameMessage, GameState, PlayerIndex } from "./types";
 
 /**
@@ -101,7 +102,11 @@ export function preflopMaxPotChips(s: GameState): number {
 /** 프리플랍: 블라인드+앤티만 반영된 시작 팟 (프리플랍 액션 전) = SB + BB + 앤티 */
 export function preflopDeadPotChips(s: GameState): number {
   const { sb, bb, ante } = resolveHandBlinds(s);
-  return roundHalfChip(sb + bb + ante);
+  const anteCount = s.gameMode === "cost"
+    && getCostGameStructureConfig(s.costStructure).anteMode === "each-player"
+    ? 2
+    : 1;
+  return roundHalfChip(sb + bb + ante * anteCount);
 }
 
 /**

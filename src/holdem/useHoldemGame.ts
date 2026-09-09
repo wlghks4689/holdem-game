@@ -7,13 +7,17 @@ import {
   computeTimeoutAction,
 } from "./actionTimer";
 import { createInitialGameState, holdemReducer } from "./gameReducer";
-import type { GameAction, GameState, HoldemGameMode } from "./types";
+import type { CostGameStructure, GameAction, GameState, HoldemGameMode } from "./types";
 
-export function useHoldemGame(gameMode: HoldemGameMode = "classic") {
+export function useHoldemGame(
+  gameMode: HoldemGameMode = "classic",
+  costStructure: CostGameStructure = "deep",
+) {
   const [state, dispatch] = React.useReducer(
     (s: GameState, a: GameAction) => holdemReducer(s, a),
-    gameMode,
-    createInitialGameState,
+    { gameMode, costStructure },
+    ({ gameMode: mode, costStructure: structure }) =>
+      createInitialGameState(mode, structure),
   );
 
   const [localPaused, setLocalPaused] = React.useState(false);

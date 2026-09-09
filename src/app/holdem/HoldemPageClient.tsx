@@ -12,7 +12,8 @@ import {
   loadHoldemDisplayNames,
   saveHoldemDisplayNames,
 } from "@/holdem/playerDisplayNames";
-import type { HoldemGameMode, PlayerIndex } from "@/holdem/types";
+import type { CostGameStructure, HoldemGameMode, PlayerIndex } from "@/holdem/types";
+import { normalizeCostGameStructure } from "@/holdem/costGameStructures";
 import { useHoldemGame } from "@/holdem/useHoldemGame";
 import { HoldemPlayUI } from "./HoldemPlayUI";
 
@@ -22,25 +23,38 @@ export default function HoldemPageClient({
   initialGameMode?: HoldemGameMode;
 }) {
   const [gameMode, setGameMode] = React.useState<HoldemGameMode>(initialGameMode);
+  const [costStructure, setCostStructure] = React.useState<CostGameStructure>("deep");
 
   React.useEffect(() => {
-    const next = normalizeGameMode(
-      new URLSearchParams(window.location.search).get("mode"),
-    );
+    const params = new URLSearchParams(window.location.search);
+    const next = normalizeGameMode(params.get("mode"));
     setGameMode(next);
+    setCostStructure(normalizeCostGameStructure(params.get("structure")));
   }, []);
 
-  return <HoldemPageGame key={gameMode} gameMode={gameMode} />;
+  return (
+    <HoldemPageGame
+      key={`${gameMode}-${costStructure}`}
+      gameMode={gameMode}
+      costStructure={costStructure}
+    />
+  );
 }
 
-function HoldemPageGame({ gameMode }: { gameMode: HoldemGameMode }) {
+function HoldemPageGame({
+  gameMode,
+  costStructure,
+}: {
+  gameMode: HoldemGameMode;
+  costStructure: CostGameStructure;
+}) {
   const {
     state,
     dispatch,
     actionTimerSecondsLeft,
     localPaused,
     toggleLocalPause,
-  } = useHoldemGame(gameMode);
+  } = useHoldemGame(gameMode, costStructure);
   const [viewer, setViewer] = React.useState<PlayerIndex>(1);
   const [playerNames, setPlayerNames] = React.useState<[string, string]>([
     DEFAULT_HOLDEM_DISPLAY_NAMES[0]!,

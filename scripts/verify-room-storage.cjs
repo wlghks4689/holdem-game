@@ -86,8 +86,13 @@ async function json(response, status = 200) {
   assert.equal(response.status, status);
   return response.json();
 }
-async function scenario(gameMode, isPublic) {
-  const host = await json(await create(request({ public: isPublic, hostNickname: "Storage test", gameMode })));
+async function scenario(gameMode, isPublic, costStructure = "deep") {
+  const host = await json(await create(request({
+    public: isPublic,
+    hostNickname: "Storage test",
+    gameMode,
+    costStructure,
+  })));
   const ctx = { params: Promise.resolve({ roomId: host.roomId }) };
   assert.equal((await store.lobbyList()).some((room) => room.roomId === host.roomId), isPublic);
   const guest = await json(await join(request({}), ctx));
@@ -97,6 +102,7 @@ async function scenario(gameMode, isPublic) {
   const state0 = await json(await read(new Request(roomUrl(0, host.token)), ctx));
   assert.equal(state0.guestJoined, true);
   assert.equal(state0.state.gameMode, gameMode);
+  assert.equal(state0.state.costStructure, gameMode === "cost" ? costStructure : "deep");
   await json(await read(new Request(roomUrl(0, "invalid-token")), ctx), 403);
   await json(await action(request({ seat: 1, token: guest.token, stateVersion: state0.stateVersion, action: { type: "START_GAME" } }), ctx), 403);
   const started = await json(await action(request({ seat: 0, token: host.token, stateVersion: state0.stateVersion, action: { type: "START_GAME" } }), ctx));
@@ -112,6 +118,7 @@ async function scenario(gameMode, isPublic) {
 async function main() {
   const sampleId = await scenario("classic", true);
   await scenario("cost", false);
+  await scenario("cost", false, "turbo");
   const blob = await store.roomGet(sampleId);
   await store.roomSet("12345678", { ...blob, tokens: ["test-host-token", null], public: true, disconnected: [false, false] });
   await store.lobbyAdd("12345678");

@@ -4,6 +4,7 @@ import {
   normalizeHandCostRemaining,
   normalizeHandPoolRemaining,
 } from "./handPool";
+import { normalizeCostGameStructure } from "./costGameStructures";
 
 const other = (p: PlayerIndex): PlayerIndex => (p === 0 ? 1 : 0);
 
@@ -18,6 +19,10 @@ export function sanitizeGameStateForSeat(
   const out = structuredClone(state) as GameState;
   const opp = other(seat);
   out.gameMode = normalizeGameMode(out.gameMode);
+  out.costStructure = out.gameMode === "cost"
+    ? normalizeCostGameStructure(out.costStructure)
+    : "deep";
+  out.matchEndReason = out.matchEndReason ?? null;
   out.handPoolRemaining = normalizeHandPoolRemaining(
     out.handPoolRemaining as unknown,
     out.gameMode,

@@ -18,6 +18,10 @@ import {
   splitPotTwoWayChopChips,
 } from "./bettingHelpers";
 import { handBlindsFromRound, resolveHandBlinds } from "./blindLevels";
+import {
+  getCostGameStructureConfig,
+  normalizeCostGameStructure,
+} from "./costGameStructures";
 import { dealAfterHoles } from "./deck";
 import {
   getHandTemplateForMode,
@@ -49,6 +53,7 @@ import type {
   GameAction,
   GameMessage,
   GameState,
+  CostGameStructure,
   HoldemGameMode,
   PlayerIndex,
   Street,
@@ -65,7 +70,7 @@ function ensureHandBlinds(s: GameState): void {
     Number.isNaN(s.handBlinds.bb) ||
     s.handBlinds.bb < 1e-9
   ) {
-    s.handBlinds = handBlindsFromRound(s.roundNumber, s.gameMode);
+    s.handBlinds = handBlindsFromRound(s.roundNumber, s.gameMode, s.costStructure);
   }
 }
 
@@ -89,6 +94,7 @@ function bustCheck(s: GameState): boolean {
   if (c0 <= 1e-9 && c1 <= 1e-9) {
     s.matchWinner = c0 >= c1 ? 0 : 1;
     s.matchEnded = true;
+    s.matchEndReason = "bust";
     pushLog(s, { t: "player_busted", player: 0 });
     pushLog(s, { t: "player_busted", player: 1 });
     return true;
@@ -96,12 +102,14 @@ function bustCheck(s: GameState): boolean {
   if (c0 <= 1e-9) {
     s.matchWinner = 1;
     s.matchEnded = true;
+    s.matchEndReason = "bust";
     pushLog(s, { t: "player_busted", player: 0 });
     return true;
   }
   if (c1 <= 1e-9) {
     s.matchWinner = 0;
     s.matchEnded = true;
+    s.matchEndReason = "bust";
     pushLog(s, { t: "player_busted", player: 1 });
     return true;
   }
@@ -328,9 +336,14 @@ function startPreflopAfterHands(s: GameState, deckRng: () => number): void {
   const { sb, bb, ante } = s.handBlinds;
   const btn = s.button;
   const bbSeat = other(btn);
-  /** 버튼: SB만. BB: 1BB + 앤티(1bb by default) */
-  const needBtn = roundHalfChip(sb);
-  const needBb = roundHalfChip(bb + ante);
+  const anteMode = s.gameMode === "cost"
+    ? getCostGameStructureConfig(s.costStructure).anteMode
+    : "big-blind";
+  const btnAnte = anteMode === "each-player" ? ante : 0;
+  const bbAnte = ante;
+  /** Deep/Classic은 BB ante, Turbo는 양쪽 ante 후 각 blind를 추가 지불합니다. */
+  const needBtn = roundHalfChip(btnAnte + sb);
+  const needBb = roundHalfChip(bbAnte + bb);
 
   const postBtn = roundHalfChip(
     Math.min(Math.max(0, s.chips[btn]!), needBtn),
@@ -344,8 +357,8 @@ function startPreflopAfterHands(s: GameState, deckRng: () => number): void {
   s.pot = roundHalfChip(postBtn + postBb);
 
   const contributed: [number, number] = [0, 0];
-  contributed[btn] = blindContributionFromPreflopPost(postBtn, sb, 0);
-  contributed[bbSeat] = blindContributionFromPreflopPost(postBb, bb, ante);
+  contributed[btn] = blindContributionFromPreflopPost(postBtn, sb, btnAnte);
+  contributed[bbSeat] = blindContributionFromPreflopPost(postBb, bb, bbAnte);
 
   s.betting = {
     contributed,
@@ -512,14 +525,21 @@ function done(s: GameState): GameState {
   return s;
 }
 
-export function createInitialGameState(gameModeRaw: HoldemGameMode = "classic"): GameState {
+export function createInitialGameState(
+  gameModeRaw: HoldemGameMode = "classic",
+  costStructureRaw: CostGameStructure = "deep",
+): GameState {
   const gameMode = normalizeGameMode(gameModeRaw);
-  const startingChips = startingChipsForMode(gameMode);
+  const costStructure = gameMode === "cost"
+    ? normalizeCostGameStructure(costStructureRaw)
+    : "deep";
+  const startingChips = startingChipsForMode(gameMode, costStructure);
   return {
     gameMode,
+    costStructure,
     phase: "hand_select",
     roundNumber: 1,
-    handBlinds: handBlindsFromRound(1, gameMode),
+    handBlinds: handBlindsFromRound(1, gameMode, costStructure),
     button: 0,
     chips: [startingChips, startingChips],
     handStartChips: [startingChips, startingChips],
@@ -552,6 +572,7 @@ export function createInitialGameState(gameModeRaw: HoldemGameMode = "classic"):
     handEndMode: null,
     matchWinner: null,
     matchEnded: false,
+    matchEndReason: null,
     logs: [{ t: "round_start", round: 1 }],
     lastActionNote: "양쪽 핸드 선택 (동시)",
     isAllIn: false,
@@ -560,9 +581,12 @@ export function createInitialGameState(gameModeRaw: HoldemGameMode = "classic"):
 }
 
 /** 멀티플레이 방 전용: 로비 단계(게임 시작 전 대기)로 초기화 */
-export function createRoomInitialGameState(gameMode: HoldemGameMode = "classic"): GameState {
+export function createRoomInitialGameState(
+  gameMode: HoldemGameMode = "classic",
+  costStructure: CostGameStructure = "deep",
+): GameState {
   return {
-    ...createInitialGameState(gameMode),
+    ...createInitialGameState(gameMode, costStructure),
     phase: "lobby",
     lastActionNote: "게임 시작 대기 중 — 호스트가 시작 버튼을 눌러 주세요",
   };
@@ -574,7 +598,10 @@ export function holdemReducer(
   random: () => number = rng(),
 ): GameState {
   if (action.type === "RESET_MATCH") {
-    const seeded = createInitialGameState(normalizeGameMode(state.gameMode));
+    const seeded = createInitialGameState(
+      normalizeGameMode(state.gameMode),
+      normalizeCostGameStructure(state.costStructure),
+    );
     if (action.initialChips != null) {
       seeded.chips[0] = roundHalfChip(action.initialChips[0]);
       seeded.chips[1] = roundHalfChip(action.initialChips[1]);
@@ -583,6 +610,9 @@ export function holdemReducer(
   }
   const s: GameState = structuredClone(state);
   s.gameMode = normalizeGameMode(s.gameMode);
+  s.costStructure = s.gameMode === "cost"
+    ? normalizeCostGameStructure(s.costStructure)
+    : "deep";
   ensureHandBlinds(s);
   if (
     !Array.isArray(s.handStartChips) ||
@@ -598,6 +628,7 @@ export function holdemReducer(
     ? [Boolean(s.mysteryHandUsed[0]), Boolean(s.mysteryHandUsed[1])]
     : [false, false];
   s.matchEnded = Boolean(s.matchEnded || s.matchWinner != null);
+  s.matchEndReason = s.matchEndReason ?? null;
   s.iaRevealType = Array.isArray(s.iaRevealType)
     ? [s.iaRevealType[0] ?? null, s.iaRevealType[1] ?? null]
     : [null, null];
@@ -991,26 +1022,32 @@ export function holdemReducer(
         if (c0n <= 1e-9 && c1n <= 1e-9) {
           s.matchWinner = c0n >= c1n ? 0 : 1;
           s.matchEnded = true;
+          s.matchEndReason = "bust";
           pushLog(s, { t: "player_busted", player: 0 });
           pushLog(s, { t: "player_busted", player: 1 });
         } else if (c0n <= 1e-9) {
           s.matchWinner = 1;
           s.matchEnded = true;
+          s.matchEndReason = "bust";
           pushLog(s, { t: "player_busted", player: 0 });
         } else {
           s.matchWinner = 0;
           s.matchEnded = true;
+          s.matchEndReason = "bust";
           pushLog(s, { t: "player_busted", player: 1 });
         }
         s.isAllIn = false;
         s.potAwardFlash = null;
         return done(s);
       }
-      if (s.roundNumber >= totalRoundsForMode(s.gameMode)) {
+      if (s.roundNumber >= totalRoundsForMode(s.gameMode, s.costStructure)) {
         s.matchWinner = s.chips[0]! === s.chips[1]!
           ? null
           : s.chips[0]! > s.chips[1]! ? 0 : 1;
         s.matchEnded = true;
+        s.matchEndReason = s.matchWinner == null
+          ? "round_limit_draw"
+          : "round_limit_stack_lead";
         s.isAllIn = false;
         s.potAwardFlash = null;
         return done(s);
@@ -1020,7 +1057,11 @@ export function holdemReducer(
         s.handCostRemaining[1] = Math.min(COST_MAX, s.handCostRemaining[1]! + COST_ROUND_RECOVERY);
       }
       s.roundNumber += 1;
-      s.handBlinds = handBlindsFromRound(s.roundNumber, s.gameMode);
+      s.handBlinds = handBlindsFromRound(
+        s.roundNumber,
+        s.gameMode,
+        s.costStructure,
+      );
       s.button = other(s.button);
       s.phase = "hand_select";
       s.handSelectPhase = "open";
@@ -1037,6 +1078,7 @@ export function holdemReducer(
       s.toAct = null;
       s.winner = null;
       s.handEndMode = null;
+      s.matchEndReason = null;
       s.iaUsed = [false, false];
       s.iaReveal = [null, null];
       s.iaRevealType = [null, null];
