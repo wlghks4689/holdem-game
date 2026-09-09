@@ -402,7 +402,12 @@ export function templateLabel(t: HandPoolTemplate): string {
 
 export function iaCategoryLabelKo(cat: OpponentHandCategory): string {
   if (cat === (CAT_HIGH_PAIR as OpponentHandCategory)) return "\ud558\uc774\ud30c\ucf13";
-  if (cat === (CAT_AX_OFFSUIT as OpponentHandCategory)) return "Ax \uc624\ud504\uc218\ud2b8";
+  if (
+    cat === (CAT_AX_OFFSUIT as OpponentHandCategory) ||
+    cat === "Ax 오프수트"
+  ) {
+    return "Ax high kicker";
+  }
   if (cat === (CAT_BROADWAY_SUITED as OpponentHandCategory)) return "\ube0c\ub85c\ub4dc\uc6e8\uc774 \uc218\ub527";
   if (cat === (CAT_MIDDLE_PAIR as OpponentHandCategory)) return "\ubbf8\ub4e4\ud30c\ucf13";
   if (cat === (CAT_LOW_PAIR as OpponentHandCategory)) return "\ub85c\uc6b0\ud30c\ucf13";
@@ -414,8 +419,8 @@ export function iaCategoryLabelEn(cat: OpponentHandCategory): string {
   switch (iaCategoryLabelKo(cat)) {
     case "하이파켓":
       return "High Pocket";
-    case "Ax 오프수트":
-      return "Ax off suit";
+    case "Ax high kicker":
+      return "Ax high kicker";
     case "브로드웨이 수딧":
       return "Broadway Suited";
     case "미들파켓":
