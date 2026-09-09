@@ -39,8 +39,10 @@ function previewSuitsForTemplate(
 
 function HandTemplateCardPreview({
   template,
+  emphasis = false,
 }: {
   template: HandPoolTemplate;
+  emphasis?: boolean;
 }) {
   const suits = previewSuitsForTemplate(template);
 
@@ -57,14 +59,22 @@ function HandTemplateCardPreview({
         return (
           <span
             key={`${rank}-${suit}-${index}`}
-            className="flex h-10 w-[1.62rem] -translate-y-0.5 shrink-0 flex-col items-center justify-center rounded-[5px] border border-zinc-300 bg-gradient-to-br from-white to-zinc-100 shadow-[0_2px_5px_rgba(0,0,0,0.4)] ring-1 ring-amber-200/25 lg:h-11 lg:w-[1.7rem]"
+            className={[
+              "flex -translate-y-0.5 shrink-0 flex-col items-center justify-center border border-zinc-300 bg-gradient-to-br from-white to-zinc-100 shadow-[0_2px_5px_rgba(0,0,0,0.4)] ring-1 ring-amber-200/25",
+              emphasis
+                ? "h-16 w-11 rounded-md lg:h-[4.5rem] lg:w-12"
+                : "h-10 w-[1.62rem] rounded-[5px] lg:h-11 lg:w-[1.7rem]",
+            ].join(" ")}
             data-hand-preview-card
             data-preview-rank={rankToChar(rank)}
             data-preview-suit={suit}
           >
             <span
               className={[
-                "flex h-[14px] w-full items-center justify-center text-center font-mono text-[14px] font-black leading-none tabular-nums lg:h-[15.1px] lg:text-[15.1px]",
+                "flex w-full items-center justify-center text-center font-mono font-black leading-none tabular-nums",
+                emphasis
+                  ? "h-5 text-xl lg:h-6 lg:text-2xl"
+                  : "h-[14px] text-[14px] lg:h-[15.1px] lg:text-[15.1px]",
                 red ? "text-red-600" : "text-zinc-950",
               ].join(" ")}
             >
@@ -72,7 +82,10 @@ function HandTemplateCardPreview({
             </span>
             <span
               className={[
-                "mt-px flex h-[18.6px] w-full items-center justify-center text-center text-[18.6px] leading-none lg:h-[19.85px] lg:text-[19.85px]",
+                "mt-px flex w-full items-center justify-center text-center leading-none",
+                emphasis
+                  ? "h-7 text-3xl lg:h-8 lg:text-[2rem]"
+                  : "h-[18.6px] text-[18.6px] lg:h-[19.85px] lg:text-[19.85px]",
                 red ? "text-red-600" : "text-zinc-950",
               ].join(" ")}
             >
@@ -483,7 +496,7 @@ function HandPickerColumn({
           </div>
           {tpl ? (
             <div className="mt-1 flex min-w-0 items-start gap-2 text-xs">
-              <HandTemplateCardPreview template={tpl} />
+              <HandTemplateCardPreview template={tpl} emphasis />
               <div className="min-w-0 flex-1 space-y-0.5">
                 <p className="text-zinc-50">
                   <span className="text-zinc-400">{isEn ? "Hand · " : "핸드 · "}</span>
@@ -510,19 +523,15 @@ function HandPickerColumn({
                     : null}
                 </p>
                 {isCostMode ? (
-                  <div className="mt-1 grid min-w-0 gap-1 rounded-md border border-amber-400/25 bg-amber-950/20 px-2 py-1.5 text-[11px] text-amber-50">
-                    <p className="flex min-w-0 flex-wrap items-center justify-between gap-x-2 gap-y-0.5">
-                      <span className="min-w-0 text-amber-200/75">{isEn ? "Selected hand" : "선택 핸드"}</span>
-                      <span className="font-mono font-bold">{templateLabel(tpl)}</span>
-                    </p>
-                    <p className="flex min-w-0 flex-wrap items-center justify-between gap-x-2 gap-y-0.5">
-                      <span className="min-w-0 text-amber-200/75">{isEn ? "Cost" : "소모 코스트"}</span>
+                  <div className="mt-1 flex min-w-0 flex-wrap items-center gap-x-3 gap-y-0.5 rounded-md border border-amber-400/25 bg-amber-950/20 px-2 py-1 text-[11px] text-amber-50">
+                    <span>
+                      <span className="text-amber-200/75">{isEn ? "Cost " : "소모 "}</span>
                       <span className="font-mono font-bold">{tpl.cost}</span>
-                    </p>
-                    <p className="flex min-w-0 flex-wrap items-center justify-between gap-x-2 gap-y-0.5">
-                      <span className="min-w-0 text-amber-200/75">{isEn ? "After pick" : "선택 후 남은 코스트"}</span>
+                    </span>
+                    <span>
+                      <span className="text-amber-200/75">{isEn ? "Remaining " : "잔여 "}</span>
                       <span className="font-mono font-bold">{selectedAfterCost}</span>
-                    </p>
+                    </span>
                   </div>
                 ) : null}
               </div>
