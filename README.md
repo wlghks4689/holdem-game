@@ -1,94 +1,191 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Hand Select Hold'em
 
-## Getting Started
+> 카드를 기다리는 홀덤에서, 카드를 설계하는 홀덤으로.
 
-First, run the development server:
+**Hand Select Hold'em(핸드 셀렉 홀덤)**은 무작위로 시작 패를 받는 대신, 정해진 핸드 풀에서 원하는 조합을 직접 선택해 승부하는 무료 1:1 전략형 텍사스 홀덤입니다. 무엇을 골랐는지는 서로에게 숨겨지고, 선택이 끝나면 익숙한 프리플랍·플랍·턴·리버 베팅이 시작됩니다.
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+[게임 바로 실행](https://holdem-game.vercel.app/holdem) · [규칙과 플레이 가이드](https://holdem-game.vercel.app/holdem/guide)
+
+현재 구현에는 현금 결제, 환전, 상품 또는 금전성 보상이 없습니다. 게임 안의 칩과 Cost는 한 매치 안에서만 사용하는 플레이 자원입니다.
+
+## 왜 이 게임을 만들었나
+
+일반 홀덤의 출발점은 무작위입니다. 받은 두 장으로 최선을 찾는 재미가 있지만, 시작 패를 고를 수 있다면 전략의 중심은 어떻게 달라질까요?
+
+이 프로젝트는 그 질문에서 시작했습니다. 두 플레이어에게 같은 유한 핸드 풀을 주고, 매 라운드 원하는 랭크·수딧 조합을 동시에 비공개로 선택하게 했습니다. 강한 패를 지금 써 버릴지, 약한 패로 팟을 작게 관리할지, 상대에게 남은 선택지를 추론할지가 카드가 공개되기 전부터 의사결정이 됩니다.
+
+즉, 운을 제거하려는 게임이 아니라 **무작위 보드 위에 자원 관리와 심리전을 한 층 더 얹는 실험**입니다. 같은 `AA`도 언제 꺼내느냐에 따라 가치가 달라지고, 한 번 본 상대의 쇼다운은 다음 라운드의 범위 추론 자료가 됩니다.
+
+## 일반 홀덤과 무엇이 다른가
+
+| 구분 | 일반 텍사스 홀덤 | Hand Select Hold'em |
+| --- | --- | --- |
+| 시작 패 | 덱에서 무작위로 2장 배분 | 핸드 풀에서 `AA`, `AKo`, `KQs`, 수딧 커넥터 같은 템플릿 선택 |
+| 선택 공개 | 받은 카드는 본인만 확인 | 양쪽 선택은 동시에 제출되며 확정 전까지 비공개 |
+| 카드 충돌 | 셔플된 덱이 자연스럽게 방지 | 선택 템플릿을 실제 카드로 확정할 때 수트까지 충돌 없이 배정 |
+| 핵심 자원 | 칩과 포지션 | 칩·포지션에 남은 핸드 횟수, Cost 모드의 구매 예산이 추가 |
+| 상대 읽기 | 액션과 보드로 넓은 레인지 추정 | 액션뿐 아니라 이미 소비된 핸드와 남은 풀까지 함께 추론 |
+| 정보 구매 | 없음 | 리버에서 IA로 칩을 내고 상대 패의 범주만 확인 가능 |
+
+선택 이후에는 1:1 홀덤의 흐름을 따릅니다. 하이 카드 드로로 첫 버튼을 정하고, 프리플랍부터 리버까지 베팅한 뒤 홀 카드 2장과 공용 카드 5장 중 가장 강한 5장 조합으로 승패를 판정합니다. 핸드 선택 시간은 40초, 액션 시간은 30초이며 시간 초과 시 안전한 자동 액션이 적용됩니다.
+
+베팅과 레이즈 크기는 팟이 아니라 현재 스택으로만 제한되며, 스트리트별 레이즈 횟수에는 인위적인 상한을 두지 않습니다. 콜에 필요한 칩이 부족하면 가진 만큼만 들어가는 부분 올인으로 처리하고, 1:1 게임에서 상대가 맞춰 줄 수 없는 초과분은 되돌려 줍니다. 올인 콜 뒤에는 남은 보드를 순서대로 공개해 쇼다운까지 진행합니다.
+
+## 핵심 재미
+
+### 유한한 핸드를 언제 소비할 것인가
+
+Classic 풀에는 프리미엄 페어, Ax 오프수트, 브로드웨이 수딧, 미들·로우 페어, 수딧 커넥터가 서로 다른 사용 횟수로 들어 있습니다. 예를 들어 `AA`와 `KK`는 한 번뿐이지만 일부 약한 조합은 여러 번 쓸 수 있습니다. 강한 패를 아끼는 행동 자체가 상대에게 힌트가 될 수 있어, 핸드 선택이 매치 전체를 관통하는 자원 관리가 됩니다.
+
+Cost 규칙에서는 각 템플릿을 한 번만 쓸 수 있고 강한 핸드일수록 더 비쌉니다. 두 플레이어는 100 Cost로 시작해 라운드마다 1을 회복합니다. 3 Cost의 Mystery Hand를 선택하면 풀을 소모하지 않고 무작위 패를 받을 수 있으며, 살 수 있는 핸드가 없으면 강제 랜덤 패로 게임이 이어집니다.
+
+### 정보에도 가격이 있다
+
+IA(Information Acquisition)는 리버 액션에서만 사용할 수 있습니다. 팟의 30%, 최소 3BB를 자신의 스택에서 지불하면 정확한 카드는 감춘 채 `하이 페어`, `브로드웨이 수딧` 같은 상대 핸드 카테고리만 보여 줍니다. IA 직후에는 판단 시간 10초가 추가됩니다. 정보를 살지, 그 칩을 콜과 레이즈에 남길지도 하나의 베팅입니다.
+
+### 결과를 읽히게 만드는 연출
+
+스트레이트부터 로열 플러시까지 족보별 색·광원·카드 강조가 다른 Made Hand 연출을 적용했습니다. 올인 시에는 양쪽 홀 카드 공개, 플랍·턴·리버 런아웃, 승패 강조를 하나의 타임라인으로 재생합니다. 쇼다운에서는 실제 승부에 사용된 5장을 표시하고, 플랍이나 턴에서 폴드한 당사자는 남았을 보드를 확인하는 Rabbit Hunt를 사용할 수 있습니다.
+
+연출은 설정에서 끌 수 있고, 운영체제의 `prefers-reduced-motion` 설정을 감지하면 자동으로 축소됩니다. 효과를 단순 장식이 아니라 현재 족보와 게임 상태를 빠르게 읽는 피드백으로 설계했습니다.
+
+## 게임 모드와 매치 구조
+
+모든 구조는 한쪽 스택이 0이 되면 즉시 끝납니다. 제한 라운드까지 양쪽이 생존하면 칩이 더 많은 플레이어가 승리하고, 칩이 같으면 무승부입니다.
+
+| 구조 | 시작 스택 | 라운드 | 블라인드 / 앤티 진행 | 특징 |
+| --- | ---: | ---: | --- | --- |
+| **Classic** | 각 200칩 | 30 | R1–10 `0.5/1/A1` → R11–20 `1/2/A2` → R21–27 `2/4/A4` → R28–30 `3/6/A6` | 핸드마다 정해진 사용 횟수를 관리하는 기본 규칙 |
+| **Cost · Deep Stack** | 각 150칩 | 20 | R1–10 `0.5/1/A1` → R11–15 `1/2/A2` → R16–20 `2/4/A4` | BB 앤티, 100 Cost를 길게 배분하는 운영전 |
+| **Cost · Short Stack Turbo** | 각 100칩 | 15 | R1–5 `0.5/1/A1` → R6–10 `1/1.5/A1.5` → R11–15 `1/2/A2` | 양쪽 모두 앤티 지불, 5라운드마다 상승하는 압축된 승부 |
+
+`SB/BB/A`는 Small Blind / Big Blind / Ante를 뜻합니다. Deep Stack의 앤티는 BB가 지불하고, Turbo에서는 각 플레이어가 지불합니다.
+
+플레이 방식은 다음 세 가지입니다.
+
+- **연습 게임**: 한 기기에서 Classic 또는 Cost 규칙과 게임 흐름을 확인합니다.
+- **AI 싱글플레이**: Classic, Cost Deep Stack, Cost Short Stack Turbo를 Easy·Normal·Hard·Hell AI와 플레이합니다.
+- **온라인 멀티플레이**: 초대 링크 기반 비공개 방 또는 목록에 노출되는 공개 방을 만듭니다. Classic과 두 Cost 구조를 지원하며, 일시 정지는 상대 동의, 재경기는 양쪽 수락으로 처리합니다.
+
+## Poker AI
+
+AI는 완전한 GTO 솔버나 학습 모델이 아닙니다. 게임 상태를 입력받아 확률과 규칙으로 액션을 고르는 **솔버 아이디어 기반 휴리스틱 엔진**이며, 난이도마다 사용하는 정보와 의사결정 정밀도가 달라집니다.
+
+| 난이도 | 구현된 의사결정 |
+| --- | --- |
+| **Easy** | 핸드 선택과 액션에 무작위성을 크게 두어 입문자가 흐름을 익히도록 구성 |
+| **Normal** | 프리플랍 핸드 티어와 Aggressive·Passive·Tight·Loose 성향, 칩 차이를 조합 |
+| **Hard** | 표준 프리플랍 사이징, 보드 텍스처·드로·메이드 핸드, 상대 가능 레인지와 팟 오즈를 반영하고 리버의 액션 후보별 단순화 EV를 비교 |
+| **Hell** | 혼합 빈도 테이블, 남은 핸드 풀, 최근 플레이어 액션 패턴, 쇼다운에서 확인한 범위, 후반 스택 상황을 추가로 반영 |
+
+포스트플랍에서는 보이는 실제 홀 카드와 보드로 족보를 평가합니다. 상대의 남은 핸드 풀을 실제 카드 조합으로 펼친 가중 레인지에 대해 320회 샘플링해 에쿼티를 추정하고, 보드가 얼마나 젖어 있는지와 드로 가능성을 함께 사용합니다. 리버에서는 가능한 상대 조합과 체크·콜·폴드·여러 베팅 크기의 단순화 EV를 비교합니다. 올인 콜은 별도의 720회 에쿼티 추정과 팟 오즈, 난이도 여유값, 유효 스택과 포지션으로 결정합니다.
+
+Turbo AI는 단순히 더 자주 레이즈하지 않습니다. 남은 라운드, 스택 열세, 현재 BB 대비 유효 스택을 `urgency`로 계산해 뒤지고 있는 후반에만 위험 허용 범위를 넓히며, 약한 패를 항상 밀어 넣지는 않도록 기존 핸드 강도 판단을 유지합니다.
+
+Hell은 배포 환경에서 **Hard 매치 5승** 후 열립니다. 진행도는 브라우저 `localStorage`에만 저장되며 멀티플레이 데이터베이스로 전송되지 않습니다. Classic Hell에서는 플레이어 200칩 대 AI 300칩으로 시작합니다. 이 모드의 정책 테이블과 보정값도 실제 솔버 출력이 아니라 교체 가능한 휴리스틱이라는 한계를 명시합니다.
+
+## 기술 구성
+
+| 영역 | 사용 기술 | 역할 |
+| --- | --- | --- |
+| Web | Next.js 16 App Router, React 19, TypeScript 5 | 페이지, 클라이언트 게임 UI, 서버 Route Handler |
+| UI | Tailwind CSS 4, CSS animation | 반응형 테이블, 카드·쇼다운·Made Hand 연출 |
+| Game core | TypeScript 순수 함수와 reducer | 덱, 핸드 풀, 베팅, 타이머, 족보 판정, 매치 종료 |
+| Multiplayer | Next.js API, Redis / Vercel KV, 낙관적 버전 | 방 생성·참가·액션 동기화, 임시 상태 보관 |
+| AI | 규칙 기반 정책, 가중 레인지, Monte Carlo식 에쿼티 추정 | 프리플랍부터 리버·올인까지 난이도별 의사결정 |
+| Delivery | Vercel, 정적 itch.io 빌드 스크립트 | 온라인 전체 버전과 API를 제외한 정적 배포본 분리 |
+
+```text
+src/
+├─ app/
+│  ├─ holdem/          # 홈, 연습, 싱글, 방, 가이드, 설정과 게임 UI
+│  └─ api/             # 방·공개 로비·피드백 Route Handler
+├─ holdem/             # 규칙, reducer, 평가기, AI, 온라인 훅
+└─ server/             # Redis 설정, 방 수명주기, 인증과 저장소
+scripts/               # 규칙·AI·쇼다운·저장소 회귀 검증, itch.io 빌드
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+게임 규칙과 AI 계산은 가능한 한 React 밖의 순수 TypeScript 모듈로 분리했습니다. UI는 같은 `GameState`를 표현하고 액션을 전달하며, 연습·싱글·온라인 모드는 각각 로컬 reducer, AI 오케스트레이션, 서버 동기화 계층을 붙이는 구조입니다.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## 해결한 문제와 선택한 방법
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+| 문제 | 원인 | 적용한 해결책 | 상태 |
+| --- | --- | --- | --- |
+| 두 플레이어가 같은 카드를 선택할 수 있음 | 템플릿 선택과 실제 52장 덱은 다른 추상화 | 양쪽 선택을 `pending`으로 숨겨 모은 뒤, 사용된 카드를 제외하고 충돌 없는 실제 수트를 한 번에 확정 | 완료 |
+| 약한 템플릿이 좋은 보드를 만났는데 AI가 계속 약하게 취급 | 프리플랍 티어를 포스트플랍까지 재사용 | 실제 7장 족보, 보드 텍스처, 드로와 가중 상대 레인지 기반 에쿼티로 포스트플랍 강도를 재계산 | 완료, 수치 조정 지속 |
+| 올인·부분 콜에서 초과 베팅과 화면 연출이 어긋남 | 정산 상태와 단계별 공개 애니메이션의 시간이 다름 | 1:1 언콜분 반환을 reducer에서 처리하고, 확정된 결과와 별도의 결정적 시네마 타임라인을 사용 | 완료 |
+| 서버리스 인스턴스마다 온라인 방이 달라짐 | 프로세스 메모리는 Vercel 함수 사이에 공유되지 않음 | 운영 환경은 Redis/KV를 사용하고 좌석 토큰·상태 버전·상대 패 필터링을 API 경계에 적용 | 완료 |
+| 캐주얼 방이 저장소에 계속 누적될 수 있음 | 방과 공개 로비 인덱스에 정리 정책이 필요 | 대기 10분, 무동작 게임 30분, 종료 후 재경기 5분, 단독 이탈 60초 TTL과 즉시 삭제 조건 적용 | 완료 |
+| 화려한 효과가 작은 화면이나 모션 민감 사용자에게 부담 | 데스크톱 중심 연출과 고정 애니메이션 | 모바일 레이아웃 압축, 효과 토글, `prefers-reduced-motion` 기반 축소 모드 적용 | 완료, 기기별 다듬기 지속 |
+| 빠른 Turbo에서 AI가 긴 구조와 같은 판단을 함 | 매치 종료까지 남은 기회가 전략에 반영되지 않음 | 라운드·스택 열세·유효 BB로 상황 긴급도를 계산해 기존 정책의 위험 허용치만 보정 | 완료, 밸런스 조정 지속 |
 
-## Learn More
+## 로컬 실행
 
-To learn more about Next.js, take a look at the following resources:
+Node.js와 npm이 필요합니다.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```bash
+git clone https://github.com/wlghks4689/holdem-game.git
+cd holdem-game
+npm install
+npm run dev
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+브라우저에서 [http://localhost:3000/holdem](http://localhost:3000/holdem)을 엽니다. 저장소 설정이 없을 때 로컬 멀티플레이 방은 개발 프로세스 메모리를 사용하므로 서버를 재시작하면 사라집니다.
 
-## Deploy on Vercel
+주요 점검 명령은 다음과 같습니다.
 
-### Multiplayer room storage
+```bash
+npm run lint -- src
+npm run build
+node scripts/verify-room-storage.cjs
+```
 
-Online rooms need one shared Redis database on Vercel. Local `npm run dev`
-uses in-process memory only when no storage variables are configured.
-Do not use in-memory fallback on Vercel: separate function instances cannot share rooms.
+`scripts/`에는 Cost/Turbo, 프리·포스트플랍 AI, 올인, 쇼다운 범위와 연출을 각각 검증하는 TypeScript 회귀 시나리오도 포함되어 있습니다. 현재는 통합 테스트 러너 대신 독립 스크립트 형태입니다.
 
-Rooms are temporary snapshots, not permanent multiplayer match histories:
+정적 itch.io 배포 파일은 Windows PowerShell 환경에서 다음 명령으로 만듭니다.
 
-- Waiting rooms expire 10 minutes after their last state change.
-- Running/paused games expire after 30 minutes without a state-changing action.
-- Finished matches allow 5 minutes for a rematch; polling or repeated acceptance
-  does not extend this deadline. A successful rematch starts a new active lifetime.
-- One player's explicit departure leaves a 60-second notification window.
-  Both players leaving, or the host cancelling an empty room, deletes the room immediately.
-- Closing a browser without sending leave is handled by the idle deadline.
-- Redis enforces expiration; the local memory store also checks deadlines and
-  sweeps expired entries every 30 seconds. The lobby index expires after 30 minutes
-  without new entries. Its sorted-set deadlines prune expired room IDs on both
-  room creation and listing, so continuous room creation cannot accumulate old IDs.
+```bash
+npm run build:itch
+```
 
-Single-player Hard win counts stay on the player's device for Hell unlock (5 wins);
-they are not stored in the multiplayer database.
+정적 빌드에서는 서버 API가 필요한 멀티플레이와 피드백 제출을 제외하고, 브라우저 온라인 버전으로 이동하는 링크를 제공합니다.
 
-Configure one of the following in the project's deployment environment:
+## 배포와 온라인 방 저장소
 
-- TCP Redis: `REDIS_URL` with a `redis://` or `rediss://` connection string.
-  Supported names in precedence order: `HOLDEM_LIMIT_GAME_REDIS_URL`, `REDIS_URL`,
-  `STORAGE_URL`, `UPSTASH_REDIS_URL`, `KV_URL`.
-- REST Redis: `KV_REST_API_URL` (HTTPS) and `KV_REST_API_TOKEN` from the **same database**.
-  Also supported: `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN`,
-  `STORAGE_REST_API_URL` / `STORAGE_REST_API_TOKEN`, and project-specific
-  `HOLDEM_LIMIT_GAME_REST_API_URL` / `HOLDEM_LIMIT_GAME_REST_API_TOKEN`
-  or `HOLDEM_LIMIT_GAME_KV_REST_API_URL` / `HOLDEM_LIMIT_GAME_KV_REST_API_TOKEN`.
+운영 버전은 Vercel에 배포되어 있습니다.
 
-Use a read/write token, not a read-only token. Never put credentials in
-`NEXT_PUBLIC_*` variables. Valid TCP configuration takes precedence over REST;
-remove stale TCP configuration when intentionally switching to REST. Requests do
-not switch databases after a connection failure. Environment updates require a new
-deployment and must be enabled for Production (and Preview when testing previews).
+- Game: <https://holdem-game.vercel.app/holdem>
+- Guide: <https://holdem-game.vercel.app/holdem/guide>
 
-Room creation returns a safe diagnostic code:
+멀티플레이를 배포하려면 Vercel 프로젝트에 아래 둘 중 하나를 연결하고 다시 배포해야 합니다.
 
-- `ROOM_STORAGE_CONFIG`: missing, incomplete or invalid URL/token settings.
-- `ROOM_STORAGE_DNS`: database hostname no longer resolves; check for an uninstalled
-  integration or deleted database, reconnect an active database, then redeploy.
-- `ROOM_STORAGE_AUTH`: expired/incorrect password or token.
-- `ROOM_STORAGE_PERMISSION`: read-only database/token or missing write permission.
-- `ROOM_STORAGE_LIMIT`: provider storage/request quota reached.
-- `ROOM_STORAGE_UNAVAILABLE`: connection, timeout, or other storage failure.
+- TCP Redis: `REDIS_URL` 계열의 `redis://` 또는 `rediss://` 연결 문자열
+- REST Redis/KV: 같은 데이터베이스에서 발급한 `KV_REST_API_URL` + `KV_REST_API_TOKEN` 계열 쌍
 
-Check the provider's database status and Vercel runtime logs for the failing
-deployment. Never paste connection strings or tokens into bug reports.
+토큰은 읽기·쓰기가 가능해야 하며 `NEXT_PUBLIC_*` 변수에 넣지 않습니다. 운영 환경에서는 저장소 설정이 없으면 메모리 모드로 조용히 폴백하지 않고 방 생성을 거부해, 서로 다른 서버리스 인스턴스가 서로 다른 방을 보는 오류를 막습니다.
 
-Run `node scripts/verify-room-storage.cjs` for isolated storage regression and
-two-player API tests (the real KV SDK against a mocked REST transport, no credentials
-or external requests). Then verify create, join and game start on the target deployment
-with two separate browser sessions. Local/mock success does not verify production credentials.
+방에는 현재 게임 스냅샷만 임시 저장합니다. 영구 전적이나 리플레이 기록은 쌓지 않으며 조회 요청만으로 TTL이 연장되지 않습니다. 쇼다운 전 상대 홀 카드는 좌석별 응답에서 제거하고, 상태 변경은 좌석 토큰과 버전 검사를 통과해야 합니다.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## 현재 상태
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+이 저장소는 웹에서 직접 플레이할 수 있는 기능 구현 단계입니다. Classic·Cost·Turbo, 4단계 AI, 공개/비공개 온라인 방, 한국어/영어 UI, 반응형 화면과 주요 쇼다운 연출이 동작합니다.
+
+동시에 다음 한계도 남아 있습니다.
+
+- AI는 서버 모델이나 완전한 GTO 솔버가 아닌 브라우저 내 휴리스틱입니다.
+- 멀티플레이는 1.2초 폴링 방식이며 계정, 랭크, 영구 전적, 관전 기능이 없습니다.
+- 피드백 API는 서버 프로세스 메모리를 사용하므로 영구 보관되지 않습니다.
+- 규칙·AI 회귀 스크립트는 있지만 하나의 테스트 러너와 CI 파이프라인으로 통합되어 있지 않습니다.
+- 소스 lint에는 오류가 없지만 기존 React Hook·미사용 변수 경고가 남아 있고, 저장소 전체 lint는 CommonJS 검증 스크립트에 대한 ESLint 예외가 없어 실패합니다.
+
+## 다음 단계
+
+현재 코드와 이미 진행 중인 개선 방향을 기준으로 한 우선순위입니다.
+
+1. AI 의사결정 시나리오를 하나의 반복 가능한 테스트 명령으로 통합하고 확률 경계를 회귀 검증하기
+2. Cost와 Short Stack Turbo의 핸드 가격·블라인드·AI 긴급도 수치를 실제 플레이 데이터로 조정하기
+3. 모바일 화면, 올인 타임라인, Made Hand 효과의 기기별 성능과 접근성 다듬기
+4. 온라인 연결 복구, 동시 액션 충돌 진단, Redis 장애 메시지와 운영 관측성 강화하기
+5. 가이드의 규칙 수치와 실제 게임 상수를 한 소스에서 공유해 문서 불일치 방지하기
+
+Short Deck, 실제 GTO 피드백, 광고 기반 AI 핸드 리뷰, 네이티브 모바일 앱은 현재 저장소에 구현 근거가 없어 로드맵에 포함하지 않았습니다.
