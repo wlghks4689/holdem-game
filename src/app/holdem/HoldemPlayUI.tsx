@@ -855,12 +855,12 @@ function HandSelectStatusBar({
       aria-label={isEn ? "Hand selection status" : "핸드 선택 상태"}
     >
       <div className="flex flex-wrap items-center gap-2 border-b border-zinc-600/60 pb-2 lg:shrink-0 lg:border-b-0 lg:pb-0">
-        <span className="shrink-0 font-mono text-sm font-bold text-zinc-50 sm:text-base">
+        <span className="holdem-local-font shrink-0 text-sm font-bold text-zinc-50 sm:text-base">
           {isEn ? "Round" : "라운드"} {state.roundNumber}
           <span className="text-zinc-400"> / {totalRoundsForMode(state.gameMode, state.costStructure)}</span>
         </span>
         <span
-          className="min-w-0 rounded-md border-2 border-amber-400/75 bg-amber-950/25 px-1.5 py-0.5 font-mono text-[10px] font-semibold tabular-nums tracking-tight text-amber-100 shadow-[inset_0_0_0_1px_rgba(251,191,36,0.12)] sm:px-2 sm:py-1 sm:text-sm"
+          className="holdem-local-font min-w-0 rounded-md border-2 border-amber-400/75 bg-amber-950/25 px-1.5 py-0.5 text-[10px] font-semibold tabular-nums tracking-tight text-amber-100 shadow-[inset_0_0_0_1px_rgba(251,191,36,0.12)] sm:px-2 sm:py-1 sm:text-sm"
           title={blindLine}
         >
           <span className="font-sans font-semibold text-white">
