@@ -14,11 +14,6 @@ import {
   type LastActiveRoom,
 } from "@/holdem/roomCredentials";
 
-const IS_STATIC = process.env.NEXT_PUBLIC_STATIC_EXPORT === "1";
-const ONLINE_GAME_URL =
-  process.env.NEXT_PUBLIC_ONLINE_GAME_URL ??
-  "https://holdem-game.vercel.app/holdem";
-
 const cardClass =
   "flex flex-col gap-2 rounded-2xl border border-zinc-600/80 bg-zinc-800/60 p-5 shadow-lg transition hover:border-sky-500/50 hover:bg-zinc-800/90 active:scale-[0.99]";
 
@@ -126,7 +121,7 @@ export function HoldemHomeHub() {
           </p>
         </header>
 
-        {!IS_STATIC && lastRoom ? (
+        {lastRoom ? (
           <div className="mb-4 rounded-2xl border border-emerald-600/50 bg-emerald-950/30 p-4 shadow-lg">
             <div className="flex items-center justify-between gap-3">
               <div>
@@ -164,8 +159,8 @@ export function HoldemHomeHub() {
         ) : null}
 
         <div className="grid gap-4 sm:grid-cols-2">
-          {/* ── 멀티플레이 카드 (정적 빌드에서는 숨김) ── */}
-          {!IS_STATIC && <div
+          {/* ── 멀티플레이 카드 ── */}
+          <div
             className={[
               "rounded-2xl border shadow-lg transition",
               multiOpen
@@ -293,9 +288,9 @@ export function HoldemHomeHub() {
                 </Link>
               </div>
             )}
-          </div>}
+          </div>
 
-          {/* itch.io 전용: 웹 전용 멀티플레이 안내 카드 */}
+          {/* 연습 게임 */}
           <div className={cardClass}>
             <span className="text-lg font-semibold text-zinc-100">
               {locale === "en" ? "Practice" : "연습 게임"}
@@ -320,24 +315,6 @@ export function HoldemHomeHub() {
               </Link>
             </div>
           </div>
-
-          {IS_STATIC && (
-            <a
-              href={ONLINE_GAME_URL}
-              target="_top"
-              rel="noopener noreferrer"
-              className="flex flex-col gap-2 rounded-2xl border border-sky-700/60 bg-sky-950/25 p-5 shadow-lg transition hover:border-sky-500/80 hover:bg-sky-950/40"
-            >
-              <span className="text-lg font-semibold text-sky-100">
-                {locale === "en" ? "Multiplayer" : "멀티플레이"}
-              </span>
-              <span className="text-xs leading-relaxed text-zinc-400">
-                {locale === "en"
-                  ? "Open the online version to create or join a room."
-                  : "온라인 버전으로 이동해 방을 만들거나 참가합니다."}
-              </span>
-            </a>
-          )}
 
           <Link href="/holdem/guide" className={cardClass}>
             <span className="text-lg font-semibold text-zinc-100">
@@ -366,16 +343,14 @@ export function HoldemHomeHub() {
             </span>
           </Link>
 
-          {!IS_STATIC && (
-            <Link href="/holdem/feedback" className={cardClass}>
-              <span className="text-lg font-semibold text-zinc-100">
-                {t("home.feedback")}
-              </span>
-              <span className="text-xs leading-relaxed text-zinc-400">
-                {t("home.feedbackDesc")}
-              </span>
-            </Link>
-          )}
+          <Link href="/holdem/feedback" className={cardClass}>
+            <span className="text-lg font-semibold text-zinc-100">
+              {t("home.feedback")}
+            </span>
+            <span className="text-xs leading-relaxed text-zinc-400">
+              {t("home.feedbackDesc")}
+            </span>
+          </Link>
         </div>
 
         {err ? (

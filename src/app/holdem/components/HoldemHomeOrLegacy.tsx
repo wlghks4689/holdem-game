@@ -7,14 +7,11 @@ import { saveRoomAuth } from "@/holdem/roomCredentials";
 import { HoldemHomeHub } from "./HoldemHomeHub";
 
 const ROOM_ID_RE = /^[a-f0-9]{8}$/;
-const IS_STATIC = process.env.NEXT_PUBLIC_STATIC_EXPORT === "1";
 
 export function HoldemHomeOrLegacy() {
   const router = useRouter();
 
   React.useEffect(() => {
-    if (IS_STATIC) return;
-
     const searchParams = new URLSearchParams(window.location.search);
     const room = searchParams.get("room")?.toLowerCase() ?? "";
     const seatRaw = searchParams.get("seat");

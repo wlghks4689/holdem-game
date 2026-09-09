@@ -93,7 +93,7 @@ Hell은 배포 환경에서 **Hard 매치 5승** 후 열립니다. 진행도는 
 | Game core | TypeScript 순수 함수와 reducer | 덱, 핸드 풀, 베팅, 타이머, 족보 판정, 매치 종료 |
 | Multiplayer | Next.js API, Redis / Vercel KV, 낙관적 버전 | 방 생성·참가·액션 동기화, 임시 상태 보관 |
 | AI | 규칙 기반 정책, 가중 레인지, Monte Carlo식 에쿼티 추정 | 프리플랍부터 리버·올인까지 난이도별 의사결정 |
-| Delivery | Vercel, 정적 itch.io 빌드 스크립트 | 온라인 전체 버전과 API를 제외한 정적 배포본 분리 |
+| Delivery | Vercel | 온라인 게임과 서버 API 배포 |
 
 ```text
 src/
@@ -102,7 +102,7 @@ src/
 │  └─ api/             # 방·공개 로비·피드백 Route Handler
 ├─ holdem/             # 규칙, reducer, 평가기, AI, 온라인 훅
 └─ server/             # Redis 설정, 방 수명주기, 인증과 저장소
-scripts/               # 규칙·AI·쇼다운·저장소 회귀 검증, itch.io 빌드
+scripts/               # 규칙·AI·쇼다운·저장소 회귀 검증
 ```
 
 게임 규칙과 AI 계산은 가능한 한 React 밖의 순수 TypeScript 모듈로 분리했습니다. UI는 같은 `GameState`를 표현하고 액션을 전달하며, 연습·싱글·온라인 모드는 각각 로컬 reducer, AI 오케스트레이션, 서버 동기화 계층을 붙이는 구조입니다.
@@ -141,14 +141,6 @@ node scripts/verify-room-storage.cjs
 ```
 
 `scripts/`에는 Cost/Turbo, 프리·포스트플랍 AI, 올인, 쇼다운 범위와 연출을 각각 검증하는 TypeScript 회귀 시나리오도 포함되어 있습니다. 현재는 통합 테스트 러너 대신 독립 스크립트 형태입니다.
-
-정적 itch.io 배포 파일은 Windows PowerShell 환경에서 다음 명령으로 만듭니다.
-
-```bash
-npm run build:itch
-```
-
-정적 빌드에서는 서버 API가 필요한 멀티플레이와 피드백 제출을 제외하고, 브라우저 온라인 버전으로 이동하는 링크를 제공합니다.
 
 ## 배포와 온라인 방 저장소
 
