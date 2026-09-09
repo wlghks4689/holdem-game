@@ -25,6 +25,44 @@ export type PreflopAiContext = {
 };
 export type PreflopActionScores = { fold: number; call: number; raise: number; allIn: number };
 
+/**
+ * Mystery에서만 예외적으로 폴드를 허용할 최하위 오프수트 조합.
+ * 선택 핸드 풀에는 없는 72o/82o/93o 계열을 좁게 분류한다.
+ */
+export function isTrashMysteryHand(
+  state: GameState,
+  aiSeat: PlayerIndex,
+): boolean {
+  const selected = state.holes[aiSeat];
+  if (!selected || selected.acquisitionType !== "mystery") return false;
+  const [first, second] = selected.hole;
+  if (first.rank === second.rank || first.suit === second.suit) return false;
+  const high = Math.max(first.rank, second.rank);
+  const low = Math.min(first.rank, second.rank);
+  return high <= 9 && low <= 4 && high - low >= 4;
+}
+
+/**
+ * 헤즈업 2BB 싱글 레이즈는 콜 가격이 작고 기본 핸드 풀이 전부 플레이 가능한
+ * 조합이므로 폴드하지 않는다. Mystery에서 나온 명백한 trash hand만 예외다.
+ */
+export function shouldDefendHeadsUpSingleRaise(
+  state: GameState,
+  aiSeat: PlayerIndex,
+): boolean {
+  if (state.phase !== "preflop" || state.preflopStage !== "facing_raise") {
+    return false;
+  }
+  if (preflopRaiseStage(state) !== "threeBet") return false;
+  const bb = resolveHandBlinds(state).bb;
+  if (bb <= EPS) return false;
+  const level = levelFromContributions(state.betting);
+  if (level > 2 * bb + EPS) return false;
+  if (effectiveCallPay(aiSeat, state) <= EPS) return false;
+  if (!state.holes[aiSeat]) return false;
+  return !isTrashMysteryHand(state, aiSeat);
+}
+
 export function isPremiumOpeningHand(templateId: string | null | undefined): boolean {
   return templateId === "hi_AA" || templateId === "hi_KK" || templateId === "hi_QQ" ||
     templateId === "hi_JJ" || templateId === "axs_AKs";

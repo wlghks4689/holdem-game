@@ -39,6 +39,7 @@ import {
   preflopAiAllInAllowed,
   preflopAiRaiseTarget,
   scorePreflopActions,
+  shouldDefendHeadsUpSingleRaise,
 } from "./preflopAiPolicy";
 import type { GameAction, GameState, PlayerIndex } from "./types";
 import { turboAiUrgency } from "./turboAiUrgency";
@@ -639,7 +640,14 @@ export function computeAIBettingAction(
 
   if (phase === "preflop" && state.preflopStage != null) {
     const tier = handStrengthTier(state.holes[aiSeat]?.templateId);
-    return preflopAction(state, aiSeat, tier, difficulty, personality);
+    const action = preflopAction(state, aiSeat, tier, difficulty, personality);
+    if (
+      action?.type === "FOLD"
+      && shouldDefendHeadsUpSingleRaise(state, aiSeat)
+    ) {
+      return { type: "PREFLOP_CALL" };
+    }
+    return action;
   }
   if (phase === "flop" || phase === "turn" || phase === "river") {
     if (

@@ -2,9 +2,12 @@ import assert from "node:assert/strict";
 import { computeAIBettingAction, generatePersonality } from "../src/holdem/aiPlayer";
 import {
   buildPreflopAiContext,
+  isTrashMysteryHand,
   preflopAiAllInAllowed,
   preflopAiRaiseTarget,
+  shouldDefendHeadsUpSingleRaise,
 } from "../src/holdem/preflopAiPolicy";
+import { CLASSIC_HAND_TEMPLATES } from "../src/holdem/handPool";
 import type { GameState, HoldemGameMode, PlayerIndex } from "../src/holdem/types";
 
 function stateFor(options: {
@@ -42,7 +45,32 @@ function stateFor(options: {
 }
 
 function withAiHand(state: GameState, aiSeat: PlayerIndex, templateId: string): GameState {
-  state.holes[aiSeat] = { templateId } as GameState["holes"][number];
+  state.holes[aiSeat] = {
+    templateId,
+    hole: [{ rank: 8, suit: "s" }, { rank: 7, suit: "s" }],
+    iaCategory: "커넥터 수딧",
+    acquisitionType: "selected",
+    selectedHandKey: templateId,
+  };
+  return state;
+}
+
+function withMysteryHand(
+  state: GameState,
+  aiSeat: PlayerIndex,
+  ranks: [number, number],
+  suited = false,
+): GameState {
+  state.holes[aiSeat] = {
+    templateId: null,
+    hole: [
+      { rank: ranks[0], suit: "s" },
+      { rank: ranks[1], suit: suited ? "s" : "h" },
+    ],
+    iaCategory: "커넥터 수딧",
+    acquisitionType: "mystery",
+    selectedHandKey: null,
+  };
   return state;
 }
 
@@ -113,6 +141,60 @@ for (const mode of ["classic", "cost"] as const) {
   assert.ok(target >= 2 && target <= 3);
 }
 
+// 7. Every selectable pool hand continues against a single 2bb raise on every difficulty.
+for (const difficulty of ["easy", "normal", "hard", "hell"] as const) {
+  const defendPersonality = generatePersonality(difficulty, [100, 100], 1);
+  for (const template of CLASSIC_HAND_TEMPLATES) {
+    const facingMinRaise = withAiHand(stateFor({
+      templateId: template.id,
+      stacksBb: [98, 99],
+      aiSeat: 1,
+      contributions: [2, 1],
+      potBb: 4,
+      raises: 1,
+    }), 1, template.id);
+    assert.equal(shouldDefendHeadsUpSingleRaise(facingMinRaise, 1), true);
+    for (let i = 0; i < 100; i++) {
+      const action = computeAIBettingAction(
+        facingMinRaise,
+        1,
+        difficulty,
+        defendPersonality,
+      );
+      assert.notEqual(
+        action?.type,
+        "FOLD",
+        `${difficulty} folded ${template.id} against a single 2bb raise`,
+      );
+    }
+  }
+}
+
+// 8. Playable Mystery hands defend, while explicit trash offsuit hands keep the fold exception.
+const mysteryA2o = withMysteryHand(stateFor({
+  templateId: "mystery",
+  stacksBb: [98, 99],
+  aiSeat: 1,
+  contributions: [2, 1],
+  potBb: 4,
+  raises: 1,
+}), 1, [14, 2]);
+assert.equal(isTrashMysteryHand(mysteryA2o, 1), false);
+assert.equal(shouldDefendHeadsUpSingleRaise(mysteryA2o, 1), true);
+
+for (const ranks of [[2, 7], [2, 8], [3, 9]] as const) {
+  const trash = withMysteryHand(stateFor({
+    templateId: "mystery",
+    stacksBb: [98, 99],
+    aiSeat: 1,
+    contributions: [2, 1],
+    potBb: 4,
+    raises: 1,
+  }), 1, [...ranks]);
+  assert.equal(isTrashMysteryHand(trash, 1), true);
+  assert.equal(shouldDefendHeadsUpSingleRaise(trash, 1), false);
+}
+
 console.log(JSON.stringify({
   scenario1: "500/500 standard raises, 0 all-ins",
   scenario2: `${kkRaises} raises vs ${kkCalls} calls, min raise-to 4bb, 0 all-ins`,
@@ -120,4 +202,6 @@ console.log(JSON.stringify({
   scenario4: "10bb AKs all-in allowed",
   scenario5: `76s raised ${suitedRaises}/500, 0 all-ins`,
   scenario6: "Classic/Cost shared policy passed",
+  scenario7: "all selectable hands defend a single 2bb raise on every difficulty",
+  scenario8: "playable Mystery hands defend; 72o/82o/93o retain the fold exception",
 }, null, 2));
