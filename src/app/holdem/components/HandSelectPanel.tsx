@@ -71,7 +71,7 @@ function HandTemplateCardPreview({
           >
             <span
               className={[
-                "flex w-full items-center justify-center text-center font-mono font-black leading-none tabular-nums",
+                "holdem-preview-rank-font flex w-full items-center justify-center text-center font-black leading-none tabular-nums",
                 emphasis
                   ? "h-5 text-xl lg:h-6 lg:text-2xl"
                   : "h-[14px] text-[14px] lg:h-[15.1px] lg:text-[15.1px]",
