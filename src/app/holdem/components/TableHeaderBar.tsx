@@ -4,6 +4,7 @@ import * as React from "react";
 import { totalIaChipsRemovedFromLogs } from "@/holdem/bettingHelpers";
 import {
   debugBlindLine,
+  fmtBlindNum,
   formatBlindTriple,
   getBlindLevel,
   isBlindTierUpTransition,
@@ -13,8 +14,6 @@ import {
 import { totalRoundsForMode } from "@/holdem/gameModeRules";
 import { chipsAsBbLabel } from "@/holdem/formatBb";
 import {
-  HEADS_UP_RULES_BLURB,
-  HU_BB_LABEL,
   HU_DEALER_SB_LABEL,
   headsUpPositionLabel,
 } from "@/holdem/headsUpLabels";
@@ -40,6 +39,7 @@ function stackAsBbPretty(chips: number, bbUnit: number): string {
 export type TableHeaderBarProps = {
   state: GameState;
   playerNames: [string, string];
+  mySeat?: PlayerIndex;
 };
 
 const GAIN_ANIM_MS = 2000;
@@ -54,7 +54,7 @@ function flashMagnitude(f: [number, number] | null): boolean {
   return Math.abs(f[0]!) > GAIN_EPS || Math.abs(f[1]!) > GAIN_EPS;
 }
 
-export function TableHeaderBar({ state, playerNames }: TableHeaderBarProps) {
+export function TableHeaderBar({ state, playerNames, mySeat }: TableHeaderBarProps) {
   const { locale } = useHoldemI18n();
   const isEn = locale === "en";
   const motionMode = useHoldemMotionMode();
@@ -85,30 +85,34 @@ export function TableHeaderBar({ state, playerNames }: TableHeaderBarProps) {
   React.useEffect(() => {
     const r = state.roundNumber;
     const prev = prevRoundRef.current;
-    if (prev !== null && isBlindTierUpTransition(prev, r, state.gameMode)) {
+    if (
+      prev !== null
+      && isBlindTierUpTransition(prev, r, state.gameMode, state.costStructure)
+    ) {
       setBlindUpKey(Date.now());
       window.setTimeout(() => setBlindUpKey(null), BLIND_UP_TOAST_MS);
     }
     prevRoundRef.current = r;
-  }, [state.roundNumber, state.gameMode]);
+  }, [state.roundNumber, state.gameMode, state.costStructure]);
 
-  const btnName = playerNames[state.button]!;
-  const bbSeat: PlayerIndex = state.button === 0 ? 1 : 0;
-  const bbName = playerNames[bbSeat]!;
-  const dealerLabel = isEn ? "BTN · SB" : HU_DEALER_SB_LABEL;
-  const bbLabel = HU_BB_LABEL;
   const hb = resolveHandBlinds(state);
-  const blindLine = formatBlindTriple({
-    smallBlind: hb.sb,
-    bigBlind: hb.bb,
-    ante: hb.ante,
-  });
-  const nextR = nextBlindTierStartRound(state.roundNumber, state.gameMode);
+  const blindLine = state.gameMode === "cost" && state.costStructure === "turbo"
+    ? `SB ${fmtBlindNum(hb.sb)} / BB ${fmtBlindNum(hb.bb)} / Ante ${fmtBlindNum(hb.ante)}`
+    : formatBlindTriple({
+        smallBlind: hb.sb,
+        bigBlind: hb.bb,
+        ante: hb.ante,
+      });
+  const nextR = nextBlindTierStartRound(
+    state.roundNumber,
+    state.gameMode,
+    state.costStructure,
+  );
   const nextBlindHint =
     nextR != null
       ? isEn
-        ? `from R${nextR}: ${formatBlindTriple(getBlindLevel(nextR, state.gameMode))}`
-        : `${nextR}R부터 ${formatBlindTriple(getBlindLevel(nextR, state.gameMode))}`
+        ? `from R${nextR}: ${formatBlindTriple(getBlindLevel(nextR, state.gameMode, state.costStructure))}`
+        : `${nextR}R부터 ${formatBlindTriple(getBlindLevel(nextR, state.gameMode, state.costStructure))}`
       : isEn
         ? "No further increase (final tier)"
         : "이후 상향 없음 (최종 티어)";
@@ -133,6 +137,9 @@ export function TableHeaderBar({ state, playerNames }: TableHeaderBarProps) {
             <p className="text-center text-2xl font-black uppercase tracking-[0.18em] text-amber-300 drop-shadow-[0_2px_8px_rgba(0,0,0,0.75)] sm:text-3xl">
               {isEn ? "BLINDS UP" : "블라인드 UP"}
             </p>
+            <p className="mt-1 text-center font-mono text-sm font-bold text-amber-100">
+              {blindLine}
+            </p>
           </div>
         </div>
       ) : null}
@@ -144,7 +151,7 @@ export function TableHeaderBar({ state, playerNames }: TableHeaderBarProps) {
           title={debugBlindLine(state.roundNumber, hb)}
         >
           {isEn ? "ROUND" : "라운드"} {state.roundNumber}
-          <span className="font-semibold text-zinc-400"> / {totalRoundsForMode(state.gameMode)}</span>
+          <span className="font-semibold text-zinc-400"> / {totalRoundsForMode(state.gameMode, state.costStructure)}</span>
         </span>
         <span className="hidden shrink-0 text-zinc-600 sm:inline" aria-hidden>
           ·
@@ -154,13 +161,22 @@ export function TableHeaderBar({ state, playerNames }: TableHeaderBarProps) {
           title={blindTooltip}
         >
           <span className={`block truncate whitespace-nowrap text-amber-100 ${headerMetaMono}`}>
-            <span className="font-sans font-semibold text-white sm:hidden">
-              {isEn ? "BLINDS: " : "블라인드: "}
-            </span>
+            {state.gameMode === "cost" && state.costStructure === "turbo" ? (
+              <span className="sm:hidden">
+                <span className="font-sans text-[10px] font-semibold text-white">SB/BB/A </span>
+                {fmtBlindNum(hb.sb)}/{fmtBlindNum(hb.bb)}/{fmtBlindNum(hb.ante)}
+              </span>
+            ) : (
+              <span className="font-sans font-semibold text-white sm:hidden">
+                {isEn ? "BLINDS: " : "블라인드: "}
+              </span>
+            )}
             <span className="hidden font-sans font-semibold text-white sm:inline">
               {isEn ? "BLINDS:  " : "현재 블라인드:  "}
             </span>
-            {blindLine}
+            <span className={state.gameMode === "cost" && state.costStructure === "turbo" ? "hidden sm:inline" : ""}>
+              {blindLine}
+            </span>
           </span>
         </span>
         <span className="hidden shrink-0 text-zinc-600 sm:inline" aria-hidden>
@@ -177,19 +193,6 @@ export function TableHeaderBar({ state, playerNames }: TableHeaderBarProps) {
           {isEn ? "IA total" : "IA 누적"} {fmtChips(iaRemovedTotal)}
           {isEn ? " chips" : "칩"}
         </span>
-        <span className="hidden shrink-0 text-zinc-600 lg:inline" aria-hidden>
-          ·
-        </span>
-        <span
-          className="hidden min-w-0 shrink text-[10px] text-zinc-400 md:inline md:text-[11px]"
-          title={HEADS_UP_RULES_BLURB}
-        >
-          {isEn ? dealerLabel : HU_DEALER_SB_LABEL}{" "}
-          <span className="font-medium text-zinc-200">{btnName}</span>
-          <span className="mx-0.5 text-zinc-600">·</span>
-          {bbLabel}{" "}
-          <span className="font-medium text-zinc-200">{bbName}</span>
-        </span>
       </div>
 
       <div className="grid grid-cols-2 gap-1 sm:gap-2">
@@ -202,6 +205,7 @@ export function TableHeaderBar({ state, playerNames }: TableHeaderBarProps) {
           const acting =
             bettingUi && state.toAct === p;
           const dimOpponentTurn = bettingUi && state.toAct !== p;
+          const isMySeat = mySeat === p;
           const matchWinnerGlow =
             matchDecided && state.matchWinner != null && p === state.matchWinner;
           const matchLoserDim =
@@ -229,10 +233,18 @@ export function TableHeaderBar({ state, playerNames }: TableHeaderBarProps) {
                   : matchLoserDim
                     ? "opacity-[0.5] brightness-[0.9] ring-1 ring-zinc-700/35"
                     : acting
-                      ? "z-[1] bg-emerald-900/40 ring-2 ring-emerald-400/50 shadow-[0_0_22px_rgba(52,211,153,0.22)]"
+                      ? isMySeat
+                        ? "z-[1] bg-gradient-to-br from-sky-950/70 to-emerald-950/55 ring-2 ring-emerald-400/55 shadow-[0_0_22px_rgba(52,211,153,0.22)]"
+                        : "z-[1] bg-gradient-to-br from-violet-950/55 to-emerald-950/45 ring-2 ring-emerald-400/50 shadow-[0_0_22px_rgba(52,211,153,0.2)]"
                       : dimOpponentTurn
-                        ? "opacity-[0.55] brightness-90 ring-1 ring-zinc-700/40"
-                        : "bg-zinc-800/20 ring-1 ring-zinc-700/30",
+                        ? isMySeat
+                          ? "bg-sky-950/45 opacity-[0.72] brightness-90 ring-1 ring-sky-600/30"
+                          : "bg-violet-950/30 opacity-[0.62] brightness-90 ring-1 ring-violet-700/25"
+                        : mySeat == null
+                          ? "bg-zinc-800/20 ring-1 ring-zinc-700/30"
+                          : isMySeat
+                            ? "bg-sky-950/45 ring-1 ring-sky-500/30"
+                            : "bg-violet-950/30 ring-1 ring-violet-600/25",
               ].join(" ")}
               style={
                 matchWinnerGlow

@@ -6,7 +6,10 @@ import {
   HELL_AI_EXTRA_STARTING_CHIPS,
   STARTING_CHIPS,
 } from "@/holdem/constants";
-import { resolveHandBlinds } from "@/holdem/blindLevels";
+import {
+  formatBlindTriple,
+  resolveHandBlinds,
+} from "@/holdem/blindLevels";
 import { chipsAsBbLabel } from "@/holdem/formatBb";
 import { startingChipsForMode, totalRoundsForMode } from "@/holdem/gameModeRules";
 import type { RoomPauseState } from "@/holdem/roomPause";
@@ -87,9 +90,21 @@ export function HoldemPlayUI({
 }: HoldemPlayUIProps) {
   const { t, locale } = useHoldemI18n();
   const isEn = locale === "en";
-  const gameModeLabel = state.gameMode === "cost" ? "Cost" : "Classic";
-  const configuredStartingChips = startingChipsForMode(state.gameMode);
-  const configuredTotalRounds = totalRoundsForMode(state.gameMode);
+  const difficultyLabel = singleDifficulty?.toUpperCase();
+  const modeSummaryLabel = [
+    playMode === "single"
+      ? isEn ? "SINGLE-PLAYER" : "싱글플레이"
+      : playMode === "online"
+        ? isEn ? "ONLINE" : "온라인"
+        : isEn ? "LOCAL PLAY" : "로컬 플레이",
+    state.gameMode === "cost" ? "COST" : "CLASSIC",
+    state.gameMode === "cost"
+      ? state.costStructure === "turbo" ? "TURBO" : "DEEP"
+      : null,
+    playMode === "single" ? difficultyLabel : null,
+  ].filter((segment): segment is string => segment != null);
+  const configuredStartingChips = startingChipsForMode(state.gameMode, state.costStructure);
+  const configuredTotalRounds = totalRoundsForMode(state.gameMode, state.costStructure);
   const selecting = state.phase === "hand_select";
   const isHellSingle =
     playMode === "single" && singleDifficulty === "hell";
@@ -368,8 +383,34 @@ export function HoldemPlayUI({
             <h1 className="text-base font-bold text-zinc-50 sm:text-lg lg:text-xl">
               {t("home.title")}
             </h1>
-            <div className="mt-1 inline-flex rounded-md border border-zinc-600 bg-zinc-800/70 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-zinc-300">
-              {gameModeLabel}
+            <div
+              className="mt-1 inline-flex max-w-full flex-wrap items-center gap-x-1.5 rounded-md border border-zinc-600 bg-zinc-800/70 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-zinc-200"
+              aria-label={modeSummaryLabel.join(" - ")}
+            >
+              {modeSummaryLabel.map((segment, index) => (
+                <React.Fragment key={segment}>
+                  {index > 0 ? (
+                    <span className="text-zinc-600" aria-hidden>·</span>
+                  ) : null}
+                  <span
+                    className={
+                      playMode === "single" && segment === difficultyLabel
+                        ? singleDifficulty === "hell"
+                          ? "text-fuchsia-300"
+                          : singleDifficulty === "hard"
+                            ? "text-rose-300"
+                            : singleDifficulty === "normal"
+                              ? "text-amber-300"
+                              : "text-emerald-300"
+                        : segment === "TURBO"
+                          ? "text-amber-200"
+                          : ""
+                    }
+                  >
+                    {segment}
+                  </span>
+                </React.Fragment>
+              ))}
             </div>
             {playMode === "local" ? (
               <p
@@ -391,38 +432,15 @@ export function HoldemPlayUI({
                     : `${configuredTotalRounds}라운드 · 시작 ${configuredStartingChips}칩 (1bb=1칩) · ${HEADS_UP_RULES_BLURB} · 이름 로컬 저장`}
                 </span>
               </p>
-            ) : playMode === "single" ? (
-              <p className="text-xs text-zinc-400">
-                {isEn ? "Single-player · AI " : "싱글플레이 · AI "}
-                <span
-                  className={
-                    singleDifficulty === "hell"
-                      ? "font-semibold text-fuchsia-400"
-                      : singleDifficulty === "hard"
-                        ? "font-semibold text-rose-400"
-                        : singleDifficulty === "normal"
-                          ? "font-semibold text-amber-400"
-                          : "font-semibold text-emerald-400"
-                  }
-                >
-                  {singleDifficulty === "hell"
-                    ? "Hell"
-                    : singleDifficulty === "hard"
-                      ? "Hard"
-                      : singleDifficulty === "normal"
-                        ? "Normal"
-                        : "Easy"}
-                </span>
-                {singleDifficulty === "hell" ? (
-                  <span className="text-zinc-500">
-                    {isEn
-                      ? ` · You ${STARTING_CHIPS} / AI ${STARTING_CHIPS + HELL_AI_EXTRA_STARTING_CHIPS} chips`
-                      : ` · 본인 ${STARTING_CHIPS} / AI ${STARTING_CHIPS + HELL_AI_EXTRA_STARTING_CHIPS}칩`}
-                  </span>
-                ) : null}
+            ) : playMode === "single" && singleDifficulty === "hell" ? (
+              <p className="mt-0.5 text-[10px] text-zinc-500 sm:text-[11px]">
+                {isEn
+                  ? `Starting stacks · You ${STARTING_CHIPS} / AI ${STARTING_CHIPS + HELL_AI_EXTRA_STARTING_CHIPS} chips`
+                  : `시작 스택 · 본인 ${STARTING_CHIPS} / AI ${STARTING_CHIPS + HELL_AI_EXTRA_STARTING_CHIPS}칩`}
               </p>
             ) : null}
           </div>
+          {playMode === "local" || playMode === "online" ? (
           <div className="flex flex-col gap-1.5 rounded-lg border border-zinc-600/90 bg-zinc-700/50 p-1.5 sm:gap-2 sm:p-2 lg:min-w-[18rem]">
             {playMode === "local" && setViewer != null ? (
               <>
@@ -487,6 +505,7 @@ export function HoldemPlayUI({
               </div>
             )}
           </div>
+          ) : null}
         </header>
 
         <div
@@ -503,7 +522,11 @@ export function HoldemPlayUI({
               actionTimerSecondsLeft={actionTimerSecondsLeft}
             />
           ) : (
-            <TableHeaderBar state={cinemaDisplayState} playerNames={playerNames} />
+            <TableHeaderBar
+              state={cinemaDisplayState}
+              playerNames={playerNames}
+              mySeat={playMode === "local" ? undefined : mySeat}
+            />
           )}
         </div>
 
@@ -612,7 +635,6 @@ export function HoldemPlayUI({
               <BoardDisplay
                 state={cinemaDisplayState}
                 visualRevealedOverride={showdownCinema.visualRevealed}
-                streetLabelOverride={showdownCinema.boardStreetLabelKo}
                 cinematicFlip={showdownCinema.active && showdownCinema.phase === "showdown-reveal"}
                 cinemaStreetPulse={showdownCinema.streetPulse}
                 cinemaAnticipation={showdownCinema.activeStreet}
@@ -756,7 +778,20 @@ export function HoldemPlayUI({
                 {isEn ? "Game Over" : "게임 종료"}
               </p>
               <p className="mt-1 text-center text-xs text-zinc-400">
-                {isEn ? "Choose your next action." : "다음 동작을 선택하세요."}
+                {state.matchWinner == null
+                  ? isEn ? "Draw" : "무승부"
+                  : isEn
+                    ? `${playerNames[state.matchWinner]} wins`
+                    : `${playerNames[state.matchWinner]} 승리`}
+              </p>
+              <p className="mt-1 text-center text-[11px] text-zinc-500">
+                {state.matchEndReason === "bust"
+                  ? isEn ? "Won by opponent bust" : "상대 Bust로 승리"
+                  : state.matchEndReason === "round_limit_draw"
+                    ? isEn ? `${configuredTotalRounds} rounds completed · equal stacks` : `${configuredTotalRounds}라운드 종료 · 스택 동률`
+                    : state.matchEndReason === "round_limit_stack_lead"
+                      ? isEn ? `${configuredTotalRounds} rounds completed · stack lead` : `${configuredTotalRounds}라운드 종료 · 스택 우위`
+                      : isEn ? "Choose your next action." : "다음 동작을 선택하세요."}
               </p>
               {matchRematchLabel ? (
                 <p className="mt-2 text-center text-[11px] font-semibold text-emerald-300">
@@ -803,6 +838,7 @@ export function HoldemPlayUI({
               showdownHoleCtx={playMode === "online" || playMode === "single" ? null : showdownHoleCtx}
               playMode={playMode}
               gameMode={state.gameMode}
+              costStructure={state.costStructure}
             />
           </div>
         ) : null}
@@ -824,27 +860,41 @@ function HandSelectStatusBar({
 }) {
   const { locale } = useHoldemI18n();
   const isEn = locale === "en";
-  const bbUnit = resolveHandBlinds(state).bb;
+  const handBlinds = resolveHandBlinds(state);
+  const bbUnit = handBlinds.bb;
+  const blindLine = formatBlindTriple({
+    smallBlind: handBlinds.sb,
+    bigBlind: handBlinds.bb,
+    ante: handBlinds.ante,
+  });
+  const formatChipAmount = (value: number) => {
+    const rounded = Math.round(value * 100) / 100;
+    return Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(1);
+  };
 
   return (
     <section
       className="rounded-xl border border-zinc-600/80 bg-zinc-800/65 px-2.5 py-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] sm:px-3 lg:flex lg:items-center lg:gap-3"
       aria-label={isEn ? "Hand selection status" : "핸드 선택 상태"}
     >
-      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-zinc-600/60 pb-2 lg:shrink-0 lg:border-b-0 lg:pb-0">
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="font-mono text-sm font-bold text-zinc-50 sm:text-base">
-            {isEn ? "Round" : "라운드"} {state.roundNumber}
-            <span className="text-zinc-400"> / {totalRoundsForMode(state.gameMode)}</span>
+      <div className="flex flex-wrap items-center gap-2 border-b border-zinc-600/60 pb-2 lg:shrink-0 lg:border-b-0 lg:pb-0">
+        <span className="shrink-0 font-mono text-sm font-bold text-zinc-50 sm:text-base">
+          {isEn ? "Round" : "라운드"} {state.roundNumber}
+          <span className="text-zinc-400"> / {totalRoundsForMode(state.gameMode, state.costStructure)}</span>
+        </span>
+        <span
+          className="min-w-0 rounded-md border-2 border-amber-400/75 bg-amber-950/25 px-1.5 py-0.5 font-mono text-[10px] font-semibold tabular-nums tracking-tight text-amber-100 shadow-[inset_0_0_0_1px_rgba(251,191,36,0.12)] sm:px-2 sm:py-1 sm:text-sm"
+          title={blindLine}
+        >
+          <span className="font-sans font-semibold text-white">
+            {isEn ? "CURRENT BLINDS: " : "현재 블라인드: "}
           </span>
-          <span className="rounded-full border border-violet-400/35 bg-violet-950/40 px-2 py-0.5 text-[10px] font-bold text-violet-100 sm:text-[11px]">
-            {isEn ? "HAND SELECT" : "핸드 선택"}
-          </span>
-        </div>
+          <span className="whitespace-nowrap">{blindLine}</span>
+        </span>
         {actionTimerSecondsLeft != null ? (
           <span
             className={[
-              "rounded-md px-2.5 py-1 font-mono text-sm font-bold tabular-nums",
+              "ml-auto rounded-md px-2.5 py-1 font-mono text-sm font-bold tabular-nums",
               actionTimerSecondsLeft <= 10
                 ? "bg-rose-900/65 text-rose-100 ring-1 ring-rose-500/50"
                 : "bg-zinc-950/75 text-amber-100 ring-1 ring-amber-400/25",
@@ -858,10 +908,18 @@ function HandSelectStatusBar({
       <div className="mt-2 grid grid-cols-2 gap-2 lg:mt-0 lg:min-w-0 lg:flex-1">
         {([0, 1] as PlayerIndex[]).map((player) => {
           const position = headsUpPositionLabel(state, player);
+          const isMySeat = mySeat === player;
           return (
             <div
               key={player}
-              className="flex min-w-0 items-center gap-2 rounded-lg border border-zinc-700/70 bg-zinc-900/35 px-2.5 py-1.5"
+              className={[
+                "flex min-w-0 flex-col items-stretch gap-1 rounded-lg border px-2.5 py-1.5 transition-colors sm:flex-row sm:items-center sm:gap-2",
+                mySeat == null
+                  ? "border-zinc-700/70 bg-zinc-900/35"
+                  : isMySeat
+                    ? "border-sky-500/45 bg-sky-950/45 shadow-[inset_0_1px_0_rgba(125,211,252,0.06)]"
+                    : "border-violet-700/35 bg-violet-950/30 shadow-[inset_0_1px_0_rgba(196,181,253,0.04)]",
+              ].join(" ")}
             >
               <div className="min-w-0 flex-1">
                 <div className="flex min-w-0 items-center gap-1.5">
@@ -878,9 +936,14 @@ function HandSelectStatusBar({
                   {isEn && position === HU_DEALER_SB_LABEL ? "BTN · SB" : position}
                 </p>
               </div>
-              <div className="shrink-0 text-right">
-                <p className="font-mono text-xs font-bold text-zinc-100 sm:text-sm">
-                  {isEn ? "Stack " : "스택 "}{chipsAsBbLabel(state.chips[player], bbUnit)}
+              <div className="shrink-0 border-t border-white/5 pt-1 text-left sm:border-t-0 sm:pt-0 sm:text-right">
+                <p className="whitespace-nowrap font-mono text-xs font-bold text-zinc-100 sm:text-sm">
+                  {formatChipAmount(state.chips[player])}
+                  <span className="font-sans text-zinc-400">{isEn ? " chips" : "칩"}</span>
+                  <span className="px-1 text-zinc-500">=</span>
+                  <span className="text-amber-200/90">
+                    {chipsAsBbLabel(state.chips[player], bbUnit)}
+                  </span>
                 </p>
               </div>
             </div>
