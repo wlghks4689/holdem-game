@@ -1,6 +1,11 @@
 import assert from "node:assert/strict";
 import type { Card } from "../src/holdem/cards";
-import { handValueDisplayForLocale } from "../src/holdem/pokerEval";
+import {
+  best5Of7,
+  handValueDisplayForLocale,
+  handValueLabel,
+  madeHandFxKind,
+} from "../src/holdem/pokerEval";
 import {
   buildShowdownResultPresentation,
   currentShowdownHandLabels,
@@ -78,6 +83,42 @@ assert.equal(
 assert.equal(
   handValueDisplayForLocale(twoPairValue, "ko"),
   "Q, J 투페어",
+);
+
+const royalFlush = best5Of7([
+  c(14, "s"),
+  c(13, "s"),
+  c(12, "s"),
+  c(11, "s"),
+  c(10, "s"),
+  c(2, "h"),
+  c(3, "d"),
+]);
+assert.equal(madeHandFxKind(royalFlush), "royal-flush");
+assert.equal(handValueLabel(royalFlush), "로얄 스트레이트 플러시");
+assert.equal(
+  handValueDisplayForLocale(royalFlush, "ko"),
+  "로얄 스트레이트 플러시",
+);
+assert.equal(handValueDisplayForLocale(royalFlush, "en"), "Royal Flush");
+
+const kingHighStraightFlush = best5Of7([
+  c(13, "h"),
+  c(12, "h"),
+  c(11, "h"),
+  c(10, "h"),
+  c(9, "h"),
+  c(2, "s"),
+  c(3, "d"),
+]);
+assert.equal(madeHandFxKind(kingHighStraightFlush), "straight-flush");
+assert.equal(
+  handValueDisplayForLocale(kingHighStraightFlush, "ko"),
+  "K 스트레이트 플러시",
+);
+assert.equal(
+  handValueDisplayForLocale(kingHighStraightFlush, "en"),
+  "K-high straight flush",
 );
 
 console.log("Showdown result, street labels, and tie verification passed.");

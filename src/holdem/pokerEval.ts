@@ -192,6 +192,9 @@ export function compareHandValue(a: HandValue, b: HandValue): number {
 }
 
 export function handValueLabel(v: HandValue): string {
+  if (v.rank === RANK_STRAIGHT_FLUSH && v.kickers[0] === 14) {
+    return "로얄 스트레이트 플러시";
+  }
   const names: Record<number, string> = {
     [RANK_HIGH_CARD]: "하이카드",
     [RANK_PAIR]: "원페어",
@@ -236,6 +239,7 @@ export function handValueDisplayPatternKorean(v: HandValue): string {
     case RANK_QUADS:
       return k[0] != null ? `${rCh(k[0])} 포카드` : "포카드";
     case RANK_STRAIGHT_FLUSH:
+      if (k[0] === 14) return "로얄 스트레이트 플러시";
       return k[0] != null ? `${rCh(k[0])} 스트레이트 플러시` : "스트레이트 플러시";
     default:
       return handValueLabel(v);
@@ -267,6 +271,7 @@ export function handValueDisplayPatternEnglish(v: HandValue): string {
     case RANK_QUADS:
       return k[0] != null ? `Quads ${rCh(k[0])}` : "Quads";
     case RANK_STRAIGHT_FLUSH:
+      if (k[0] === 14) return "Royal Flush";
       return k[0] != null
         ? `${rCh(k[0])}-high straight flush`
         : "Straight flush";
