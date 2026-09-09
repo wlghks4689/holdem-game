@@ -24,7 +24,6 @@ import { ActionPanel } from "./components/ActionPanel";
 import { BoardDisplay } from "./components/BoardDisplay";
 import { HandLog } from "./components/HandLog";
 import { HandSelectPanel } from "./components/HandSelectPanel";
-import { HandResultBanner } from "./components/HandResultBanner";
 import { HoleCards } from "./components/HoleCards";
 import { IaBanner } from "./components/IaBanner";
 import { PlayAreaPotBetting } from "./components/PlayAreaPotBetting";
@@ -160,9 +159,6 @@ export function HoldemPlayUI({
     showdownCinema.active &&
     showdownCinema.phase !== "showdown-resolve" &&
     (showdownCinema.visualRevealed ?? 0) > runoutStartRevealed;
-  const showResultBannerSlot =
-    state.phase === "hand_over" && state.handEndMode === "fold";
-
   const showdownHoleCtx =
     state.phase === "showdown" &&
     state.holes[0] != null &&
@@ -378,7 +374,12 @@ export function HoldemPlayUI({
             ) : null}
           </div>
         ) : null}
-        <header className="mb-3 flex flex-col gap-2 pr-[5.5rem] sm:pr-[6rem] lg:mb-4 lg:flex-row lg:items-start lg:justify-between">
+        <header
+          className={[
+            "mb-3 flex flex-col gap-2 pr-[5.5rem] sm:pr-[6rem] lg:mb-4 lg:flex-row lg:items-start lg:justify-between",
+            showPauseChrome ? "min-h-[5rem]" : "",
+          ].join(" ")}
+        >
           <div>
             <h1 className="text-base font-bold text-zinc-50 sm:text-lg lg:text-xl">
               {t("home.title")}
@@ -613,22 +614,10 @@ export function HoldemPlayUI({
           ) : null}
 
           {!selecting && !showdownCinema.blockingInput ? <AllInBanner state={state} /> : null}
-          {showResultBannerSlot ? (
-            <HandResultBanner
-              state={state}
-              playerNames={playerNames}
-              visible={
-                state.phase === "hand_over" ||
-                !showdownCinema.active ||
-                showdownCinema.showHandResult
-              }
-            />
-          ) : null}
           {!selecting ? (
             <div
               className={[
-                "holdem-cinema-board-stage mx-auto w-full max-w-3xl transition-all duration-500",
-                showdownCinema.blockingInput ? "lg:max-w-4xl" : "lg:max-w-2xl",
+                "holdem-cinema-board-stage mx-auto w-full max-w-4xl transition-all duration-500",
                 state.phase === "showdown" ? "-mt-0.5 pt-0" : "",
               ].join(" ")}
             >
@@ -646,7 +635,7 @@ export function HoldemPlayUI({
           {!selecting ? (
             <div
               className={[
-                "holdem-cinema-pot-stage mx-auto w-full max-w-3xl transition-all duration-500 lg:max-w-2xl",
+                "holdem-cinema-pot-stage mx-auto w-full max-w-4xl transition-all duration-500",
                 showdownCinema.active && showdownCinema.phase !== "showdown-resolve"
                   ? "opacity-85"
                   : "",
@@ -727,12 +716,12 @@ export function HoldemPlayUI({
                 ? "holdem-cinema-hole-stage lg:mx-auto lg:w-full lg:max-w-2xl lg:grid-cols-1"
                 : state.phase === "showdown"
                   ? "lg:mx-auto lg:w-full lg:max-w-2xl lg:grid-cols-1"
-                  : "lg:grid-cols-2",
+                  : "lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]",
             ].join(" ")}
           >
             {state.phase !== "showdown" ? (
-              <div className="min-w-0">
-                <div className="rounded-xl border border-emerald-900/35 bg-zinc-900/30 p-3 lg:p-4">
+              <div className="min-w-0 lg:h-full">
+                <div className="h-full">
                   <HoleCards
                     state={cinemaDisplayState}
                     viewer={viewer}
@@ -745,10 +734,7 @@ export function HoldemPlayUI({
               </div>
             ) : null}
             {!showdownCinema.blockingInput ? (
-              <div className="min-w-0 lg:pt-6">
-                <p className="mb-2 text-center text-[10px] font-bold uppercase tracking-[0.18em] text-zinc-500 lg:text-left">
-                  {isEn ? "Action" : "액션"}
-                </p>
+              <div className="min-w-0 lg:h-full">
                 <ActionPanel
                   state={state}
                   dispatch={(a) => void dispatch(a)}
@@ -783,15 +769,6 @@ export function HoldemPlayUI({
                   : isEn
                     ? `${playerNames[state.matchWinner]} wins`
                     : `${playerNames[state.matchWinner]} 승리`}
-              </p>
-              <p className="mt-1 text-center text-[11px] text-zinc-500">
-                {state.matchEndReason === "bust"
-                  ? isEn ? "Won by opponent bust" : "상대 Bust로 승리"
-                  : state.matchEndReason === "round_limit_draw"
-                    ? isEn ? `${configuredTotalRounds} rounds completed · equal stacks` : `${configuredTotalRounds}라운드 종료 · 스택 동률`
-                    : state.matchEndReason === "round_limit_stack_lead"
-                      ? isEn ? `${configuredTotalRounds} rounds completed · stack lead` : `${configuredTotalRounds}라운드 종료 · 스택 우위`
-                      : isEn ? "Choose your next action." : "다음 동작을 선택하세요."}
               </p>
               {matchRematchLabel ? (
                 <p className="mt-2 text-center text-[11px] font-semibold text-emerald-300">

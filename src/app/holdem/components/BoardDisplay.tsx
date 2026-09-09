@@ -319,13 +319,13 @@ export function BoardDisplay({
               <div
                 key={i}
                 className={[
-                  "relative transition-[transform,opacity,filter] duration-300 lg:origin-center lg:scale-[1.14]",
-                  madeOnWinner ? "z-10 scale-[1.04] lg:scale-[1.2]" : "",
+                  "relative transition-[transform,opacity,filter] duration-300",
+                  madeOnWinner ? "z-10 scale-[1.04]" : "",
                 ].join(" ")}
               >
                 <PlayingCard
                   card={c}
-                  size="board"
+                  size="community"
                   className={[
                     showdown ? "drop-shadow-sm" : "drop-shadow-md",
                     madeOnWinner
@@ -353,7 +353,7 @@ export function BoardDisplay({
                     >
                       <PlayingCard
                         card={c}
-                        size="board"
+                        size="community"
                         className={[
                           "drop-shadow-lg",
                           madeOnWinner
@@ -376,10 +376,10 @@ export function BoardDisplay({
           ? tailIndices.map((i) => (
               <div
                 key={i}
-                className="transition-transform lg:origin-center lg:scale-[1.14]"
+                className="transition-transform"
               >
                 <CardBack
-                  size="board"
+                  size="community"
                   className={[
                     "opacity-80",
                     cinemaAnticipation
@@ -404,7 +404,7 @@ export function BoardDisplay({
                     <div
                       key={i}
                       className={[
-                        "relative flex flex-col items-center gap-0.5 lg:origin-center lg:scale-[1.14]",
+                        "relative flex flex-col items-center gap-0.5",
                         !showRabbitCard
                           ? "cursor-pointer active:scale-[0.985]"
                           : "cursor-pointer",
@@ -439,13 +439,13 @@ export function BoardDisplay({
                           </span>
                           <PlayingCard
                             card={c}
-                            size="board"
+                            size="community"
                             className="drop-shadow-md ring-1 ring-cyan-400/50 shadow-[0_0_14px_rgba(34,211,238,0.22)]"
                           />
                         </>
                       ) : (
                         <CardBack
-                          size="board"
+                          size="community"
                           className="opacity-80 ring-1 ring-cyan-500/35 shadow-[0_0_10px_rgba(34,211,238,0.12)]"
                         />
                       )}

@@ -1196,6 +1196,16 @@ body {
   overflow: visible;
 }
 
+/** 홀 카드 이펙트 값은 유지하고, 위쪽 번짐만 패널 가까이 제한한다. */
+.holdem-hole-fx-bounds {
+  clip-path: inset(-10px -96px -30px -96px round 0.75rem);
+}
+
+/** 홀 카드 족보명은 요청한 Arial 계열로 통일한다. */
+.holdem-made-hand-copy {
+  font-family: Arial, Helvetica, sans-serif;
+}
+
 .holdem-made-fx-stack {
   position: relative;
   z-index: 1;

@@ -220,6 +220,7 @@ export function HoleCards({
       className={[
         "grid gap-3",
         seatFilter === "both" ? "sm:grid-cols-2" : "grid-cols-1",
+        seatFilter !== "both" ? "h-full" : "",
       ].join(" ")}
     >
       {([0, 1] as PlayerIndex[]).map((p) => {
@@ -259,6 +260,16 @@ export function HoleCards({
 
         const showOpponentBacks =
           sel != null && !isMe && !selecting && !showdownReveal;
+        const foldedSeat =
+          state.phase === "hand_over" &&
+          state.handEndMode === "fold" &&
+          state.winner != null &&
+          state.winner !== p;
+        const opponentFoldWinner =
+          state.phase === "hand_over" &&
+          state.handEndMode === "fold" &&
+          state.winner === p &&
+          !isMe;
 
         const boardUsedForFx = state.board.slice(0, state.boardRevealed);
         let madeFxTier = 0;
@@ -350,8 +361,11 @@ export function HoleCards({
 
         const frameClass = [
           "rounded-xl border transition-[box-shadow,background-color,border-color,opacity,filter] duration-200",
+          seatFilter !== "both" ? "h-full" : "",
           showdownReveal ? "p-2" : "p-2 sm:p-3",
-          loserShowdown
+          foldedSeat
+            ? "border-zinc-800/90 bg-zinc-950/65 text-zinc-500 brightness-[0.82] saturate-50"
+            : loserShowdown
             ? "border-zinc-800/85 bg-zinc-950/45 text-zinc-600 opacity-[0.48] brightness-[0.72] saturate-50"
             : toneFrame,
           dimPanelForIdleTurn ? "opacity-[0.52] brightness-[0.88] saturate-75" : "",
@@ -361,6 +375,7 @@ export function HoleCards({
           royalPanelCelebration
             ? "holdem-preview-royal-panel-celebration"
             : "",
+          showMadeFx ? "holdem-hole-fx-bounds" : "",
         ].join(" ");
 
         const frameStyle: CSSProperties | undefined =
@@ -402,6 +417,9 @@ export function HoleCards({
             : "";
         const showdownHand = withoutKickerDetail(showdownHandLabels[p]);
         const equityPercent = showdownEquityPercent[p];
+        const displayedHandLabel = foldedSeat
+          ? "FOLD"
+          : showdownHand ?? compactHand;
 
         const cardSize =
           showdownReveal ? ("hero" as const) : isMe ? ("hero" as const) : ("board" as const);
@@ -418,10 +436,11 @@ export function HoleCards({
               />
             ) : null}
             {sel && showFaces ? (
-              <div>
+              <div className={seatFilter !== "both" ? "h-full" : ""}>
                 <div
                   className={[
                     "flex flex-col items-center justify-center gap-1.5 text-center",
+                    seatFilter !== "both" ? "h-full" : "",
                     showdownReveal ? "sm:gap-3" : "",
                   ].join(" ")}
                 >
@@ -509,16 +528,22 @@ export function HoleCards({
 
                   <div className="flex min-h-7 w-full flex-wrap items-center justify-center gap-2 px-1">
                     {/* 일반 진행은 내 족보, 쇼다운은 양쪽 현재 족보를 카드 아래에 표시한다. */}
-                    {(showdownHand ?? compactHand) ? (
+                    {displayedHandLabel ? (
                       <span
                         key={
-                          showdownHand
+                          foldedSeat
+                            ? `fold-label-${p}`
+                            : showdownHand
                             ? `showdown-hand-label-${p}-${showdownHand}`
                             : `hand-label-${madeFxOuterKey}`
                         }
                         className={[
-                          "inline-block text-center text-lg font-extrabold leading-tight tracking-tight drop-shadow-sm sm:text-xl",
-                          showdownHand ? "holdem-showdown-hand-change text-amber-50" : "",
+                          "holdem-made-hand-copy inline-block text-center text-lg font-extrabold leading-tight tracking-tight drop-shadow-sm sm:text-xl",
+                          foldedSeat
+                            ? "text-zinc-400"
+                            : showdownHand
+                              ? "holdem-showdown-hand-change text-amber-50"
+                              : "",
                           showMadeFx
                             ? [
                                 "holdem-made-hand-label",
@@ -530,7 +555,7 @@ export function HoleCards({
                             : "text-zinc-50",
                         ].join(" ")}
                       >
-                        {showdownHand ?? compactHand}
+                        {displayedHandLabel}
                       </span>
                     ) : null}
                     {showdownReveal && equityPercent != null ? (
@@ -555,12 +580,28 @@ export function HoleCards({
                 ) : null}
               </div>
             ) : showOpponentBacks ? (
-              <div className="mt-1.5 space-y-2">
-                <div className="flex justify-center gap-2 sm:justify-start">
-                  <CardBack size={showdownReveal ? "compact" : "board"} />
-                  <CardBack size={showdownReveal ? "compact" : "board"} />
+              <div className="flex h-full flex-col items-center justify-center gap-1.5 text-center">
+                <div
+                  className={[
+                    "flex shrink-0 justify-center gap-3",
+                    foldedSeat ? "opacity-70 brightness-75" : "",
+                  ].join(" ")}
+                >
+                  <CardBack size={foldedSeat || opponentFoldWinner ? "hero" : "board"} />
+                  <CardBack size={foldedSeat || opponentFoldWinner ? "hero" : "board"} />
                 </div>
-                {p === opp && iaCategoryForOpp ? (
+                {foldedSeat || opponentFoldWinner ? (
+                  <div className="flex min-h-7 w-full items-center justify-center px-1">
+                    <span
+                      className={[
+                        "holdem-made-hand-copy text-lg font-extrabold leading-tight tracking-tight drop-shadow-sm sm:text-xl",
+                        foldedSeat ? "text-zinc-400" : "text-amber-200",
+                      ].join(" ")}
+                    >
+                      {foldedSeat ? "FOLD" : "WIN"}
+                    </span>
+                  </div>
+                ) : p === opp && iaCategoryForOpp ? (
                   <p className="text-[11px] leading-snug text-indigo-200/90">
                     {t("hole.iaOppCategory")}{" "}
                     <span className="font-semibold text-indigo-100">
