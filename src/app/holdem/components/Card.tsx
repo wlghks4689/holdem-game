@@ -25,8 +25,8 @@ function rankDisplay(rank: number): string {
 const sizeFrames = {
   /** 쇼다운·상대 줄 등 — board보다 낮음 */
   compact: "h-[4.35rem] w-[3.15rem] shrink-0",
-  /** 모바일: 5장이 한 줄에 들어가도록 축소 / sm+(640px+): 원래 크기 */
-  board: "h-[4.0rem] w-[3.0rem] sm:h-[5.38rem] sm:w-[3.85rem] shrink-0",
+  /** 모바일: 좁은 보드에서도 5장이 항상 한 줄 / sm+(640px+): 원래 크기 */
+  board: "h-[3.6rem] w-[2.6rem] sm:h-[5.38rem] sm:w-[3.85rem] shrink-0",
   hero: "h-[6.15rem] w-[4.62rem] shrink-0",
 } as const;
 
@@ -34,7 +34,7 @@ export type CardSize = keyof typeof sizeFrames;
 
 const rankText: Record<CardSize, string> = {
   compact: "text-[1.3rem] font-bold leading-none tracking-tight",
-  board: "text-[1.58rem] font-bold leading-none tracking-tight sm:text-[1.62rem]",
+  board: "text-[1.42rem] font-bold leading-none tracking-tight sm:text-[1.62rem]",
   hero: "text-[1.62rem] font-bold leading-none tracking-tight sm:text-[1.94rem]",
 };
 
@@ -45,13 +45,13 @@ function rankClass(size: CardSize, narrow: boolean): string {
     return "text-[1.13rem] font-bold leading-none tracking-tight";
   }
   return size === "board"
-    ? "text-[1.4rem] font-bold leading-none tracking-tight sm:text-[1.46rem]"
+    ? "text-[1.28rem] font-bold leading-none tracking-tight sm:text-[1.46rem]"
     : "text-[1.46rem] font-bold leading-none tracking-tight sm:text-[1.62rem]";
 }
 
 const suitText: Record<CardSize, string> = {
   compact: "text-[1.94rem] leading-none",
-  board: "text-[2.48rem] leading-none sm:text-[2.59rem]",
+  board: "text-[2.15rem] leading-none sm:text-[2.59rem]",
   hero: "text-[2.92rem] leading-none sm:text-[3.05rem]",
 };
 

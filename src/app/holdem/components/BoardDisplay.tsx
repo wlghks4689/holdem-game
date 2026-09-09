@@ -17,26 +17,6 @@ import {
   playShowdownBoardReveal,
 } from "../showdownCinemaSounds";
 
-const streetKo: Record<string, string> = {
-  hand_select: "핸드 선택",
-  preflop: "프리플랍",
-  flop: "플랍",
-  turn: "턴",
-  river: "리버",
-  showdown: "쇼다운",
-  hand_over: "종료",
-};
-
-const streetEn: Record<string, string> = {
-  hand_select: "HAND SELECT",
-  preflop: "PREFLOP",
-  flop: "FLOP",
-  turn: "TURN",
-  river: "RIVER",
-  showdown: "SHOWDOWN",
-  hand_over: "COMPLETE",
-};
-
 /** 플랍/턴 폴드 후 레빗 — 미공개 슬롯에 오버레이·공개 시 동일 보드 줄에 표시 */
 export type BoardRabbitHuntUi = {
   active: boolean;
@@ -57,7 +37,7 @@ type EnterDeal = {
 const FLOP_STAGGER_MS = 180;
 const TURN_RIVER_STAGGER_MS = 80;
 
-const BOARD_GAP = "gap-2 sm:gap-5 lg:gap-7";
+const BOARD_GAP = "gap-1 sm:gap-5 lg:gap-7";
 
 const SHOWDOWN_BOARD_GLOW: Record<MadeHandFxKind, string> = {
   none: "holdem-showdown-default-card-glow",
@@ -145,8 +125,6 @@ export type BoardDisplayProps = {
   state: GameState;
   /** 올인 쇼다운 연출: 실제 `boardRevealed` 대신 공개 장 수(없으면 상태값 사용) */
   visualRevealedOverride?: number | null;
-  /** 보드 헤더 스트리트 라벨 치환(연출용) */
-  streetLabelOverride?: string | null;
   /** 올인 연출: 새로 깔린 카드에 플립 애니메이션 */
   cinematicFlip?: boolean;
   /** 강조할 스트리트 — 해당 슬롯에 글로우 */
@@ -159,7 +137,6 @@ export type BoardDisplayProps = {
 export function BoardDisplay({
   state,
   visualRevealedOverride = null,
-  streetLabelOverride = null,
   cinematicFlip = false,
   cinemaStreetPulse = null,
   cinemaAnticipation = null,
@@ -174,16 +151,6 @@ export function BoardDisplay({
       ? visualRevealedOverride
       : state.boardRevealed;
   const slots = [0, 1, 2, 3, 4] as const;
-  const overrideLabel =
-    isEn && streetLabelOverride != null
-      ? ({ 쇼다운: "SHOWDOWN", 플랍: "FLOP", 턴: "TURN", 리버: "RIVER" }[
-          streetLabelOverride
-        ] ?? streetLabelOverride)
-      : streetLabelOverride;
-  const label =
-    overrideLabel ??
-    (isEn ? streetEn[state.phase] : streetKo[state.phase]) ??
-    state.phase;
   const showdown = state.phase === "showdown";
 
   const showdownMadeKeySet = React.useMemo(() => {
@@ -311,25 +278,17 @@ export function BoardDisplay({
       className={[
         "rounded-xl border bg-gradient-to-b from-zinc-900 via-zinc-800/95 to-zinc-800/90",
         showdown
-          ? "border-zinc-600/70 p-2 sm:p-3"
-          : "border-amber-900/40 p-2.5 shadow-[0_0_40px_rgba(245,158,11,0.06)] sm:p-3.5 lg:p-4",
+          ? "border-zinc-600/70 px-2 py-1.5 sm:px-3 sm:py-2.5"
+          : "border-amber-900/40 px-2 py-2 shadow-[0_0_40px_rgba(245,158,11,0.06)] sm:px-3.5 sm:py-2.5 lg:px-4 lg:py-3",
         cinemaStreetPulse ? `holdem-board-cinema-${cinemaStreetPulse}` : "",
       ].join(" ")}
     >
-      <div className={showdown ? "mb-1.5 text-center sm:mb-2" : "mb-2 text-center sm:mb-3"}>
-        <div className="text-[11px] font-semibold uppercase tracking-wider text-amber-500/85 sm:text-xs lg:text-sm">
-          <span className="text-zinc-500">{isEn ? "BOARD" : "보드"}</span>
-          <span className="mx-1.5 text-zinc-600" aria-hidden>
-            ·
-          </span>
-          <span className="text-zinc-300">{label}</span>
-        </div>
-      </div>
       <div
         className={[
-          "holdem-board-perspective relative flex flex-wrap items-center justify-center overflow-visible",
-          showdown ? "gap-2.5 sm:gap-3 lg:gap-4" : BOARD_GAP,
+          "holdem-board-perspective relative flex flex-nowrap items-center justify-center overflow-visible",
+          showdown ? "gap-1 sm:gap-3 lg:gap-4" : BOARD_GAP,
         ].join(" ")}
+        aria-label={isEn ? "Community cards" : "커뮤니티 카드"}
       >
         {scanOn ? (
           <div
@@ -433,7 +392,7 @@ export function BoardDisplay({
           : (
             <div
               className={[
-                "relative flex flex-wrap items-end justify-center overflow-visible rounded-lg",
+                "relative flex flex-nowrap items-end justify-center overflow-visible rounded-lg",
                 BOARD_GAP,
               ].join(" ")}
             >
