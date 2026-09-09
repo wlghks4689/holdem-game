@@ -67,12 +67,11 @@ function ActionTimerChip({
   return (
     <div
       className={[
-        "shrink-0 rounded-md px-2 py-0.5 font-mono font-bold tabular-nums leading-tight",
+        "shrink-0 rounded-md px-2 py-0.5 text-sm font-bold tabular-nums leading-tight",
         secondsLeft <= 10
           ? "bg-rose-900/55 text-rose-100 ring-1 ring-rose-500/45"
           : "bg-zinc-800/95 text-amber-50",
       ].join(" ")}
-      style={{ fontSize: "calc(0.75rem * 1.3)" }}
       title={
         isHandSelect
           ? isEn
@@ -176,7 +175,7 @@ function BetAmountInput({
             type="button"
             aria-label={isEn ? "Decrease by 0.5 BB" : "0.5BB 감소"}
             onClick={() => setChips(value - step)}
-            className="min-w-11 rounded-lg border border-zinc-600/80 bg-zinc-800 px-2 text-xs font-bold text-zinc-200 hover:bg-zinc-700"
+            className="min-w-11 rounded-lg border border-zinc-600/80 bg-zinc-800 px-2 text-sm font-bold text-zinc-200 hover:bg-zinc-700"
           >
             −0.5
           </button>
@@ -212,7 +211,7 @@ function BetAmountInput({
             type="button"
             aria-label={isEn ? "Increase by 0.5 BB" : "0.5BB 증가"}
             onClick={() => setChips(value + step)}
-            className="min-w-11 rounded-lg border border-zinc-600/80 bg-zinc-800 px-2 text-xs font-bold text-zinc-200 hover:bg-zinc-700"
+            className="min-w-11 rounded-lg border border-zinc-600/80 bg-zinc-800 px-2 text-sm font-bold text-zinc-200 hover:bg-zinc-700"
           >
             +0.5
           </button>
@@ -228,28 +227,28 @@ function BetAmountInput({
         <button
           type="button"
           onClick={() => setChips(thirdPot)}
-          className="rounded border border-zinc-600/70 bg-zinc-700/60 py-1 text-[10px] font-semibold text-zinc-300 hover:bg-zinc-600/60 active:scale-95"
+          className="rounded border border-zinc-600/70 bg-zinc-700/60 py-1 text-xs font-semibold text-zinc-300 hover:bg-zinc-600/60 active:scale-95"
         >
           1/3 Pot
         </button>
         <button
           type="button"
           onClick={() => setChips(halfPot)}
-          className="rounded border border-zinc-600/70 bg-zinc-700/60 py-1 text-[10px] font-semibold text-zinc-300 hover:bg-zinc-600/60 active:scale-95"
+          className="rounded border border-zinc-600/70 bg-zinc-700/60 py-1 text-xs font-semibold text-zinc-300 hover:bg-zinc-600/60 active:scale-95"
         >
           1/2 Pot
         </button>
         <button
           type="button"
           onClick={() => setChips(threeQPot)}
-          className="rounded border border-zinc-600/70 bg-zinc-700/60 py-1 text-[10px] font-semibold text-zinc-300 hover:bg-zinc-600/60 active:scale-95"
+          className="rounded border border-zinc-600/70 bg-zinc-700/60 py-1 text-xs font-semibold text-zinc-300 hover:bg-zinc-600/60 active:scale-95"
         >
           3/4 Pot
         </button>
         <button
           type="button"
           onClick={() => setChips(fullPot)}
-          className="rounded border border-zinc-600/70 bg-zinc-700/60 py-1 text-[10px] font-semibold text-zinc-300 hover:bg-zinc-600/60 active:scale-95"
+          className="rounded border border-zinc-600/70 bg-zinc-700/60 py-1 text-xs font-semibold text-zinc-300 hover:bg-zinc-600/60 active:scale-95"
         >
           Pot
         </button>
@@ -261,20 +260,20 @@ function BetAmountInput({
 // ─── 버튼 스타일 ──────────────────────────────────────────────────────────────
 
 const btnPrimary =
-  "rounded-lg border border-emerald-500/80 bg-emerald-800/45 px-3 py-2 text-xs font-semibold text-emerald-50 hover:bg-emerald-700/45 disabled:cursor-not-allowed disabled:opacity-45";
+  "rounded-lg border border-emerald-500/80 bg-emerald-800/45 px-3 py-2 text-sm font-semibold text-emerald-50 hover:bg-emerald-700/45 disabled:cursor-not-allowed disabled:opacity-45";
 const btnAllInCall =
-  "rounded-lg border border-amber-300/80 bg-amber-800/70 px-3 py-2 text-xs font-extrabold text-amber-50 shadow-[0_0_16px_rgba(251,191,36,0.28)] transition hover:bg-amber-700/70 hover:shadow-[0_0_22px_rgba(251,191,36,0.36)] disabled:cursor-not-allowed disabled:opacity-45";
+  "rounded-lg border border-amber-300/80 bg-amber-800/70 px-3 py-2 text-sm font-extrabold text-amber-50 shadow-[0_0_16px_rgba(251,191,36,0.28)] transition hover:bg-amber-700/70 hover:shadow-[0_0_22px_rgba(251,191,36,0.36)] disabled:cursor-not-allowed disabled:opacity-45";
 
 const btnDanger =
-  "rounded-lg border border-rose-600/70 bg-rose-900/45 px-3 py-2 text-xs font-semibold text-rose-50 hover:bg-rose-800/40 disabled:cursor-not-allowed disabled:opacity-45";
+  "rounded-lg border border-rose-600/70 bg-rose-900/45 px-3 py-2 text-sm font-semibold text-rose-50 hover:bg-rose-800/40 disabled:cursor-not-allowed disabled:opacity-45";
 
 const btnIa =
-  "rounded-lg border border-indigo-400/60 bg-indigo-900/45 px-3 py-2 text-xs font-semibold text-indigo-50 hover:bg-indigo-800/40 disabled:cursor-not-allowed disabled:opacity-45";
+  "rounded-lg border border-indigo-400/60 bg-indigo-900/45 px-3 py-2 text-sm font-semibold text-indigo-50 hover:bg-indigo-800/40 disabled:cursor-not-allowed disabled:opacity-45";
 
 const btnPreflopAllIn =
-  "rounded-lg border border-rose-400/75 bg-rose-900/65 px-3 py-2 text-xs font-extrabold text-rose-50 shadow-[0_0_16px_rgba(244,63,94,0.28)] transition hover:bg-rose-800/60 hover:shadow-[0_0_22px_rgba(244,63,94,0.36)] animate-pulse disabled:cursor-not-allowed disabled:opacity-45";
+  "rounded-lg border border-rose-400/75 bg-rose-900/65 px-3 py-2 text-sm font-extrabold text-rose-50 shadow-[0_0_16px_rgba(244,63,94,0.28)] transition hover:bg-rose-800/60 hover:shadow-[0_0_22px_rgba(244,63,94,0.36)] animate-pulse disabled:cursor-not-allowed disabled:opacity-45";
 const btnPostflopAllIn =
-  "rounded-lg border border-rose-400/80 bg-rose-900/70 px-3 py-2 text-xs font-extrabold text-rose-50 shadow-[0_0_18px_rgba(244,63,94,0.32)] transition hover:bg-rose-800/60 hover:shadow-[0_0_24px_rgba(244,63,94,0.4)] animate-pulse disabled:cursor-not-allowed disabled:opacity-45";
+  "rounded-lg border border-rose-400/80 bg-rose-900/70 px-3 py-2 text-sm font-extrabold text-rose-50 shadow-[0_0_18px_rgba(244,63,94,0.32)] transition hover:bg-rose-800/60 hover:shadow-[0_0_24px_rgba(244,63,94,0.4)] animate-pulse disabled:cursor-not-allowed disabled:opacity-45";
 
 // ─── 헬퍼 ────────────────────────────────────────────────────────────────────
 
@@ -501,32 +500,8 @@ export function ActionPanel({
   }
 
   if (phase === "showdown" || phase === "hand_over") {
-    const w =
-      state.winner != null
-        ? isEn
-          ? `Hand winner: ${pl(state.winner)}`
-          : `이번 판 승자: ${pl(state.winner)}`
-        : isEn
-          ? "Hand finished"
-          : "이번 판 종료";
-    const foldEnd = state.handEndMode === "fold";
     return (
-      <div className="space-y-1.5 rounded-xl border border-zinc-600/90 bg-zinc-700/55 p-2.5">
-        <p className="text-sm font-medium text-zinc-100">{w}</p>
-        {phase === "showdown" ? (
-          <p className="text-[11px] text-zinc-400">
-            {isEn
-              ? "See the showdown panel above for hand comparison."
-              : "족보 비교는 상단 쇼다운 박스를 참고하세요."}
-          </p>
-        ) : null}
-        {foldEnd ? (
-          <p className="text-[11px] text-zinc-400">
-            {isEn
-              ? "Fold end — opponent hole cards stayed hidden."
-              : "폴드 종료 — 상대 홀 카드는 공개되지 않았습니다."}
-          </p>
-        ) : null}
+      <div className="rounded-xl border border-zinc-600/90 bg-zinc-700/55 p-2.5">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-stretch sm:gap-3">
           <button
             type="button"
@@ -822,7 +797,7 @@ export function ActionPanel({
   return (
     <div
       className={[
-        "space-y-2 rounded-xl border-2 bg-zinc-700/55 p-2 transition-[box-shadow] duration-300",
+        "h-full space-y-2 rounded-xl border-2 bg-zinc-700/55 p-2 transition-[box-shadow] duration-300",
         mySeat != null
           ? "border-emerald-500/55 shadow-[0_0_28px_rgba(52,211,153,0.22)] ring-1 ring-emerald-400/35"
           : "border-emerald-400/50 shadow-[0_0_32px_rgba(52,211,153,0.28)] ring-1 ring-emerald-400/40",

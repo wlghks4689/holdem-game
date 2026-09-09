@@ -164,24 +164,11 @@ export function HandResultBanner({
   }
 
   if (state.phase === "hand_over" && state.handEndMode === "fold") {
-    const w = state.winner;
     return (
       <div className="rounded-lg border border-rose-500/40 bg-rose-900/22 px-3 py-2">
         <p className="text-sm font-bold leading-snug text-zinc-50 sm:text-[15px]">
-          {w != null ? (
-            <>
-              {isEn ? "Won by opponent fold" : "상대 폴드로 승리"} ·{" "}
-              <span className="text-emerald-300">{pl(w)}</span>
-            </>
-          ) : (
-            isEn ? "Hand ended by fold" : "폴드로 종료"
-          )}
+          {isEn ? "Opponent folded" : "상대 폴드"}
         </p>
-        {w != null ? (
-          <p className="mt-0.5 text-[10px] leading-tight text-zinc-500">
-            {isEn ? "Opponent hole cards remain hidden" : "상대 홀 카드 비공개"}
-          </p>
-        ) : null}
       </div>
     );
   }

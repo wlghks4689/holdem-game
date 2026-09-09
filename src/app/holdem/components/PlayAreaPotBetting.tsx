@@ -322,7 +322,7 @@ export function PlayAreaPotBetting({
         </span>
         <span
           key={potBumpKey}
-          className="inline-flex items-baseline gap-px text-xl font-bold leading-none lg:text-2xl"
+          className="inline-flex items-baseline gap-px font-sans text-xl font-bold leading-none tabular-nums lg:text-2xl"
           style={
             potBumpKey > 0
               ? { animation: "holdem-pot-bump 0.36s ease-out 1" }
@@ -331,7 +331,7 @@ export function PlayAreaPotBetting({
         >
           <span
             key={potAggroKey}
-            className="font-mono tabular-nums text-amber-100"
+            className="text-amber-100"
             style={
               potAggroKey > 0
                 ? {
@@ -352,7 +352,7 @@ export function PlayAreaPotBetting({
         >
           =
         </span>
-        <span className="font-mono text-xl font-bold tabular-nums leading-none text-amber-200 lg:text-2xl">
+        <span className="font-sans text-xl font-bold tabular-nums leading-none text-amber-200 lg:text-2xl">
           {potInBbCompact(state.pot, potBbUnit)}
         </span>
       </div>
