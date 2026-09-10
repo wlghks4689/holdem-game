@@ -6,7 +6,11 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test": "node scripts/verify-all.cjs",
+    "test:ai": "node scripts/verify-all.cjs ai",
+    "test:game": "node scripts/verify-all.cjs game",
+    "test:online": "node scripts/verify-all.cjs online"
   },
   "dependencies": {
     "@vercel/kv": "^3.0.0",

@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-require-imports */
 // Isolated regression test: actual KV SDK and route handlers, mock Redis REST transport.
 // No external credentials, network, or persistent test rooms are used.
 const assert = require("node:assert/strict");
