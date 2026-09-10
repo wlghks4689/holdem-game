@@ -59,8 +59,6 @@ export type MessageKey =
   | "hole.iaLearnedPrefix"
   | "hole.iaOppCategory"
   | "hole.iaHidden"
-  | "viewer.panelTitle"
-  | "viewer.currentHand"
   | "action.fold"
   | "action.check"
   | "action.call"
@@ -138,8 +136,6 @@ const KO: Record<MessageKey, string> = {
   "hole.iaLearnedPrefix": "상대 IA로 공개된 내 카테고리:",
   "hole.iaOppCategory": "IA · 상대 카테고리:",
   "hole.iaHidden": "(실제 카드는 비공개)",
-  "viewer.panelTitle": "현재 핸드 (내 카드 + 공개 보드)",
-  "viewer.currentHand": "👉 현재 핸드:",
   "action.fold": "Fold",
   "action.check": "Check",
   "action.call": "Call",
@@ -218,8 +214,6 @@ const EN: Record<MessageKey, string> = {
   "hole.iaLearnedPrefix": "Category you revealed to opponent IA:",
   "hole.iaOppCategory": "IA · opponent category:",
   "hole.iaHidden": "(Hole cards hidden)",
-  "viewer.panelTitle": "Current hand (your cards + board)",
-  "viewer.currentHand": "👉 Current hand:",
   "action.fold": "Fold",
   "action.check": "Check",
   "action.call": "Call",

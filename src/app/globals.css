@@ -479,17 +479,6 @@ body {
   }
 }
 
-@keyframes holdem-result-pop {
-  0% {
-    opacity: 0.88;
-    transform: scale(0.94);
-  }
-  100% {
-    opacity: 1;
-    transform: scale(1);
-  }
-}
-
 /* ── 올인 쇼다운: 줌아웃은 잠깐만 ──
    HoldemPlayUI의 섹션에 아래 클래스가 붙습니다:
    - .holdem-cinema-active
