@@ -1,11 +1,8 @@
 "use client";
 
 import * as React from "react";
-import {
-  actionTimerLimitMs,
-  actionTimerSignature,
-  computeTimeoutAction,
-} from "./actionTimer";
+import { computeTimeoutAction } from "./actionTimer";
+import { useActionTimer } from "./useActionTimer";
 import {
   computeAIBettingAction,
   generatePersonality,
@@ -160,42 +157,13 @@ export function useHoldemSinglePlayer({
   }, [state.matchWinner, difficulty, humanSeat]);
 
   // ── 액션 타이머 (human 차례용) ─────────────────────────────────────────────
-  const [actionTimerLeft, setActionTimerLeft] = React.useState<number | null>(null);
-
-  const timerSig = actionTimerSignature(state);
-  const limitMs = actionTimerLimitMs(state) ?? 0;
-
-  React.useEffect(() => {
-    // AI 차례이거나 일시정지 중이면 타이머 표시 안 함
-    const isAITurn = state.toAct === aiSeat;
-    if (timerSig == null || localPaused || isAITurn) {
-      setActionTimerLeft(null);
-      return;
-    }
-
-    const sigAtStart = timerSig;
-    const started = Date.now();
-
-    const tick = () => {
-      const left = Math.max(0, Math.ceil((started + limitMs - Date.now()) / 1000));
-      setActionTimerLeft(left);
-    };
-    tick();
-    const iv = window.setInterval(tick, 250);
-
-    const to = window.setTimeout(() => {
-      const cur = stateRef.current;
-      if (actionTimerSignature(cur) !== sigAtStart) return;
-      const a = computeTimeoutAction(cur);
-      if (a != null) dispatchRef.current(a);
-    }, limitMs);
-
-    return () => {
-      window.clearTimeout(to);
-      window.clearInterval(iv);
-    };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [timerSig, limitMs, localPaused, state.toAct]);
+  const actionTimerLeft = useActionTimer({
+    state,
+    paused: localPaused,
+    enabled: state.toAct !== aiSeat,
+    dispatch,
+    handSelectPlayer: humanSeat,
+  });
 
   // ── AI 핸드 선택 ────────────────────────────────────────────────────────────
   React.useEffect(() => {

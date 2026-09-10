@@ -2,11 +2,7 @@
 
 import * as React from "react";
 import { clearLastActiveRoom } from "./roomCredentials";
-import {
-  actionTimerLimitMs,
-  actionTimerSignature,
-  computeTimeoutAction,
-} from "./actionTimer";
+import { useActionTimer } from "./useActionTimer";
 import {
   normalizeRoomPause,
   type RoomPauseState,
@@ -40,11 +36,6 @@ export function useHoldemOnlineGame(opts: {
   ]);
   const stateVersionRef = React.useRef(0);
   const roomExpiredRef = React.useRef(false);
-
-  const stateRef = React.useRef<GameState | null>(null);
-  React.useLayoutEffect(() => {
-    stateRef.current = state;
-  }, [state]);
 
   const fetchSnapshot = React.useCallback(async () => {
     if (roomExpiredRef.current) return;
@@ -162,12 +153,6 @@ export function useHoldemOnlineGame(opts: {
     [roomId, mySeat, token, fetchSnapshot],
   );
 
-  // dispatch ref: 타이머 effect deps에서 제거해도 항상 최신 참조 유지
-  const dispatchRef = React.useRef(dispatch);
-  React.useLayoutEffect(() => {
-    dispatchRef.current = dispatch;
-  }, [dispatch]);
-
   const sendPauseCmd = React.useCallback(
     async (cmd: OnlinePauseCmd) => {
       const r = await fetch(`/api/room/${roomId}/pause`, {
@@ -226,46 +211,17 @@ export function useHoldemOnlineGame(opts: {
     [fetchSnapshot, mySeat, roomId, token],
   );
 
-  const [actionTimerLeft, setActionTimerLeft] = React.useState<number | null>(
-    null,
-  );
-  const timerSig = state != null ? actionTimerSignature(state) : null;
-  const limitMs = state != null ? actionTimerLimitMs(state) ?? 0 : 0;
   const paused = pause.kind === "paused";
-
-  React.useEffect(() => {
-    if (state == null || timerSig == null || paused) {
-      setActionTimerLeft(null);
-      return;
-    }
-
-    const sigAtStart = timerSig;
-    const started = Date.now();
-
-    const tick = () => {
-      const left = Math.max(
-        0,
-        Math.ceil((started + limitMs - Date.now()) / 1000),
-      );
-      setActionTimerLeft(left);
-    };
-    tick();
-    const iv = window.setInterval(tick, 250);
-
-    const to = window.setTimeout(() => {
-      const cur = stateRef.current;
-      if (cur == null) return;
-      if (actionTimerSignature(cur) !== sigAtStart) return;
-      const a = computeTimeoutAction(cur);
-      if (a != null) void dispatchRef.current(a);
-    }, limitMs);
-
-    return () => {
-      window.clearInterval(iv);
-      window.clearTimeout(to);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [timerSig, limitMs, paused]);
+  const timerEnabled = state != null && (
+    state.phase === "hand_select" || state.toAct === mySeat
+  );
+  const actionTimerLeft = useActionTimer({
+    state,
+    paused,
+    enabled: timerEnabled,
+    dispatch,
+    handSelectPlayer: mySeat,
+  });
 
   return {
     state,

@@ -422,6 +422,15 @@ export function GuideClient() {
             </li>
             <li>
               <span className="font-medium text-zinc-200">
+                {isEn ? "Preflop minimum re-raise" : "프리플랍 최소 재레이즈"}
+              </span>{" "}
+              —{" "}
+              {isEn
+                ? "The minimum re-raise-to amount is twice the current betting level. This custom rule prevents repeated +1BB raises from distorting play and AI responses."
+                : "최소 재레이즈 총액은 현재 베팅 레벨의 2배입니다. +1BB씩 이어지는 작은 재레이즈가 플레이와 AI 판단을 왜곡하지 않도록 둔 커스텀 규칙입니다."}
+            </li>
+            <li>
+              <span className="font-medium text-zinc-200">
                 {isEn ? "Partial call & uncalled bet" : "부분 콜(스택 부족)과 언콜"}
               </span>{" "}
               —{" "}

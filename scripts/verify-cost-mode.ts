@@ -76,7 +76,7 @@ assert.deepEqual(round11.handBlinds, { sb: 1, bb: 2, ante: 2 });
 assert.equal(round11.phase, "hand_select");
 const timerBeforePick = actionTimerSignature(round11);
 const aiPick = holdemReducer(round11, { type: "SELECT_HAND", player: 1, templateId: "hi_KK" }, random);
-assert.notEqual(actionTimerSignature(aiPick), timerBeforePick);
+assert.equal(actionTimerSignature(aiPick), timerBeforePick);
 assert.deepEqual(aiPick.handPickPending[1], { kind: "selected", templateId: "hi_KK" });
 assert.equal(computeTimeoutAction(aiPick)?.type, "SELECT_HAND");
 const round11Started = holdemReducer(aiPick, { type: "SELECT_HAND", player: 0, templateId: "conn_45s" }, random);

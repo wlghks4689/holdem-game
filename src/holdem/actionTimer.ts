@@ -14,6 +14,53 @@ import type { GameAction, GameState } from "./types";
 
 export { ACTION_TIMER_SECONDS, HAND_SELECT_TIMER_SECONDS };
 
+export type ActionTimerWindow = {
+  signature: string;
+  deadlineMs: number;
+  limitMs: number;
+  pausedRemainingMs: number | null;
+};
+
+/** 동일 액션 창의 마감 시각을 유지하고, 제한 시간 증감·일시정지를 반영한다. */
+export function reconcileActionTimerWindow(
+  current: ActionTimerWindow | null,
+  signature: string | null,
+  limitMs: number,
+  paused: boolean,
+  nowMs: number,
+): ActionTimerWindow | null {
+  if (signature == null) return null;
+
+  const next = current == null || current.signature !== signature
+    ? {
+        signature,
+        deadlineMs: nowMs + limitMs,
+        limitMs,
+        pausedRemainingMs: null,
+      }
+    : { ...current };
+
+  if (next.limitMs !== limitMs) {
+    const delta = limitMs - next.limitMs;
+    next.limitMs = limitMs;
+    if (next.pausedRemainingMs != null) {
+      next.pausedRemainingMs = Math.max(0, next.pausedRemainingMs + delta);
+    } else {
+      next.deadlineMs += delta;
+    }
+  }
+
+  if (paused) {
+    if (next.pausedRemainingMs == null) {
+      next.pausedRemainingMs = Math.max(0, next.deadlineMs - nowMs);
+    }
+  } else if (next.pausedRemainingMs != null) {
+    next.deadlineMs = nowMs + next.pausedRemainingMs;
+    next.pausedRemainingMs = null;
+  }
+  return next;
+}
+
 /** Fisher-Yates shuffle (in-place) */
 function shuffled<T>(arr: readonly T[]): T[] {
   const a = arr.slice();
@@ -25,9 +72,13 @@ function shuffled<T>(arr: readonly T[]): T[] {
 }
 
 /** 아직 미확정인 좌석부터 자동 제출 (0 → 1 순) — 선택 가능한 전체 풀에서 무작위 */
-function buildAutoSelectHand(state: GameState): GameAction | null {
+function buildAutoSelectHand(
+  state: GameState,
+  playerOnly?: 0 | 1,
+): GameAction | null {
   if (state.handSelectPhase === "done") return null;
-  for (const player of [0, 1] as const) {
+  const players = playerOnly == null ? [0, 1] as const : [playerOnly] as const;
+  for (const player of players) {
     if (state.handPickPending[player] != null) continue;
     if (shouldForceRandomHand(state, player)) {
       return { type: "SELECT_FORCED_RANDOM", player };
@@ -55,7 +106,7 @@ function pendingHandChoiceKey(state: GameState, player: 0 | 1): string | null {
 
 /**
  * 같은 값이면 동일 "액션 창" — 타이머 리셋 없음.
- * 팟·칩·IA·핸드 선택 진행 변경 시 새 제한 시간.
+ * 실제 액션 순서가 바뀔 때만 새 제한 시간을 시작한다.
  */
 export function actionTimerSignature(state: GameState): string | null {
   if (state.matchEnded) return null;
@@ -68,8 +119,6 @@ export function actionTimerSignature(state: GameState): string | null {
       kind: "hand_select",
       round: state.roundNumber,
       button: state.button,
-      pending0: pendingHandChoiceKey(state, 0),
-      pending1: pendingHandChoiceKey(state, 1),
     });
   }
 
@@ -84,11 +133,18 @@ export function actionTimerSignature(state: GameState): string | null {
     pref: state.preflopStage,
     rd: state.betting.raiseDone,
     chk: state.betting.checksThisStreet,
-    pot: state.pot,
-    chip0: state.chips[0],
-    chip1: state.chips[1],
-    ia0: state.iaUsed[0],
-    ia1: state.iaUsed[1],
+  });
+}
+
+/** 같은 액션 창 안에서 타임아웃 처리에 영향을 주는 진행 상태. */
+export function actionTimerProgressKey(state: GameState): string | null {
+  const signature = actionTimerSignature(state);
+  if (signature == null) return null;
+  if (state.phase !== "hand_select") return signature;
+  return JSON.stringify({
+    signature,
+    pending0: pendingHandChoiceKey(state, 0),
+    pending1: pendingHandChoiceKey(state, 1),
   });
 }
 
@@ -110,12 +166,15 @@ export function actionTimerLimitMs(state: GameState): number | null {
 }
 
 /** 초과 시 디스패치할 액션 (핸드 자동 선택 / 체크 / 폴드) */
-export function computeTimeoutAction(state: GameState): GameAction | null {
+export function computeTimeoutAction(
+  state: GameState,
+  handSelectPlayer?: 0 | 1,
+): GameAction | null {
   if (state.matchEnded) return null;
   if (state.phase === "showdown" || state.phase === "hand_over") return null;
 
   if (state.phase === "hand_select" && state.handSelectPhase !== "done") {
-    return buildAutoSelectHand(state);
+    return buildAutoSelectHand(state, handSelectPlayer);
   }
 
   if (state.toAct == null) return null;
