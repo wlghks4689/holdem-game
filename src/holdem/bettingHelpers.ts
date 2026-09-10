@@ -386,10 +386,6 @@ export function pokerMinRaiseTotalToLevel(
   return roundHalfChip(opponentTotal + inc);
 }
 
-export function postflopMinRaiseToLevelChips(level: number, facing: number): number {
-  return roundHalfChip(level + facing);
-}
-
 export function postflopCustomMaxRaiseToLevel(
   currentPot: number,
   callAmount: number,
@@ -419,16 +415,19 @@ export function postflopRaiseTargetCappedByOpponent(s: GameState): number {
 }
 
 /**
- * 포스트플랍 레이즈 목표 총액 하한: 표준 `level+facing` 또는 숏스택 모드에서
- * 상대 스택 캡만 맞는 올인 레이즈액(`cap`).
+ * 포스트플랍 레이즈 목표 총액 하한.
+ * 프리플랍과 동일한 규칙을 적용한다: 표준 min-raise(`level + facing`)와
+ * "현재 레벨의 2배" 중 큰 값. 표준 규칙만 쓰면 1bb 베트에 2bb→3bb→4bb처럼
+ * 1bb 단위로 연속 민레이즈가 가능해, 실제로는 단순 레이즈인데도
+ * (AI를 포함해) 4-bet·5-bet급 압박으로 오인되어 폴드를 유도하는 나쁜 UX가 된다.
  */
 export function postflopMinRaiseTargetForActor(s: GameState): number {
   const lv = levelFromContributions(s.betting);
   const p = s.toAct;
   if (p == null) return Infinity;
-  const f = facingFor(p, s.betting);
-  // 노리밋 min-raise(헤즈업 기준): 최소 레이즈 총액 = level + facing
-  return postflopMinRaiseToLevelChips(lv, f);
+  const cur = s.betting.contributed[p]!;
+  // pokerMinRaiseTotalToLevel(lv, cur) === level + facing (표준 TDA min-raise)
+  return Math.max(pokerMinRaiseTotalToLevel(lv, cur), roundHalfChip(lv * 2));
 }
 
 /** 오픈 베트: 규칙·내 스택뿐 아니라 상대가 이번 액션에서 맞을 수 있는 칩(통상 남은 스택)을 넘지 않음 */

@@ -4,10 +4,8 @@ import * as React from "react";
 import { totalIaChipsRemovedFromLogs } from "@/holdem/bettingHelpers";
 import {
   debugBlindLine,
-  fmtBlindNum,
-  formatBlindTriple,
-  getBlindLevel,
-  isBlindTierUpTransition,
+  formatBlindLineFull,
+  handBlindsFromRound,
   nextBlindTierStartRound,
   resolveHandBlinds,
 } from "@/holdem/blindLevels";
@@ -43,7 +41,6 @@ export type TableHeaderBarProps = {
 };
 
 const GAIN_ANIM_MS = 2000;
-const BLIND_UP_TOAST_MS = 1200;
 const GAIN_EPS = 1e-6;
 
 const headerMetaMono =
@@ -54,6 +51,60 @@ function flashMagnitude(f: [number, number] | null): boolean {
   return Math.abs(f[0]!) > GAIN_EPS || Math.abs(f[1]!) > GAIN_EPS;
 }
 
+/**
+ * 라운드 + 블라인드 통합 표기 — 핸드 셀렉/베팅 단계, 모든 모드에서 동일하게 사용.
+ * "R7 / 15 · SB 1 / BB 2 / Ante 2" 한 줄, 접두 라벨 없음.
+ * 다음 라운드가 블라인드 상승 라운드면 사전 태그를 붙인다(사후 팝업 대신).
+ */
+export function RoundBlindBadge({ state }: { state: GameState }) {
+  const { locale } = useHoldemI18n();
+  const isEn = locale === "en";
+  const hb = resolveHandBlinds(state);
+  const blindLine = formatBlindLineFull(hb);
+  const nextR = nextBlindTierStartRound(
+    state.roundNumber,
+    state.gameMode,
+    state.costStructure,
+  );
+  const blindUpNextHand = nextR === state.roundNumber + 1;
+  const nextBlindHint =
+    nextR != null
+      ? isEn
+        ? `from R${nextR}: ${formatBlindLineFull(
+            handBlindsFromRound(nextR, state.gameMode, state.costStructure),
+          )}`
+        : `${nextR}R부터 ${formatBlindLineFull(
+            handBlindsFromRound(nextR, state.gameMode, state.costStructure),
+          )}`
+      : isEn
+        ? "No further increase (final tier)"
+        : "이후 상향 없음 (최종 티어)";
+  const tooltip = `${debugBlindLine(state.roundNumber, hb)}\n${isEn ? "Next" : "다음"}: ${nextBlindHint}`;
+
+  return (
+    <span
+      className="min-w-0 shrink overflow-hidden rounded-md border-2 border-amber-400/75 bg-amber-950/25 px-1.5 py-0.5 shadow-[inset_0_0_0_1px_rgba(251,191,36,0.12)] sm:px-2 sm:py-1"
+      title={tooltip}
+    >
+      <span className={`block truncate whitespace-nowrap text-amber-100 ${headerMetaMono}`}>
+        {isEn ? "R" : "R"}
+        {state.roundNumber}
+        <span className="text-zinc-400"> / {totalRoundsForMode(state.gameMode, state.costStructure)}</span>
+        <span className="text-zinc-500" aria-hidden>
+          {" "}
+          ·{" "}
+        </span>
+        {blindLine}
+      </span>
+      {blindUpNextHand ? (
+        <span className="ml-1.5 inline-block shrink-0 whitespace-nowrap rounded bg-rose-900/60 px-1 py-px align-middle text-[9px] font-bold uppercase tracking-wide text-rose-100 ring-1 ring-rose-500/50 sm:px-1.5 sm:text-[10px]">
+          {isEn ? "Blind up next hand" : "다음 핸드 블라인드 인상"}
+        </span>
+      ) : null}
+    </span>
+  );
+}
+
 export function TableHeaderBar({ state, playerNames, mySeat }: TableHeaderBarProps) {
   const { locale } = useHoldemI18n();
   const isEn = locale === "en";
@@ -62,8 +113,6 @@ export function TableHeaderBar({ state, playerNames, mySeat }: TableHeaderBarPro
   const turnPulse = useTurnPulse(state.toAct, {
     holdMs: subtleMotion ? 240 : 320,
   });
-  const prevRoundRef = React.useRef<number | null>(null);
-  const [blindUpKey, setBlindUpKey] = React.useState<number | null>(null);
   const iaRemovedTotal =
     typeof state.iaPotRemovalTotal === "number" &&
     !Number.isNaN(state.iaPotRemovalTotal)
@@ -82,103 +131,15 @@ export function TableHeaderBar({ state, playerNames, mySeat }: TableHeaderBarPro
     return () => window.clearTimeout(t);
   }, [state.potAwardFlash]);
 
-  React.useEffect(() => {
-    const r = state.roundNumber;
-    const prev = prevRoundRef.current;
-    if (
-      prev !== null
-      && isBlindTierUpTransition(prev, r, state.gameMode, state.costStructure)
-    ) {
-      setBlindUpKey(Date.now());
-      window.setTimeout(() => setBlindUpKey(null), BLIND_UP_TOAST_MS);
-    }
-    prevRoundRef.current = r;
-  }, [state.roundNumber, state.gameMode, state.costStructure]);
-
   const hb = resolveHandBlinds(state);
-  const blindLine = state.gameMode === "cost" && state.costStructure === "turbo"
-    ? `SB ${fmtBlindNum(hb.sb)} / BB ${fmtBlindNum(hb.bb)} / Ante ${fmtBlindNum(hb.ante)}`
-    : formatBlindTriple({
-        smallBlind: hb.sb,
-        bigBlind: hb.bb,
-        ante: hb.ante,
-      });
-  const nextR = nextBlindTierStartRound(
-    state.roundNumber,
-    state.gameMode,
-    state.costStructure,
-  );
-  const nextBlindHint =
-    nextR != null
-      ? isEn
-        ? `from R${nextR}: ${formatBlindTriple(getBlindLevel(nextR, state.gameMode, state.costStructure))}`
-        : `${nextR}R부터 ${formatBlindTriple(getBlindLevel(nextR, state.gameMode, state.costStructure))}`
-      : isEn
-        ? "No further increase (final tier)"
-        : "이후 상향 없음 (최종 티어)";
-
-  const blindTooltip = `${debugBlindLine(state.roundNumber, hb)}\n${isEn ? "Next" : "다음"}: ${nextBlindHint}\n${isEn ? "IA total" : "IA 누적"}: ${fmtChips(iaRemovedTotal)}${isEn ? " chips" : "칩"}`;
 
   /** 매치 승자 확정 시(버스트·30R·조기 종료 무관) 승/패 배너 구분 */
   const matchDecided = state.matchEnded;
 
   return (
-    <>
-      {blindUpKey != null ? (
-        <div
-          className="pointer-events-none fixed inset-0 z-[200] flex items-center justify-center bg-black/25"
-          aria-live="polite"
-        >
-          <div
-            key={blindUpKey}
-            className="mx-4 rounded-2xl border-2 border-amber-400/90 bg-zinc-950/95 px-8 py-5 shadow-[0_0_48px_rgba(251,191,36,0.45)] backdrop-blur-sm sm:px-12 sm:py-7"
-            style={{ animation: "holdem-blind-up 1.2s ease-out forwards" }}
-          >
-            <p className="text-center text-2xl font-black uppercase tracking-[0.18em] text-amber-300 drop-shadow-[0_2px_8px_rgba(0,0,0,0.75)] sm:text-3xl">
-              {isEn ? "BLINDS UP" : "블라인드 UP"}
-            </p>
-            <p className="mt-1 text-center font-mono text-sm font-bold text-amber-100">
-              {blindLine}
-            </p>
-          </div>
-        </div>
-      ) : null}
-
       <div className="rounded-xl border border-zinc-600/90 bg-zinc-700/70 p-1.5 text-sm sm:p-2.5">
       <div className="mb-1 flex flex-nowrap items-center gap-x-1.5 border-b border-zinc-600/70 pb-1 text-zinc-300 sm:mb-2 sm:gap-x-2 sm:pb-2">
-        <span
-          className={`shrink-0 whitespace-nowrap text-zinc-100 ${headerMetaMono}`}
-          title={debugBlindLine(state.roundNumber, hb)}
-        >
-          {isEn ? "ROUND" : "라운드"} {state.roundNumber}
-          <span className="font-semibold text-zinc-400"> / {totalRoundsForMode(state.gameMode, state.costStructure)}</span>
-        </span>
-        <span className="hidden shrink-0 text-zinc-600 sm:inline" aria-hidden>
-          ·
-        </span>
-        <span
-          className="min-w-0 shrink overflow-hidden rounded-md border-2 border-amber-400/75 bg-amber-950/25 px-1.5 py-0.5 shadow-[inset_0_0_0_1px_rgba(251,191,36,0.12)] sm:px-2 sm:py-1"
-          title={blindTooltip}
-        >
-          <span className={`block truncate whitespace-nowrap text-amber-100 ${headerMetaMono}`}>
-            {state.gameMode === "cost" && state.costStructure === "turbo" ? (
-              <span className="sm:hidden">
-                <span className="font-sans text-[10px] font-semibold text-white">SB/BB/A </span>
-                {fmtBlindNum(hb.sb)}/{fmtBlindNum(hb.bb)}/{fmtBlindNum(hb.ante)}
-              </span>
-            ) : (
-              <span className="font-sans font-semibold text-white sm:hidden">
-                {isEn ? "BLINDS: " : "블라인드: "}
-              </span>
-            )}
-            <span className="hidden font-sans font-semibold text-white sm:inline">
-              {isEn ? "BLINDS:  " : "현재 블라인드:  "}
-            </span>
-            <span className={state.gameMode === "cost" && state.costStructure === "turbo" ? "hidden sm:inline" : ""}>
-              {blindLine}
-            </span>
-          </span>
-        </span>
+        <RoundBlindBadge state={state} />
         <span className="hidden shrink-0 text-zinc-600 sm:inline" aria-hidden>
           ·
         </span>
@@ -343,6 +304,5 @@ export function TableHeaderBar({ state, playerNames, mySeat }: TableHeaderBarPro
         })}
       </div>
     </div>
-    </>
   );
 }

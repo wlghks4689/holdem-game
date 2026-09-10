@@ -79,10 +79,9 @@ export function fmtBlindNum(n: number): string {
   return s.endsWith(".0") ? s.slice(0, -2) : s;
 }
 
-export function formatBlindTriple(L: BlindLevelSpec): string {
-  return `${fmtBlindNum(L.smallBlind)} / ${fmtBlindNum(L.bigBlind)} / Ante ${fmtBlindNum(
-    L.ante,
-  )}`;
+/** 화면 표시용 통합 블라인드 표기 — 모드/터보 구분 없이 항상 SB/BB/Ante 라벨 포함 */
+export function formatBlindLineFull(h: HandBlinds): string {
+  return `SB ${fmtBlindNum(h.sb)} / BB ${fmtBlindNum(h.bb)} / Ante ${fmtBlindNum(h.ante)}`;
 }
 
 /** 10→11, 20→21, 27→28 전환 시 블라인드 티어 상승 */

@@ -7,10 +7,7 @@ import {
   HELL_AI_EXTRA_STARTING_CHIPS,
   STARTING_CHIPS,
 } from "@/holdem/constants";
-import {
-  formatBlindTriple,
-  resolveHandBlinds,
-} from "@/holdem/blindLevels";
+import { resolveHandBlinds } from "@/holdem/blindLevels";
 import { chipsAsBbLabel } from "@/holdem/formatBb";
 import { startingChipsForMode, totalRoundsForMode } from "@/holdem/gameModeRules";
 import type { RoomPauseState } from "@/holdem/roomPause";
@@ -28,7 +25,7 @@ import { HandSelectPanel } from "./components/HandSelectPanel";
 import { HoleCards } from "./components/HoleCards";
 import { IaBanner } from "./components/IaBanner";
 import { PlayAreaPotBetting } from "./components/PlayAreaPotBetting";
-import { TableHeaderBar } from "./components/TableHeaderBar";
+import { RoundBlindBadge, TableHeaderBar } from "./components/TableHeaderBar";
 import { rabbitHuntInfo, viewerMayUseRabbit } from "@/holdem/rabbitHunt";
 import { useAllInShowdownCinema } from "./hooks/useAllInShowdownCinema";
 
@@ -906,11 +903,6 @@ function HandSelectStatusBar({
   const isEn = locale === "en";
   const handBlinds = resolveHandBlinds(state);
   const bbUnit = handBlinds.bb;
-  const blindLine = formatBlindTriple({
-    smallBlind: handBlinds.sb,
-    bigBlind: handBlinds.bb,
-    ante: handBlinds.ante,
-  });
   const formatChipAmount = (value: number) => {
     const rounded = Math.round(value * 100) / 100;
     return Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(1);
@@ -922,19 +914,7 @@ function HandSelectStatusBar({
       aria-label={isEn ? "Hand selection status" : "핸드 선택 상태"}
     >
       <div className="flex flex-wrap items-center gap-2 border-b border-zinc-600/60 pb-2 lg:shrink-0 lg:border-b-0 lg:pb-0">
-        <span className="holdem-local-font shrink-0 text-sm font-bold text-zinc-50 sm:text-base">
-          {isEn ? "Round" : "라운드"} {state.roundNumber}
-          <span className="text-zinc-400"> / {totalRoundsForMode(state.gameMode, state.costStructure)}</span>
-        </span>
-        <span
-          className="holdem-local-font min-w-0 rounded-md border-2 border-amber-400/75 bg-amber-950/25 px-1.5 py-0.5 text-[10px] font-semibold tabular-nums tracking-tight text-amber-100 shadow-[inset_0_0_0_1px_rgba(251,191,36,0.12)] sm:px-2 sm:py-1 sm:text-sm"
-          title={blindLine}
-        >
-          <span className="font-sans font-semibold text-white">
-            {isEn ? "CURRENT BLINDS: " : "현재 블라인드: "}
-          </span>
-          <span className="whitespace-nowrap">{blindLine}</span>
-        </span>
+        <RoundBlindBadge state={state} />
         {actionTimerSecondsLeft != null ? (
           <span
             className={[
