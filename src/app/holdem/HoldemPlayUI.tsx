@@ -684,15 +684,6 @@ export function HoldemPlayUI({
               showdownCinema.blockingInput ? "holdem-cinema-hole-stage" : "",
             ].join(" ")}
           >
-            {!showdownCinema.blockingInput ? (
-              <ActionPanel
-                state={state}
-                dispatch={(a) => void dispatch(a)}
-                playerNames={playerNames}
-                mySeat={mySeat}
-                actionTimerSecondsLeft={actionTimerSecondsLeft}
-              />
-            ) : null}
             {/* 모바일 상대 카드 — 쇼다운에서만 전체 표시 */}
             {state.phase === "hand_over" ? (
               <div className="rounded-xl border border-zinc-600/90 bg-zinc-700/40 p-1.5 sm:p-3">
@@ -716,6 +707,15 @@ export function HoldemPlayUI({
                   showdownFxArmed={showdownFxArmed}
                 />
               </div>
+            ) : null}
+            {!showdownCinema.blockingInput ? (
+              <ActionPanel
+                state={state}
+                dispatch={(a) => void dispatch(a)}
+                playerNames={playerNames}
+                mySeat={mySeat}
+                actionTimerSecondsLeft={actionTimerSecondsLeft}
+              />
             ) : null}
             {!showdownCinema.blockingInput ? (
               <IaBanner state={state} viewer={viewer} playerNames={playerNames} />
