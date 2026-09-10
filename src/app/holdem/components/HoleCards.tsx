@@ -218,8 +218,8 @@ export function HoleCards({
   return (
     <div
       className={[
-        "grid gap-3",
-        seatFilter === "both" ? "sm:grid-cols-2" : "grid-cols-1",
+        "grid",
+        seatFilter === "both" ? "grid-cols-2 gap-2 sm:gap-3" : "grid-cols-1 gap-3",
         seatFilter !== "both" ? "h-full" : "",
       ].join(" ")}
     >
@@ -362,7 +362,7 @@ export function HoleCards({
         const frameClass = [
           "rounded-xl border transition-[box-shadow,background-color,border-color,opacity,filter] duration-200",
           seatFilter !== "both" ? "h-full" : "",
-          showdownReveal ? "p-2" : "p-2 sm:p-3",
+          showdownReveal ? "p-1.5 sm:p-2" : "p-2 sm:p-3",
           foldedSeat
             ? "border-zinc-800/90 bg-zinc-950/65 text-zinc-500 brightness-[0.82] saturate-50"
             : loserShowdown
@@ -422,7 +422,11 @@ export function HoleCards({
           : showdownHand ?? compactHand;
 
         const cardSize =
-          showdownReveal ? ("hero" as const) : isMe ? ("hero" as const) : ("board" as const);
+          showdownReveal
+            ? ("showdown" as const)
+            : isMe
+              ? ("hero" as const)
+              : ("board" as const);
 
         const showdownCardClass = loserShowdown ? "opacity-55" : "";
         const madeKey = (c: { rank: number; suit: string }) => `${c.rank}:${c.suit}`;
@@ -441,7 +445,7 @@ export function HoleCards({
                   className={[
                     "flex flex-col items-center justify-center gap-1.5 text-center",
                     seatFilter !== "both" ? "h-full" : "",
-                    showdownReveal ? "sm:gap-3" : "",
+                    showdownReveal ? "gap-1 sm:gap-3" : "",
                   ].join(" ")}
                 >
                   {/* 카드 2장 — 스트레이트↑ 메이드 시 티어별 연출 */}
@@ -468,7 +472,7 @@ export function HoleCards({
                     <div
                       className={[
                         "flex shrink-0",
-                        "gap-3",
+                        showdownReveal ? "gap-1 sm:gap-3" : "gap-3",
                         showMadeFx || showDefaultShowdownGlow
                           ? "holdem-made-fx-stack"
                           : "",

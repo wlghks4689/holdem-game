@@ -29,6 +29,8 @@ const sizeFrames = {
   board: "h-[3.6rem] w-[2.6rem] sm:h-[5.38rem] sm:w-[3.85rem] shrink-0",
   /** 보드·홀 카드 프레임을 동일하게 유지하며 기존 크기에서 10% 축소 */
   community: "h-[clamp(4.7178rem,20.97vw,5.535rem)] w-[clamp(3.54375rem,15.75vw,4.158rem)] shrink-0",
+  /** 양쪽 쇼다운 카드도 최신 보드·홀 카드 규격을 그대로 사용 */
+  showdown: "h-[clamp(4.7178rem,20.97vw,5.535rem)] w-[clamp(3.54375rem,15.75vw,4.158rem)] shrink-0",
   hero: "h-[clamp(4.7178rem,20.97vw,5.535rem)] w-[clamp(3.54375rem,15.75vw,4.158rem)] shrink-0",
 } as const;
 
@@ -38,6 +40,7 @@ const rankText: Record<CardSize, string> = {
   compact: "text-[1.3rem] font-bold leading-none tracking-tight",
   board: "text-[1.42rem] font-bold leading-none tracking-tight sm:text-[1.62rem]",
   community: "text-[1.62rem] font-bold leading-none tracking-tight sm:text-[1.94rem]",
+  showdown: "text-[1.62rem] font-bold leading-none tracking-tight sm:text-[1.94rem]",
   hero: "text-[1.62rem] font-bold leading-none tracking-tight sm:text-[1.94rem]",
 };
 
@@ -60,6 +63,7 @@ const suitText: Record<CardSize, string> = {
   compact: "text-[1.94rem] leading-none",
   board: "text-[2.15rem] leading-none sm:text-[2.59rem]",
   community: "text-[2.92rem] leading-none sm:text-[3.05rem]",
+  showdown: "text-[2.92rem] leading-none sm:text-[3.05rem]",
   hero: "text-[2.92rem] leading-none sm:text-[3.05rem]",
 };
 
@@ -67,6 +71,7 @@ const contentOffset: Record<CardSize, string> = {
   compact: "translate-y-[2px]",
   board: "translate-y-px sm:translate-y-[2px]",
   community: "translate-y-px sm:translate-y-[2px]",
+  showdown: "translate-y-[2px]",
   hero: "translate-y-[2px]",
 };
 
@@ -114,7 +119,7 @@ export type CardBackProps = {
 export function CardBack({ className = "", size = "board" }: CardBackProps) {
   const frame = `flex shrink-0 flex-col items-center justify-center rounded-lg border shadow-sm ${sizeFrames[size]}`;
   const innerSym =
-    size === "hero"
+    size === "hero" || size === "showdown"
       ? "text-2xl sm:text-3xl"
       : size === "compact"
         ? "text-lg"
