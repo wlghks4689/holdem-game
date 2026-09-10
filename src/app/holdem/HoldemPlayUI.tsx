@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   HELL_AI_EXTRA_STARTING_CHIPS,
   STARTING_CHIPS,
@@ -87,6 +88,7 @@ export function HoldemPlayUI({
   matchRematchLabel,
   onGoHome,
 }: HoldemPlayUIProps) {
+  const router = useRouter();
   const { t, locale } = useHoldemI18n();
   const isEn = locale === "en";
   const difficultyLabel = singleDifficulty?.toUpperCase();
@@ -237,6 +239,8 @@ export function HoldemPlayUI({
               : "퍼즈";
 
   const [endMenuOpen, setEndMenuOpen] = React.useState(false);
+  const [homeConfirmOpen, setHomeConfirmOpen] = React.useState(false);
+  const [homeExitPending, setHomeExitPending] = React.useState(false);
   const endMenuDelayArmedRef = React.useRef<string | null>(null);
   React.useEffect(() => {
     if (!state.matchEnded) {
@@ -281,6 +285,27 @@ export function HoldemPlayUI({
     window.location.replace("about:blank");
   }, []);
 
+  const handleConfirmedHome = React.useCallback(async () => {
+    if (homeExitPending) return;
+    setHomeExitPending(true);
+    try {
+      if (onGoHome) await onGoHome();
+      else router.push("/holdem");
+      setHomeConfirmOpen(false);
+    } finally {
+      setHomeExitPending(false);
+    }
+  }, [homeExitPending, onGoHome, router]);
+
+  React.useEffect(() => {
+    if (!homeConfirmOpen) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && !homeExitPending) setHomeConfirmOpen(false);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [homeConfirmOpen, homeExitPending]);
+
   return (
     <div
       className={[
@@ -291,7 +316,7 @@ export function HoldemPlayUI({
       ].join(" ")}
     >
       <div
-        inert={showdownCinema.blockingInput ? true : undefined}
+        inert={showdownCinema.blockingInput || homeConfirmOpen ? true : undefined}
         className={[
           "relative mx-auto max-w-3xl px-3 py-4 pb-14 sm:px-4 sm:py-5 sm:pb-16 lg:py-6 lg:pb-8",
           selecting ? "lg:max-w-[1280px] lg:px-6" : "lg:max-w-6xl lg:px-8",
@@ -355,22 +380,13 @@ export function HoldemPlayUI({
               {pauseMainLabel}
             </button>
             {playMode === "online" || playMode === "single" ? (
-              onGoHome ? (
-                <button
-                  type="button"
-                  onClick={() => void onGoHome()}
-                  className="rounded-lg border border-zinc-600/80 bg-zinc-800/80 px-3 py-2 text-xs font-semibold text-zinc-300 shadow-md hover:bg-zinc-700/80"
-                >
-                  {isEn ? "Home" : "홈으로"}
-                </button>
-              ) : (
-                <Link
-                  href="/holdem"
-                  className="rounded-lg border border-zinc-600/80 bg-zinc-800/80 px-3 py-2 text-xs font-semibold text-zinc-300 shadow-md hover:bg-zinc-700/80"
-                >
-                  {isEn ? "Home" : "홈으로"}
-                </Link>
-              )
+              <button
+                type="button"
+                onClick={() => setHomeConfirmOpen(true)}
+                className="rounded-lg border border-zinc-600/80 bg-zinc-800/80 px-3 py-2 text-xs font-semibold text-zinc-300 shadow-md hover:bg-zinc-700/80"
+              >
+                {isEn ? "Home" : "홈으로"}
+              </button>
             ) : null}
           </div>
         ) : null}
@@ -820,6 +836,57 @@ export function HoldemPlayUI({
           </div>
         ) : null}
       </div>
+      {homeConfirmOpen ? (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/65 p-4 backdrop-blur-[2px]">
+          <div
+            className="w-full max-w-sm rounded-2xl border border-zinc-600/80 bg-zinc-900/95 p-4 shadow-2xl"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="holdem-home-confirm-title"
+          >
+            <p
+              id="holdem-home-confirm-title"
+              className="text-center text-base font-bold text-zinc-50"
+            >
+              {isEn
+                ? "Leave the game?"
+                : playMode === "online"
+                  ? "방에서 나가시겠습니까?"
+                  : "게임에서 나가시겠습니까?"}
+            </p>
+            <p className="mt-1.5 text-center text-xs leading-relaxed text-zinc-400">
+              {isEn
+                ? "Your current game progress will end and you will return home."
+                : "현재 게임 진행을 종료하고 홈으로 이동합니다."}
+            </p>
+            <div className="mt-4 grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                autoFocus
+                disabled={homeExitPending}
+                onClick={() => setHomeConfirmOpen(false)}
+                className="rounded-lg border border-zinc-600 bg-zinc-800 px-3 py-2 text-sm font-semibold text-zinc-200 hover:bg-zinc-700 disabled:opacity-50"
+              >
+                {isEn ? "Cancel" : "취소"}
+              </button>
+              <button
+                type="button"
+                disabled={homeExitPending}
+                onClick={() => void handleConfirmedHome()}
+                className="rounded-lg border border-rose-500/70 bg-rose-900/55 px-3 py-2 text-sm font-bold text-rose-100 hover:bg-rose-800/60 disabled:opacity-50"
+              >
+                {homeExitPending
+                  ? isEn
+                    ? "Leaving…"
+                    : "나가는 중…"
+                  : isEn
+                    ? "Leave"
+                    : "나가기"}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

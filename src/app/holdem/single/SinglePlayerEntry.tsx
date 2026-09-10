@@ -5,6 +5,7 @@ import type { Difficulty } from "@/holdem/aiPlayer";
 import { HELL_UNLOCK_HARD_MATCH_WINS } from "@/holdem/constants";
 import { useHoldemI18n } from "@/holdem/i18n/HoldemLocaleProvider";
 import type { CostGameStructure, HoldemGameMode } from "@/holdem/types";
+import { BackHomeLink } from "../components/BackHomeLink";
 import {
   getHardModeMatchWins,
   isHellModeUnlocked,
@@ -71,7 +72,10 @@ export default function SinglePlayerEntry() {
   }
 
   return (
-    <div className="flex min-h-[70dvh] flex-col items-center justify-center px-4">
+    <div className="relative flex min-h-dvh flex-col items-center justify-center px-4 py-16">
+      <div className="absolute left-4 top-4 sm:left-6 sm:top-6">
+        <BackHomeLink />
+      </div>
       {/* 타이틀 */}
       <div className="mb-10 text-center">
         <h1 className="mb-2 text-3xl font-black tracking-tight text-zinc-100">

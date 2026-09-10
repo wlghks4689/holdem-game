@@ -501,40 +501,24 @@ export function ActionPanel({
 
   if (phase === "showdown" || phase === "hand_over") {
     return (
-      <div className="rounded-xl border border-zinc-600/90 bg-zinc-700/55 p-2.5">
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-stretch sm:gap-3">
-          <button
-            type="button"
-            title={
-              isEn
-                ? "Next hand: the BTN (SB) alternates under heads-up rules, then both players pick again."
-                : "다음 핸드: 헤즈업 규칙에 따라 딜러 버튼(SB)이 교대되고, 다시 핸드를 고릅니다."
-            }
-            className={btnPrimary + " w-full flex-1"}
-            onClick={() => {
-              skipAutoNewHandRef.current = true;
-              void dispatch({ type: "NEW_HAND" });
-            }}
-          >
-            {isEn ? "Next hand" : "다음 핸드"}
-          </button>
-          <div
-            className="flex flex-col items-center justify-center gap-0.5 rounded-lg border border-zinc-600/80 bg-zinc-800/50 px-3 py-2 text-center sm:min-w-[6.5rem]"
-            title={
-              isEn
-                ? `The next round and hand selection start automatically in ${nextHandAutoSeconds} seconds.`
-                : `${nextHandAutoSeconds}초 후 자동으로 다음 라운드(핸드 선택)가 시작됩니다.`
-            }
-          >
-            <span className="text-[9px] font-medium uppercase tracking-wide text-zinc-500">
-              {isEn ? "AUTO START" : "자동 시작"}
-            </span>
-            <span className="font-mono text-base font-semibold tabular-nums text-emerald-300">
-              {nextHandAutoLeft != null ? `${nextHandAutoLeft}s` : "…"}
-            </span>
-          </div>
-        </div>
-      </div>
+      <button
+        type="button"
+        title={
+          isEn
+            ? `Next hand. It starts automatically in ${nextHandAutoSeconds} seconds.`
+            : `다음 핸드. ${nextHandAutoSeconds}초 후 자동으로 다음 라운드가 시작됩니다.`
+        }
+        className={btnPrimary + " flex w-full items-center justify-center gap-2"}
+        onClick={() => {
+          skipAutoNewHandRef.current = true;
+          void dispatch({ type: "NEW_HAND" });
+        }}
+      >
+        <span>{isEn ? "Next hand" : "다음 핸드"}</span>
+        <span className="rounded-md border border-emerald-400/30 bg-zinc-950/35 px-2 py-0.5 font-mono text-xs font-bold tabular-nums text-emerald-200">
+          {isEn ? "Auto" : "자동"} {nextHandAutoLeft != null ? `${nextHandAutoLeft}s` : "…"}
+        </span>
+      </button>
     );
   }
 
