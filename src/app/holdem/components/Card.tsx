@@ -27,9 +27,9 @@ const sizeFrames = {
   compact: "h-[4.35rem] w-[3.15rem] shrink-0",
   /** 모바일: 좁은 보드에서도 5장이 항상 한 줄 / sm+(640px+): 원래 크기 */
   board: "h-[3.6rem] w-[2.6rem] sm:h-[5.38rem] sm:w-[3.85rem] shrink-0",
-  /** 커뮤니티 카드 — 모바일에서는 한 줄 유지, sm부터 내 홀 카드와 동일 크기 */
-  community: "h-[3.6rem] w-[2.6rem] sm:h-[6.15rem] sm:w-[4.62rem] shrink-0",
-  hero: "h-[6.15rem] w-[4.62rem] shrink-0",
+  /** 주요 카드 — 모바일 보드 5장이 한 줄에 들어오면서 홀 카드와 같은 크기 */
+  community: "h-[clamp(4.66rem,23.3vw,6.15rem)] w-[clamp(3.5rem,17.5vw,4.62rem)] shrink-0",
+  hero: "h-[clamp(4.66rem,23.3vw,6.15rem)] w-[clamp(3.5rem,17.5vw,4.62rem)] shrink-0",
 } as const;
 
 export type CardSize = keyof typeof sizeFrames;
@@ -37,7 +37,7 @@ export type CardSize = keyof typeof sizeFrames;
 const rankText: Record<CardSize, string> = {
   compact: "text-[1.3rem] font-bold leading-none tracking-tight",
   board: "text-[1.42rem] font-bold leading-none tracking-tight sm:text-[1.62rem]",
-  community: "text-[1.42rem] font-bold leading-none tracking-tight sm:text-[1.94rem]",
+  community: "text-[1.62rem] font-bold leading-none tracking-tight sm:text-[1.94rem]",
   hero: "text-[1.62rem] font-bold leading-none tracking-tight sm:text-[1.94rem]",
 };
 
@@ -51,7 +51,7 @@ function rankClass(size: CardSize, narrow: boolean): string {
     return "text-[1.28rem] font-bold leading-none tracking-tight sm:text-[1.46rem]";
   }
   if (size === "community") {
-    return "text-[1.28rem] font-bold leading-none tracking-tight sm:text-[1.62rem]";
+    return "text-[1.46rem] font-bold leading-none tracking-tight sm:text-[1.62rem]";
   }
   return "text-[1.46rem] font-bold leading-none tracking-tight sm:text-[1.62rem]";
 }
@@ -59,7 +59,7 @@ function rankClass(size: CardSize, narrow: boolean): string {
 const suitText: Record<CardSize, string> = {
   compact: "text-[1.94rem] leading-none",
   board: "text-[2.15rem] leading-none sm:text-[2.59rem]",
-  community: "text-[2.15rem] leading-none sm:text-[3.05rem]",
+  community: "text-[2.92rem] leading-none sm:text-[3.05rem]",
   hero: "text-[2.92rem] leading-none sm:text-[3.05rem]",
 };
 
@@ -87,8 +87,7 @@ export function PlayingCard({
   const sym = SUIT_SYM[card.suit];
   const r = rankDisplay(card.rank);
   const narrow = r === "10";
-  const contentGap =
-    size === "board" || size === "community" ? "gap-0 sm:gap-0.5" : "gap-0.5";
+  const contentGap = size === "board" ? "gap-0 sm:gap-0.5" : "gap-0.5";
   const frame = `relative flex flex-col items-center justify-center ${contentGap} rounded-lg border bg-white shadow-sm ${sizeFrames[size]}`;
 
   return (

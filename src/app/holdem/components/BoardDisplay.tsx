@@ -37,7 +37,7 @@ type EnterDeal = {
 const FLOP_STAGGER_MS = 180;
 const TURN_RIVER_STAGGER_MS = 80;
 
-const BOARD_GAP = "gap-1 sm:gap-5 lg:gap-7";
+const BOARD_GAP = "gap-px sm:gap-5 lg:gap-7";
 
 const SHOWDOWN_BOARD_GLOW: Record<MadeHandFxKind, string> = {
   none: "holdem-showdown-default-card-glow",
@@ -276,17 +276,17 @@ export function BoardDisplay({
   return (
     <div
       className={[
-        "rounded-xl border bg-gradient-to-b from-zinc-900 via-zinc-800/95 to-zinc-800/90",
+        "-mx-3 w-[calc(100%+1.5rem)] rounded-xl border bg-gradient-to-b from-zinc-900 via-zinc-800/95 to-zinc-800/90 sm:mx-0 sm:w-auto",
         showdown
-          ? "border-zinc-600/70 px-2 py-1.5 sm:px-3 sm:py-2.5"
-          : "border-amber-900/40 px-2 py-2 shadow-[0_0_40px_rgba(245,158,11,0.06)] sm:px-3.5 sm:py-2.5 lg:px-4 lg:py-3",
+          ? "border-zinc-600/70 px-px py-2 sm:px-3 sm:py-2.5"
+          : "border-amber-900/40 px-px py-2.5 shadow-[0_0_40px_rgba(245,158,11,0.06)] sm:px-3.5 sm:py-2.5 lg:px-4 lg:py-3",
         cinemaStreetPulse ? `holdem-board-cinema-${cinemaStreetPulse}` : "",
       ].join(" ")}
     >
       <div
         className={[
           "holdem-board-perspective relative flex flex-nowrap items-center justify-center overflow-visible",
-          showdown ? "gap-1 sm:gap-3 lg:gap-4" : BOARD_GAP,
+          showdown ? "gap-px sm:gap-3 lg:gap-4" : BOARD_GAP,
         ].join(" ")}
         aria-label={isEn ? "Community cards" : "커뮤니티 카드"}
       >
