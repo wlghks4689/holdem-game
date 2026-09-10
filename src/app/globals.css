@@ -492,7 +492,10 @@ body {
 .holdem-cinema-active .holdem-cinema-board-stage {
   position: relative;
   z-index: 2;
-  transform: scale(1.08);
+  /* scale은 쓰지 않는다. 패널(부모 % 기준)과 카드(vw 기준)가 서로 다른
+     방식으로 폭을 계산해서, 평상시(scale 1.0)에도 패널이 섹션 경계보다
+     이미 몇 px 밖에 있다. 배율을 얼마로 두든 그 불일치가 곱절로 커져서
+     카드가 배경 패널 밖으로 삐져나오므로, 확대감은 밝기·채도만으로 준다. */
   filter: brightness(1.28) saturate(1.2);
   margin-block: 1.25rem;
 }
@@ -512,7 +515,6 @@ body {
 
 @media (max-width: 639px) {
   .holdem-cinema-active .holdem-cinema-board-stage {
-    transform: scale(1.035);
     margin-block: 0.75rem;
   }
 }
