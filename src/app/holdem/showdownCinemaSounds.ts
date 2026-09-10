@@ -113,9 +113,23 @@ export function playBettingCallSound() {
 }
 
 /** 상대 레이즈·베팅·공격적 액션 — 짧은 이중 상승 */
-export function playBettingRaiseSound() {
-  beep(369.99, 0.065, "triangle", 0.062);
-  window.setTimeout(() => beep(554.37, 0.085, "triangle", 0.07), 55);
+export function playBettingRaiseSound(level: 1 | 2 | 3 | 4 | 5 = 2) {
+  const volume = 0.045 + level * 0.007;
+  const low = level >= 4 ? 123.47 : level >= 3 ? 185 : 369.99;
+  beep(low, 0.07 + level * 0.015, level >= 4 ? "sawtooth" : "triangle", volume);
+  window.setTimeout(
+    () => beep(440 + level * 62, 0.07 + level * 0.012, "triangle", volume + 0.006),
+    52,
+  );
+  if (level >= 3) {
+    window.setTimeout(
+      () => beep(554.37 + level * 55, 0.09 + level * 0.01, "sine", volume + 0.004),
+      128,
+    );
+  }
+  if (level >= 5) {
+    window.setTimeout(() => beep(82.41, 0.22, "sine", 0.078), 185);
+  }
 }
 
 /** 상대 체크 — 아주 짧게 */
@@ -133,9 +147,23 @@ export function playHeroCallSound() {
   beep(523.25, 0.07, "sine", 0.036);
 }
 
-export function playHeroRaiseSound() {
-  beep(415.3, 0.06, "triangle", 0.04);
-  window.setTimeout(() => beep(622.25, 0.08, "triangle", 0.042), 52);
+export function playHeroRaiseSound(level: 1 | 2 | 3 | 4 | 5 = 2) {
+  const volume = 0.028 + level * 0.004;
+  const low = level >= 4 ? 146.83 : level >= 3 ? 220 : 415.3;
+  beep(low, 0.06 + level * 0.012, level >= 4 ? "sawtooth" : "triangle", volume);
+  window.setTimeout(
+    () => beep(500 + level * 61, 0.07 + level * 0.01, "triangle", volume + 0.004),
+    52,
+  );
+  if (level >= 3) {
+    window.setTimeout(
+      () => beep(659.25 + level * 42, 0.085 + level * 0.008, "sine", volume + 0.003),
+      124,
+    );
+  }
+  if (level >= 5) {
+    window.setTimeout(() => beep(98, 0.2, "sine", 0.052), 180);
+  }
 }
 
 export function playHeroCheckSound() {

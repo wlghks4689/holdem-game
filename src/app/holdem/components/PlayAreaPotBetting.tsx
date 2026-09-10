@@ -1,6 +1,11 @@
 "use client";
 
 import * as React from "react";
+import {
+  bettingActionPressure,
+  type BettingPressure,
+  type BettingPressureTier,
+} from "../bettingActionPressure";
 import { resolveHandBlinds } from "@/holdem/blindLevels";
 import { chipsAsBbLabel } from "@/holdem/formatBb";
 import {
@@ -28,8 +33,6 @@ function potInBbCompact(pot: number, bbUnit: number): string {
   if (Math.abs(bb - Math.round(bb)) < 1e-6) return `${Math.round(bb)}BB`;
   return `${bb.toFixed(1).replace(/\.0$/, "")}BB`;
 }
-
-const other = (p: PlayerIndex): PlayerIndex => (p === 0 ? 1 : 0);
 
 function tailSignature(logs: readonly GameMessage[]): string {
   const L = logs.length;
@@ -89,23 +92,43 @@ function formatBettingFlashLine(
   return `${name} · ${m.action}`;
 }
 
-function isAggressiveAction(
-  action: string,
-): action is "레이즈" | "베트" | "올인" | "올인 콜" {
-  return (
-    action === "레이즈" ||
-    action === "베트" ||
-    action === "올인" ||
-    action === "올인 콜"
-  );
-}
-
 type ActionStripState = {
   id: number;
   text: string;
   who: "hero" | "opp";
-  agg: boolean;
+  pressure: BettingPressure | null;
+  specialBadge?: "IA";
 };
+
+function pressureBoxClass(tier: BettingPressureTier): string {
+  switch (tier) {
+    case "bet":
+      return "border border-amber-500/45 bg-gradient-to-r from-amber-950/65 via-amber-900/50 to-amber-950/65 shadow-[0_0_14px_rgba(245,158,11,0.14)]";
+    case "raise":
+      return "border border-orange-400/60 bg-gradient-to-r from-orange-950/75 via-orange-900/60 to-orange-950/75 shadow-[0_0_20px_rgba(251,146,60,0.2)]";
+    case "three-bet":
+      return "border border-rose-400/65 bg-gradient-to-r from-rose-950/80 via-rose-900/65 to-rose-950/80 shadow-[0_0_28px_rgba(251,113,133,0.25)]";
+    case "four-plus-bet":
+      return "border border-fuchsia-400/70 bg-gradient-to-r from-fuchsia-950/85 via-rose-900/70 to-fuchsia-950/85 shadow-[0_0_34px_rgba(232,121,249,0.28)]";
+    case "all-in":
+      return "border border-rose-300/80 bg-gradient-to-r from-rose-950/95 via-red-900/80 to-rose-950/95 shadow-[0_0_42px_rgba(244,63,94,0.34)]";
+  }
+}
+
+function pressureBadgeClass(tier: BettingPressureTier): string {
+  switch (tier) {
+    case "bet":
+      return "border-amber-300/60 bg-amber-500/20 text-amber-100";
+    case "raise":
+      return "border-orange-300/70 bg-orange-500/25 text-orange-50";
+    case "three-bet":
+      return "border-rose-300/75 bg-rose-500/30 text-rose-50";
+    case "four-plus-bet":
+      return "border-fuchsia-300/80 bg-fuchsia-500/30 text-fuchsia-50";
+    case "all-in":
+      return "border-rose-200/90 bg-rose-500/40 text-white shadow-[0_0_18px_rgba(251,113,133,0.45)]";
+  }
+}
 
 export type PlayAreaPotBettingProps = {
   state: GameState;
@@ -114,7 +137,7 @@ export type PlayAreaPotBettingProps = {
 };
 
 /**
- * 팟 + 마지막 베팅 액션 스트립(내 액션=에메랄드 / 상대=바이올렛·앰버).
+ * 팟 + 마지막 베팅 액션 스트립. 공격 액션은 베팅 횟수에 따라 압박 단계를 높인다.
  * 새 핸드(`round_start`) 전까지 유지 — 플랍 오픈 등 비액션 로그는 스트립을 덮지 않음.
  */
 export function PlayAreaPotBetting({
@@ -209,7 +232,6 @@ export function PlayAreaPotBetting({
 
     const bb = resolveHandBlinds(s).bb;
     const me = viewer;
-    const opp = other(viewer);
 
     if (last.t === "ia") {
       const isHero = last.player === me;
@@ -223,7 +245,8 @@ export function PlayAreaPotBetting({
           ? `${name} · IA (−${chipsAsBbLabel(last.cost, bb)} · from stack)`
           : `${name} · IA (−${chipsAsBbLabel(last.cost, bb)} · 스택에서 차감)`,
         who: isHero ? "hero" : "opp",
-        agg: true,
+        pressure: null,
+        specialBadge: "IA",
       });
       return;
     }
@@ -233,19 +256,19 @@ export function PlayAreaPotBetting({
     const text = formatBettingFlashLine(last, name, bb, isEn);
     if (!text) return;
 
-    const agg = isAggressiveAction(last.action);
+    const pressure = bettingActionPressure(last, s.betting.raisesThisStreet);
 
     if (isHero) {
-      if (agg) {
-        playHeroRaiseSound();
+      if (pressure) {
+        playHeroRaiseSound(pressure.soundLevel);
       } else if (last.action === "콜") {
         playHeroCallSound();
       } else if (last.action === "체크") {
         playHeroCheckSound();
       }
     } else {
-      if (agg) {
-        playBettingRaiseSound();
+      if (pressure) {
+        playBettingRaiseSound(pressure.soundLevel);
         setPotAggroKey((k) => k + 1);
       } else if (last.action === "콜") {
         playBettingCallSound();
@@ -259,7 +282,7 @@ export function PlayAreaPotBetting({
       id: stripIdRef.current,
       text,
       who: isHero ? "hero" : "opp",
-      agg,
+      pressure,
     });
   }, [logsSig, viewer, playerNames, isEn]);
 
@@ -281,22 +304,28 @@ export function PlayAreaPotBetting({
   const stripBoxClass =
     strip == null
       ? ""
-      : strip.who === "hero"
-        ? strip.agg
+      : strip.pressure
+        ? pressureBoxClass(strip.pressure.tier)
+        : strip.who === "hero"
+          ? strip.specialBadge === "IA"
           ? "border border-emerald-400/50 bg-gradient-to-r from-emerald-950/90 via-emerald-900/65 to-emerald-950/90 shadow-[0_0_18px_rgba(52,211,153,0.2)]"
           : "border border-emerald-600/40 bg-emerald-950/35"
-        : strip.agg
+        : strip.specialBadge === "IA"
           ? "border border-amber-400/50 bg-gradient-to-r from-amber-950/85 via-amber-900/70 to-amber-950/85 shadow-[0_0_20px_rgba(251,191,36,0.18)]"
           : "border border-violet-500/40 bg-violet-950/30";
 
   const stripTextClass =
     strip == null
       ? ""
-      : strip.who === "hero"
-        ? strip.agg
+      : strip.pressure
+        ? strip.pressure.tier === "all-in" || strip.pressure.tier === "four-plus-bet"
+          ? "text-base text-white sm:text-lg"
+          : "text-base text-amber-50 sm:text-lg"
+        : strip.who === "hero"
+          ? strip.specialBadge === "IA"
           ? "text-base text-emerald-50 sm:text-lg"
           : "text-sm text-emerald-100/95 sm:text-base"
-        : strip.agg
+        : strip.specialBadge === "IA"
           ? "text-base text-amber-50 sm:text-lg"
           : "text-sm text-violet-100 sm:text-base";
 
@@ -370,21 +399,44 @@ export function PlayAreaPotBetting({
             key={strip.id}
             className={[
               "rounded-lg px-3 py-2.5 text-center",
-              "animate-[holdem-opponent-action-in_0.28s_cubic-bezier(0.22,1,0.36,1)_both]",
+              strip.pressure ? "holdem-betting-pressure" : "animate-[holdem-opponent-action-in_0.28s_cubic-bezier(0.22,1,0.36,1)_both]",
               stripBoxClass,
             ].join(" ")}
+            style={
+              strip.pressure
+                ? {
+                    animation: `holdem-betting-pressure-in ${strip.pressure.motionMs}ms cubic-bezier(0.22, 1, 0.36, 1) both`,
+                  }
+                : undefined
+            }
             role="status"
             aria-live="polite"
             aria-label={stripAria}
           >
-            <p
-              className={[
-                "font-semibold tabular-nums leading-snug",
-                stripTextClass,
-              ].join(" ")}
-            >
-              {strip.text}
-            </p>
+            <div className="flex flex-wrap items-center justify-center gap-2">
+              {strip.pressure ? (
+                <span
+                  className={[
+                    "holdem-betting-pressure-label rounded-md border px-2 py-0.5 text-xs font-black tracking-[0.12em] sm:text-sm",
+                    pressureBadgeClass(strip.pressure.tier),
+                  ].join(" ")}
+                >
+                  {strip.pressure.badge}
+                </span>
+              ) : strip.specialBadge ? (
+                <span className="rounded-md border border-sky-300/60 bg-sky-500/20 px-2 py-0.5 text-xs font-black tracking-[0.12em] text-sky-100 sm:text-sm">
+                  {strip.specialBadge}
+                </span>
+              ) : null}
+              <p
+                className={[
+                  "font-semibold tabular-nums leading-snug",
+                  stripTextClass,
+                ].join(" ")}
+              >
+                {strip.text}
+              </p>
+            </div>
           </div>
         ) : (
           <div

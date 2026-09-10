@@ -19,6 +19,11 @@ const checks = [
   },
   { group: "ai", label: "All-in call AI", file: "scripts/verify-allin-call-ai.ts" },
   { group: "game", label: "Action timer", file: "scripts/verify-action-timer.ts" },
+  {
+    group: "game",
+    label: "Betting pressure feedback",
+    file: "scripts/verify-betting-pressure.ts",
+  },
   { group: "game", label: "All-in actions", file: "scripts/verify-allin-actions.ts" },
   { group: "game", label: "All-in cinema", file: "scripts/verify-allin-cinema.ts" },
   {
