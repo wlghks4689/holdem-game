@@ -27,9 +27,9 @@ const sizeFrames = {
   compact: "h-[4.35rem] w-[3.15rem] shrink-0",
   /** 모바일: 좁은 보드에서도 5장이 항상 한 줄 / sm+(640px+): 원래 크기 */
   board: "h-[3.6rem] w-[2.6rem] sm:h-[5.38rem] sm:w-[3.85rem] shrink-0",
-  /** 주요 카드 — 모바일 보드 5장이 한 줄에 들어오면서 홀 카드와 같은 크기 */
-  community: "h-[clamp(4.66rem,23.3vw,6.15rem)] w-[clamp(3.5rem,17.5vw,4.62rem)] shrink-0",
-  hero: "h-[clamp(4.66rem,23.3vw,6.15rem)] w-[clamp(3.5rem,17.5vw,4.62rem)] shrink-0",
+  /** 주요 카드 — 360px을 모바일 최소 폭으로 삼고 보드·홀 카드 크기를 통일 */
+  community: "h-[clamp(5.242rem,23.3vw,6.15rem)] w-[clamp(3.9375rem,17.5vw,4.62rem)] shrink-0",
+  hero: "h-[clamp(5.242rem,23.3vw,6.15rem)] w-[clamp(3.9375rem,17.5vw,4.62rem)] shrink-0",
 } as const;
 
 export type CardSize = keyof typeof sizeFrames;
