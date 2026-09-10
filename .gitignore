@@ -21,6 +21,9 @@
 # production
 /build
 
+# generated showcase recordings
+/artifacts/showcase/
+
 # misc
 .DS_Store
 *.pem
