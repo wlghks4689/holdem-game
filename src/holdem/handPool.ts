@@ -13,12 +13,12 @@ import { MYSTERY_HAND_COST } from "./gameModeRules";
 export const SUITS: Suit[] = ["c", "d", "h", "s"];
 export const HAND_COST_STARTING_POINTS = 100;
 
-const CAT_HIGH_PAIR = "?섏씠?뚯폆";
-const CAT_AX_OFFSUIT = "Ax ?ㅽ봽?섑듃";
-const CAT_BROADWAY_SUITED = "釉뚮줈?쒖썾???섎뵩";
-const CAT_MIDDLE_PAIR = "誘몃뱾?뚯폆";
-const CAT_LOW_PAIR = "濡쒖슦?뚯폆";
-const CAT_SUITED_CONNECTOR = "而ㅻ꽖???섎뵩";
+const CAT_HIGH_PAIR = "하이파켓";
+const CAT_AX_OFFSUIT = "Ax 오프수트";
+const CAT_BROADWAY_SUITED = "브로드웨이 수딧";
+const CAT_MIDDLE_PAIR = "미들파켓";
+const CAT_LOW_PAIR = "로우파켓";
+const CAT_SUITED_CONNECTOR = "커넥터 수딧";
 
 export function normalizeGameMode(raw: unknown): HoldemGameMode {
   return raw === "cost" ? "cost" : "classic";
@@ -96,25 +96,25 @@ function suited(
 }
 
 export const CLASSIC_HAND_TEMPLATES: HandPoolTemplate[] = [
-  pair("hi_AA", 14, 1, "?섏씠?뚯폆"),
-  pair("hi_KK", 13, 1, "?섏씠?뚯폆"),
-  pair("hi_QQ", 12, 1, "?섏씠?뚯폆"),
-  pair("hi_JJ", 11, 1, "?섏씠?뚯폆"),
+  pair("hi_AA", 14, 1, "하이파켓"),
+  pair("hi_KK", 13, 1, "하이파켓"),
+  pair("hi_QQ", 12, 1, "하이파켓"),
+  pair("hi_JJ", 11, 1, "하이파켓"),
   off("axo_AKo", 14, 13, 1),
   off("axo_AQo", 14, 12, 2),
   off("axo_AJo", 14, 11, 3),
-  suited("bw_KQs", 13, 12, 2, "釉뚮줈?쒖썾???섎뵩"),
-  suited("bw_KJs", 13, 11, 2, "釉뚮줈?쒖썾???섎뵩"),
-  suited("bw_KTs", 13, 10, 2, "釉뚮줈?쒖썾???섎뵩"),
-  suited("bw_QJs", 12, 11, 2, "釉뚮줈?쒖썾???섎뵩"),
-  suited("bw_QTs", 12, 10, 2, "釉뚮줈?쒖썾???섎뵩"),
-  suited("bw_JTs", 11, 10, 2, "釉뚮줈?쒖썾???섎뵩"),
-  pair("mid_77", 7, 2, "誘몃뱾?뚯폆"),
-  pair("mid_88", 8, 2, "誘몃뱾?뚯폆"),
-  pair("mid_99", 9, 1, "誘몃뱾?뚯폆"),
-  pair("mid_TT", 10, 1, "誘몃뱾?뚯폆"),
+  suited("bw_KQs", 13, 12, 2, "브로드웨이 수딧"),
+  suited("bw_KJs", 13, 11, 2, "브로드웨이 수딧"),
+  suited("bw_KTs", 13, 10, 2, "브로드웨이 수딧"),
+  suited("bw_QJs", 12, 11, 2, "브로드웨이 수딧"),
+  suited("bw_QTs", 12, 10, 2, "브로드웨이 수딧"),
+  suited("bw_JTs", 11, 10, 2, "브로드웨이 수딧"),
+  pair("mid_77", 7, 2, "미들파켓"),
+  pair("mid_88", 8, 2, "미들파켓"),
+  pair("mid_99", 9, 1, "미들파켓"),
+  pair("mid_TT", 10, 1, "미들파켓"),
   ...([2, 3, 4, 5, 6] as const).map((r) =>
-    pair(`low_${rankChar(r)}${rankChar(r)}`, r, 3, "濡쒖슦?뚯폆"),
+    pair(`low_${rankChar(r)}${rankChar(r)}`, r, 3, "로우파켓"),
   ),
   ...(() => {
     const conn: HandPoolTemplate[] = [];
@@ -126,7 +126,7 @@ export const CLASSIC_HAND_TEMPLATES: HandPoolTemplate[] = [
           hi,
           lo,
           3,
-          "而ㅻ꽖???섎뵩",
+          "커넥터 수딧",
         ),
       );
     }
@@ -172,10 +172,10 @@ const OFFICIAL_HAND_COSTS: Record<string, number> = {
 };
 
 export const COST_HAND_TEMPLATES: HandPoolTemplate[] = [
-  pair("hi_AA", 14, 1, "?섏씠?뚯폆", OFFICIAL_HAND_COSTS.hi_AA!),
-  pair("hi_KK", 13, 1, "?섏씠?뚯폆", OFFICIAL_HAND_COSTS.hi_KK!),
-  pair("hi_QQ", 12, 1, "?섏씠?뚯폆", OFFICIAL_HAND_COSTS.hi_QQ!),
-  pair("hi_JJ", 11, 1, "?섏씠?뚯폆", OFFICIAL_HAND_COSTS.hi_JJ!),
+  pair("hi_AA", 14, 1, "하이파켓", OFFICIAL_HAND_COSTS.hi_AA!),
+  pair("hi_KK", 13, 1, "하이파켓", OFFICIAL_HAND_COSTS.hi_KK!),
+  pair("hi_QQ", 12, 1, "하이파켓", OFFICIAL_HAND_COSTS.hi_QQ!),
+  pair("hi_JJ", 11, 1, "하이파켓", OFFICIAL_HAND_COSTS.hi_JJ!),
   axSuited("axs_AKs", 14, 13, OFFICIAL_HAND_COSTS.axs_AKs!),
   axSuited("axs_AQs", 14, 12, OFFICIAL_HAND_COSTS.axs_AQs!),
   axSuited("axs_AJs", 14, 11, OFFICIAL_HAND_COSTS.axs_AJs!),
@@ -183,26 +183,26 @@ export const COST_HAND_TEMPLATES: HandPoolTemplate[] = [
   off("axo_AKo", 14, 13, 1, OFFICIAL_HAND_COSTS.axo_AKo!),
   off("axo_AQo", 14, 12, 1, OFFICIAL_HAND_COSTS.axo_AQo!),
   off("axo_AJo", 14, 11, 1, OFFICIAL_HAND_COSTS.axo_AJo!),
-  suited("bw_KQs", 13, 12, 1, "釉뚮줈?쒖썾???섎뵩", OFFICIAL_HAND_COSTS.bw_KQs!),
-  suited("bw_KJs", 13, 11, 1, "釉뚮줈?쒖썾???섎뵩", OFFICIAL_HAND_COSTS.bw_KJs!),
-  suited("bw_QJs", 12, 11, 1, "釉뚮줈?쒖썾???섎뵩", OFFICIAL_HAND_COSTS.bw_QJs!),
-  suited("bw_KTs", 13, 10, 1, "釉뚮줈?쒖썾???섎뵩", OFFICIAL_HAND_COSTS.bw_KTs!),
-  suited("bw_QTs", 12, 10, 1, "釉뚮줈?쒖썾???섎뵩", OFFICIAL_HAND_COSTS.bw_QTs!),
-  suited("bw_JTs", 11, 10, 1, "釉뚮줈?쒖썾???섎뵩", OFFICIAL_HAND_COSTS.bw_JTs!),
-  pair("mid_TT", 10, 1, "誘몃뱾?뚯폆", OFFICIAL_HAND_COSTS.mid_TT!),
-  pair("mid_99", 9, 1, "誘몃뱾?뚯폆", OFFICIAL_HAND_COSTS.mid_99!),
-  pair("mid_88", 8, 1, "誘몃뱾?뚯폆", OFFICIAL_HAND_COSTS.mid_88!),
-  pair("mid_77", 7, 1, "誘몃뱾?뚯폆", OFFICIAL_HAND_COSTS.mid_77!),
+  suited("bw_KQs", 13, 12, 1, "브로드웨이 수딧", OFFICIAL_HAND_COSTS.bw_KQs!),
+  suited("bw_KJs", 13, 11, 1, "브로드웨이 수딧", OFFICIAL_HAND_COSTS.bw_KJs!),
+  suited("bw_QJs", 12, 11, 1, "브로드웨이 수딧", OFFICIAL_HAND_COSTS.bw_QJs!),
+  suited("bw_KTs", 13, 10, 1, "브로드웨이 수딧", OFFICIAL_HAND_COSTS.bw_KTs!),
+  suited("bw_QTs", 12, 10, 1, "브로드웨이 수딧", OFFICIAL_HAND_COSTS.bw_QTs!),
+  suited("bw_JTs", 11, 10, 1, "브로드웨이 수딧", OFFICIAL_HAND_COSTS.bw_JTs!),
+  pair("mid_TT", 10, 1, "미들파켓", OFFICIAL_HAND_COSTS.mid_TT!),
+  pair("mid_99", 9, 1, "미들파켓", OFFICIAL_HAND_COSTS.mid_99!),
+  pair("mid_88", 8, 1, "미들파켓", OFFICIAL_HAND_COSTS.mid_88!),
+  pair("mid_77", 7, 1, "미들파켓", OFFICIAL_HAND_COSTS.mid_77!),
   ...([2, 3, 4, 5, 6] as const).map((r) => {
     const id = `low_${rankChar(r)}${rankChar(r)}`;
-    return pair(id, r, 1, "濡쒖슦?뚯폆", OFFICIAL_HAND_COSTS[id]!);
+    return pair(id, r, 1, "로우파켓", OFFICIAL_HAND_COSTS[id]!);
   }),
   ...(() => {
     const conn: HandPoolTemplate[] = [];
     for (let lo = 2; lo <= 9; lo++) {
       const hi = lo + 1;
       const id = `conn_${rankChar(lo)}${rankChar(hi)}s`;
-      conn.push(suited(id, hi, lo, 1, "而ㅻ꽖???섎뵩", OFFICIAL_HAND_COSTS[id]!));
+      conn.push(suited(id, hi, lo, 1, "커넥터 수딧", OFFICIAL_HAND_COSTS[id]!));
     }
     return conn;
   })(),
@@ -319,7 +319,7 @@ export function holeFromTemplate(
 ): { ok: true; hole: [Card, Card] } | { ok: false; reason: string } {
   const [r1, r2] = t.ranks;
   if (t.kind === "pair") {
-    if (suits[0] === suits[1]) return { ok: false, reason: "?섏뼱???쒕줈 ?ㅻⅨ 臾몄뼇?댁뼱???⑸땲??" };
+    if (suits[0] === suits[1]) return { ok: false, reason: "페어는 서로 다른 문양이어야 합니다." };
     return {
       ok: true,
       hole: [
@@ -329,7 +329,7 @@ export function holeFromTemplate(
     };
   }
   if (t.kind === "suited") {
-    if (suits[0] !== suits[1]) return { ok: false, reason: "?섎뵩 ?몃뱶??媛숈? 臾몄뼇?댁뼱???⑸땲??" };
+    if (suits[0] !== suits[1]) return { ok: false, reason: "수딧 핸드는 같은 문양이어야 합니다." };
     return {
       ok: true,
       hole: [
@@ -338,7 +338,7 @@ export function holeFromTemplate(
       ],
     };
   }
-  if (suits[0] === suits[1]) return { ok: false, reason: "?ㅽ봽?섑듃???쒕줈 ?ㅻⅨ 臾몄뼇?댁뼱???⑸땲??" };
+  if (suits[0] === suits[1]) return { ok: false, reason: "오프수트는 서로 다른 문양이어야 합니다." };
   return {
     ok: true,
     hole: [
