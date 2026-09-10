@@ -20,15 +20,6 @@ export const TOTAL_ROUNDS = 30;
 /** Hell: 마지막 N라운드에서 배당·엔드게임 보정(역전/칩 우위 운영) */
 export const HELL_ENDGAME_LAST_ROUNDS = 3;
 
-/** 프리플랍 팟 상한(bb) — 양측 합산 팟이 이 값을 넘지 않도록 제한(유지) */
-export const PREFLOP_MAX_POT_BB = 15;
-
-/** 프리플랍·플랍·턴·리버 각각에서 추가 레이즈(또는 프리 올인 오픈) 가능 횟수 상한 — 3회째 레이즈 이후 상대는 콜/폴드만 */
-export const MAX_RAISES_PER_STREET = 3;
-
-/** 남은 스택이 이 BB 이하일 때 프리플랍 올인(전액 레이즈) 허용 */
-export const PREFLOP_SHORT_STACK_ALL_IN_MAX_BB = 15;
-
 /** AI의 통상 포스트플랍 베팅/레이즈 크기 상한. 게임 규칙 자체는 노리밋이며, 1.0은 팟사이즈 후보까지만 생성한다. */
 export const POSTFLOP_MAX_BET_POT_FRACTION = 1.0;
 

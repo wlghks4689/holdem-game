@@ -5,9 +5,6 @@ import {
   TOTAL_ROUNDS,
   STARTING_CHIPS,
   IA_COST_MIN_BB,
-  PREFLOP_MAX_POT_BB,
-  MAX_RAISES_PER_STREET,
-  PREFLOP_SHORT_STACK_ALL_IN_MAX_BB,
 } from "@/holdem/constants";
 import { useHoldemI18n } from "@/holdem/i18n/HoldemLocaleProvider";
 

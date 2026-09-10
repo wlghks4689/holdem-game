@@ -93,12 +93,6 @@ export function splitPotTwoWayChopChips(
   return { share0, share1 };
 }
 
-export function preflopMaxPotChips(s: GameState): number {
-  // 노리밋 텍사스 홀덤: 프리플랍에 인위적인 팟 상한이 없다.
-  void s;
-  return Number.POSITIVE_INFINITY;
-}
-
 /** 프리플랍: 블라인드+앤티만 반영된 시작 팟 (프리플랍 액션 전) = SB + BB + 앤티 */
 export function preflopDeadPotChips(s: GameState): number {
   const { sb, bb, ante } = resolveHandBlinds(s);
@@ -187,7 +181,7 @@ export function maxMatchedTotalForPlayer(s: GameState, player: PlayerIndex): num
   return roundHalfChip(s.betting.contributed[player]! + s.chips[player]!);
 }
 
-/** 프리플랍 최대 총 기여: 팟 캡(15bb) 기반 + 상대 스택 상한 */
+/** 프리플랍 최대 총 기여: 노리밋 규칙에 따라 액터의 전체 스택까지 */
 export function preflopMaxRaiseTargetForActor(s: GameState): number {
   // 노리밋: 프리플랍 레이즈 최대 총 기여 = 내 스택까지
   const p = s.toAct!;
@@ -204,7 +198,7 @@ export function streetRaiseCapReached(b: BettingRoundMeta): boolean {
 export function canActorPreflopRaise(s: GameState): boolean {
   const p = s.toAct;
   if (p == null || s.phase !== "preflop" || s.preflopStage == null) return false;
-  // 레이즈 타이밍·좌석만 검사; 팟 캡·스트리트당 레이즈 상한은 별도 헬퍼에서 처리
+  // 레이즈 타이밍·좌석만 검사한다.
   if (p === s.button) {
     return s.preflopStage === "button_acts" || s.preflopStage === "facing_raise";
   }
@@ -272,8 +266,7 @@ export function effectiveStackBb(s: GameState, hero: PlayerIndex): number {
 }
 
 /**
- * 15bb 이하 프리플랍 올인(전액 레이즈): 레이즈 가능 차례·레벨 초과 전액 투입.
- * 일반 프리플랍 `PREFLOP_MAX_POT_BB`(맥스 팟) 캡은 일반 레이즈에만 적용하고, 숏스택 전액 올인은 캡을 적용하지 않는다.
+ * 프리플랍 올인(전액 레이즈): 레이즈 가능 차례에 현재 레벨을 초과해 전액 투입한다.
  */
 export function canPreflopShortStackAllInShove(s: GameState): boolean {
   const p = s.toAct;

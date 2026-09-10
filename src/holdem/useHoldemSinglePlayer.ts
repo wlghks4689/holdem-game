@@ -86,7 +86,7 @@ export function useHoldemSinglePlayer({
       if (difficulty === "hell") {
         const cur = stateRef.current;
         if (cur.toAct === humanSeat) {
-          hellPatternRef.current.onHumanAction(humanSeat, a);
+          hellPatternRef.current.onHumanAction(a);
         }
       }
       rawDispatch(a);
@@ -114,7 +114,7 @@ export function useHoldemSinglePlayer({
       prevPhaseForHellRef.current !== "hand_over" &&
       state.phase === "hand_over"
     ) {
-      hellPatternRef.current.finalizeHand(state, humanSeat);
+      hellPatternRef.current.finalizeHand(state);
     }
     prevPhaseForHellRef.current = state.phase;
   }, [difficulty, humanSeat, state.phase, state.handEndMode]);

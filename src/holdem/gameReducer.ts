@@ -7,12 +7,10 @@ import {
   totalIaChipsRemovedFromLogs,
   levelFromContributions,
   postflopMaxOpenBetForActor,
-  postflopRaiseTargetCappedByOpponent,
   canPreflopShortStackAllInShove,
   headsUpSubBbVoluntaryEnabled,
   isLegalPreflopRaiseTarget,
   isVoluntaryBetAmount,
-  preflopMaxPotChips,
   postflopMinRaiseTargetForActor,
   roundHalfChip,
   splitPotTwoWayChopChips,
@@ -39,7 +37,6 @@ import {
 import { compareHandValue, best5Of7, handValueSummaryKorean } from "./pokerEval";
 import {
   ALL_IN_RUNOUT_LAST_NOTE,
-  MAX_RAISES_PER_STREET,
   SMALLEST_CHIP,
 } from "./constants";
 import {

@@ -60,7 +60,7 @@ export type BettingRoundMeta = {
   /**
    * 이번 스트리트에서 이미 나온 레이즈 횟수(프리플랍·포스트플랍 공통).
    * 오픈 레이즈(PREFLOP_RAISE, 포스트의 POSTFLOP_RAISE만 — 베트는 제외) 및
-   * 레이즈 성격의 프리 올인(PREFLOP_ALL_IN)마다 +1. `MAX_RAISES_PER_STREET` 도달 후 추가 레이즈 불가.
+   * 레이즈 성격의 프리 올인(PREFLOP_ALL_IN)마다 +1. 액션 라벨 계산에 사용한다.
    */
   raisesThisStreet: number;
 };
@@ -145,7 +145,7 @@ export type GameState = {
   /** 핸드 선택: `open`이면 양쪽이 동시에 고르고 각각 확정 가능 */
   handSelectPhase: "open" | "done";
   preflopStage: PreflopStage | null;
-  /** 프리플랍 레이즈(및 프리 올인) 횟수 — UI 힌트 등(팟 캡·최소 레이즈로 실제 제한) */
+  /** 프리플랍 레이즈(및 프리 올인) 횟수 — UI 힌트와 액션 라벨에 사용 */
   preflopRaiseCount: number;
   /** 리버에서 IA 사용 여부 (플레이어별) */
   iaUsed: [boolean, boolean];
@@ -190,7 +190,7 @@ export type GameAction =
   /** BB 옵션: 버튼이 콜만 했을 때 추가 칩 없이 통과 */
   | { type: "PREFLOP_CHECK" }
   | { type: "PREFLOP_RAISE"; toLevelChips: number }
-  /** 15bb 이하 스택: 프리플랍 전액 레이즈(일반 최소·상한·BB배수 규칙 면제, 팟 캡은 유지) */
+  /** 프리플랍 전액 레이즈(일반 최소 레이즈 단위를 충족하지 못하는 부분 올인 포함) */
   | { type: "PREFLOP_ALL_IN" }
   | { type: "POSTFLOP_CHECK" }
   | { type: "POSTFLOP_BET"; amount: number }

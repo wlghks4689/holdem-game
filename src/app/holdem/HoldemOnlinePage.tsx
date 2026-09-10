@@ -86,7 +86,7 @@ export function HoldemOnlinePage(props: {
     return () => window.removeEventListener(HOLDEM_PREFS_CHANGED_EVENT, onPrefs);
   }, [buildOnlinePlayerNames]);
 
-  const updateName = React.useCallback((_p: PlayerIndex, _raw: string) => {
+  const updateName = React.useCallback(() => {
     /* 온라인: 닉네임은 환경설정에서만 변경 */
   }, []);
 

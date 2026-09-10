@@ -1,7 +1,7 @@
 /**
  * Hell: 최근 핸드에서 유저(휴먼) 패턴 추적 → AI가 “읽는” 듯한 보정.
  */
-import type { GameAction, GameState, PlayerIndex } from "./types";
+import type { GameAction, GameState } from "./types";
 
 const MAX_HANDS = 10;
 const MIN_SAMPLES = 2;
@@ -48,7 +48,7 @@ export class HellUserPatternTracker {
     };
   }
 
-  onHumanAction(humanSeat: PlayerIndex, action: GameAction): void {
+  onHumanAction(action: GameAction): void {
     switch (action.type) {
       case "PREFLOP_RAISE":
       case "PREFLOP_ALL_IN":
@@ -65,7 +65,7 @@ export class HellUserPatternTracker {
     }
   }
 
-  finalizeHand(state: GameState, humanSeat: PlayerIndex): void {
+  finalizeHand(state: GameState): void {
     const showdown =
       state.handEndMode === "showdown" && !this.cur.humanFolded;
     const rec: HellUserHandRecord = {
