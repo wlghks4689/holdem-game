@@ -10,10 +10,10 @@ import type { GameAction, GameState, PlayerIndex, SelectedHand } from "../src/ho
 const expectedLevels = [
   [1, 0.5, 1, 1],
   [5, 0.5, 1, 1],
-  [6, 1, 1.5, 1.5],
-  [10, 1, 1.5, 1.5],
-  [11, 1, 2, 2],
-  [15, 1, 2, 2],
+  [6, 1, 2, 2],
+  [10, 1, 2, 2],
+  [11, 2, 4, 4],
+  [15, 2, 4, 4],
 ] as const;
 
 for (const [round, smallBlind, bigBlind, ante] of expectedLevels) {
@@ -62,12 +62,12 @@ function endedRound(roundNumber: number, chips: [number, number]): GameState {
 
 const afterFive = holdemReducer(endedRound(5, [100, 100]), { type: "NEW_HAND" }, () => 0.3);
 assert.equal(afterFive.roundNumber, 6);
-assert.deepEqual(afterFive.handBlinds, { sb: 1, bb: 1.5, ante: 1.5 });
+assert.deepEqual(afterFive.handBlinds, { sb: 1, bb: 2, ante: 2 });
 assert.equal(afterFive.matchEnded, false);
 
 const afterTen = holdemReducer(endedRound(10, [100, 100]), { type: "NEW_HAND" }, () => 0.3);
 assert.equal(afterTen.roundNumber, 11);
-assert.deepEqual(afterTen.handBlinds, { sb: 1, bb: 2, ante: 2 });
+assert.deepEqual(afterTen.handBlinds, { sb: 2, bb: 4, ante: 4 });
 
 const liveFifteen = {
   ...endedRound(15, [110, 90]),
@@ -110,8 +110,8 @@ assert.ok(behindEarly.urgency > 0 && behindEarly.urgency < 0.3);
 assert.ok(behindLate.urgency > behindEarly.urgency);
 assert.ok(behindLate.urgency > 0.65);
 assert.equal(behindLate.remainingRounds, 2);
-assert.equal(behindLate.bigBlind, 2);
-assert.equal(behindLate.effectiveStackBb, 17.5);
+assert.equal(behindLate.bigBlind, 4);
+assert.equal(behindLate.effectiveStackBb, 8.75);
 assert.equal(leadingLate.urgency, 0);
 assert.equal(turboAiUrgency(createInitialGameState("cost", "deep"), 1), null);
 assert.equal(turboAiUrgency(createInitialGameState("classic"), 1), null);

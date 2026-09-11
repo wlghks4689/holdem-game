@@ -26,8 +26,8 @@ const DEEP_STACK_LEVELS: readonly CostBlindLevel[] = [
 
 export const TURBO_LEVELS: readonly CostBlindLevel[] = [
   { fromRound: 1, toRound: 5, smallBlind: 0.5, bigBlind: 1, ante: 1 },
-  { fromRound: 6, toRound: 10, smallBlind: 1, bigBlind: 1.5, ante: 1.5 },
-  { fromRound: 11, toRound: 15, smallBlind: 1, bigBlind: 2, ante: 2 },
+  { fromRound: 6, toRound: 10, smallBlind: 1, bigBlind: 2, ante: 2 },
+  { fromRound: 11, toRound: 15, smallBlind: 2, bigBlind: 4, ante: 4 },
 ];
 
 export const COST_GAME_STRUCTURES: Record<CostGameStructure, CostGameStructureConfig> = {
