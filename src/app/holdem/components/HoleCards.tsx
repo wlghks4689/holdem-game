@@ -177,6 +177,10 @@ export function HoleCards({
    * 올인 쇼다운 시네마의 턴/리버 런아웃도 phase가 이미 "showdown"으로
    * 바뀐 뒤 boardRevealed만 올라가므로, 아래 쇼다운 족보 라벨도 반드시
    * 이 지연값을 같이 써야 카드가 깔리는 도중에 라벨이 먼저 바뀌지 않는다.
+   * 인플레이(쇼다운 전)는 BoardDisplay가 체크/콜 직후 카드를 열기 전
+   * 500ms를 더 쉬므로(다음 스트릿 전환 텀), 그 500ms만큼 라벨도 더
+   * 늦게 따라가야 카드보다 라벨이 먼저 바뀌지 않는다. 쇼다운/시네마는
+   * BoardDisplay의 그 500ms 텀을 타지 않으므로(자체 타임라인) 900ms 그대로.
    */
   const [delayedBoardRevealed, setDelayedBoardRevealed] = React.useState(
     state.boardRevealed,
@@ -195,14 +199,14 @@ export function HoleCards({
       setDelayedBoardRevealed(state.boardRevealed);
       return;
     }
-    const delayMs = 900;
+    const delayMs = showdownReveal ? 900 : 1400;
     const nextRevealed = state.boardRevealed;
     const t = window.setTimeout(() => {
       delayedRevealedRef.current = nextRevealed;
       setDelayedBoardRevealed(nextRevealed);
     }, delayMs);
     return () => window.clearTimeout(t);
-  }, [state.boardRevealed, state.roundNumber, subtleMotion]);
+  }, [showdownReveal, state.boardRevealed, state.roundNumber, subtleMotion]);
 
   const showdownHandLabels = React.useMemo(() => {
     const h0 = state.holes[0];

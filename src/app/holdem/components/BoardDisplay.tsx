@@ -157,6 +157,42 @@ export function BoardDisplay({
   const slots = [0, 1, 2, 3, 4] as const;
   const showdown = state.phase === "showdown";
 
+  /**
+   * 체크·콜로 스트리트가 넘어가는 순간 팟에 칩이 모이자마자 다음 카드가
+   * 바로 깔리면 너무 급하게 느껴진다는 피드백으로, 실제 boardRevealed가
+   * 늘어날 때만 500ms 쉬었다가 카드를 깐다. 올인 시네마(visualRevealedOverride
+   * 사용 중)는 이미 자체 타임라인으로 텀을 두므로 그대로 즉시 반영하고,
+   * 라운드가 바뀌거나 줄어들 때(레빗 헌트 등)는 지연 없이 바로 따라간다.
+   */
+  const [delayedRev, setDelayedRev] = React.useState(rev);
+  const delayedRevRef = React.useRef(rev);
+  const delayedRevRoundRef = React.useRef(state.roundNumber);
+  React.useEffect(() => {
+    if (visualRevealedOverride != null) {
+      delayedRevRef.current = rev;
+      delayedRevRoundRef.current = state.roundNumber;
+      setDelayedRev(rev);
+      return;
+    }
+    if (delayedRevRoundRef.current !== state.roundNumber) {
+      delayedRevRoundRef.current = state.roundNumber;
+      delayedRevRef.current = rev;
+      setDelayedRev(rev);
+      return;
+    }
+    if (rev <= delayedRevRef.current) {
+      delayedRevRef.current = rev;
+      setDelayedRev(rev);
+      return;
+    }
+    const nextRev = rev;
+    const t = window.setTimeout(() => {
+      delayedRevRef.current = nextRev;
+      setDelayedRev(nextRev);
+    }, 500);
+    return () => window.clearTimeout(t);
+  }, [rev, state.roundNumber, visualRevealedOverride]);
+
   const showdownMadeKeySet = React.useMemo(() => {
     // 올인 시네마 리빌 단계(긴장감 구간)에는 디밍을 걸지 않는다.
     if (state.phase !== "showdown" || cinematicFlip || !showdownFxArmed) {
@@ -166,7 +202,7 @@ export function BoardDisplay({
     const h1 = state.holes[1];
     if (!h0 || !h1) return null;
     // 보드 5장이 모두 공개된 뒤에만 "승부에 사용된 5장" 하이라이트가 명확하다.
-    if (rev < 5) return null;
+    if (delayedRev < 5) return null;
 
     const all0 = [...h0.hole, ...state.board];
     const all1 = [...h1.hole, ...state.board];
@@ -190,10 +226,10 @@ export function BoardDisplay({
         fxKind: madeHandFxKind(cmp > 0 ? v0 : v1),
       };
     }
-  }, [cinematicFlip, rev, showdownFxArmed, state.board, state.holes, state.phase]);
+  }, [cinematicFlip, delayedRev, showdownFxArmed, state.board, state.holes, state.phase]);
 
   const [enterDeals, setEnterDeals] = React.useState<EnterDeal[]>([]);
-  const prevRevRef = React.useRef(rev);
+  const prevRevRef = React.useRef(delayedRev);
   const enterDealRoundRef = React.useRef(state.roundNumber);
   const dealSeqRef = React.useRef(1);
   const clearTimersRef = React.useRef<number[]>([]);
@@ -225,24 +261,24 @@ export function BoardDisplay({
   React.useEffect(() => {
     if (enterDealRoundRef.current !== state.roundNumber) {
       setEnterDeals([]);
-      prevRevRef.current = rev;
+      prevRevRef.current = delayedRev;
       enterDealRoundRef.current = state.roundNumber;
       for (const t of clearTimersRef.current) window.clearTimeout(t);
       clearTimersRef.current = [];
       return;
     }
     const prev = prevRevRef.current;
-    if (rev <= prev) {
-      prevRevRef.current = rev;
+    if (delayedRev <= prev) {
+      prevRevRef.current = delayedRev;
       return;
     }
     const next: EnterDeal[] = [];
-    for (let i = prev; i < rev; i++) {
+    for (let i = prev; i < delayedRev; i++) {
       if (!state.board[i]) continue;
       const built = buildEnterDeal(
         i,
         prev,
-        rev,
+        delayedRev,
         subtleMotion,
         cinematicFlip,
         dealSeqRef.current++,
@@ -277,10 +313,10 @@ export function BoardDisplay({
         if (sfxTimer != null) clearTimersRef.current.push(sfxTimer);
       }
     }
-    prevRevRef.current = rev;
-  }, [rev, state.board, state.roundNumber, cinematicFlip, subtleMotion]);
+    prevRevRef.current = delayedRev;
+  }, [delayedRev, state.board, state.roundNumber, cinematicFlip, subtleMotion]);
 
-  const tailIndices = slots.filter((i) => i >= rev && i < 5);
+  const tailIndices = slots.filter((i) => i >= delayedRev && i < 5);
   const rabbitTail = rabbitHunt?.active === true && tailIndices.length > 0;
   const rabbitSingleTail = rabbitTail && tailIndices.length === 1;
 
@@ -318,7 +354,7 @@ export function BoardDisplay({
           </div>
         ) : null}
         {slots.map((i) => {
-          if (i < rev && state.board[i]) {
+          if (i < delayedRev && state.board[i]) {
             const c = state.board[i]!;
             const slotDeals = enterDeals.filter((d) => d.slot === i);
             const hasEnterDeal = slotDeals.length > 0;
