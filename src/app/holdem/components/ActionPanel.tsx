@@ -98,6 +98,7 @@ function BetAmountInput({
   onChange,
   onSubmit,
   isEn,
+  disabled = false,
 }: {
   value: number;
   min: number;
@@ -107,6 +108,8 @@ function BetAmountInput({
   onChange: (v: number) => void;
   onSubmit: (v: number) => void;
   isEn: boolean;
+  /** 내 차례가 아닐 때: 값 표시는 유지하되 조작 불가 */
+  disabled?: boolean;
 }) {
   const toBb = React.useCallback(
     (chips: number) => chips / Math.max(bbUnit, 1e-9),
@@ -173,9 +176,10 @@ function BetAmountInput({
         <div className="flex items-stretch gap-1.5">
           <button
             type="button"
+            disabled={disabled}
             aria-label={isEn ? "Decrease by 0.5 BB" : "0.5BB 감소"}
             onClick={() => setChips(value - step)}
-            className="min-w-11 rounded-lg border border-zinc-600/80 bg-zinc-800 px-2 text-sm font-bold text-zinc-200 hover:bg-zinc-700"
+            className="min-w-11 rounded-lg border border-zinc-600/80 bg-zinc-800 px-2 text-sm font-bold text-zinc-200 hover:bg-zinc-700 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-zinc-800"
           >
             −0.5
           </button>
@@ -185,6 +189,7 @@ function BetAmountInput({
               inputMode="decimal"
               autoComplete="off"
               value={draft}
+              disabled={disabled}
               aria-label={isEn ? "Bet amount in big blinds" : "BB 기준 베팅 금액"}
               aria-describedby={message ? "bet-amount-message" : undefined}
               onChange={(event) => {
@@ -201,7 +206,7 @@ function BetAmountInput({
                   commit(true);
                 }
               }}
-              className="h-10 w-full rounded-lg border border-emerald-500/70 bg-zinc-950/80 px-3 pr-11 text-center font-mono text-lg font-extrabold tabular-nums text-emerald-100 outline-none transition focus:border-emerald-300 focus:ring-2 focus:ring-emerald-400/25"
+              className="h-10 w-full rounded-lg border border-emerald-500/70 bg-zinc-950/80 px-3 pr-11 text-center font-mono text-lg font-extrabold tabular-nums text-emerald-100 outline-none transition focus:border-emerald-300 focus:ring-2 focus:ring-emerald-400/25 disabled:cursor-not-allowed disabled:opacity-40"
             />
             <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-zinc-400">
               BB
@@ -209,9 +214,10 @@ function BetAmountInput({
           </div>
           <button
             type="button"
+            disabled={disabled}
             aria-label={isEn ? "Increase by 0.5 BB" : "0.5BB 증가"}
             onClick={() => setChips(value + step)}
-            className="min-w-11 rounded-lg border border-zinc-600/80 bg-zinc-800 px-2 text-sm font-bold text-zinc-200 hover:bg-zinc-700"
+            className="min-w-11 rounded-lg border border-zinc-600/80 bg-zinc-800 px-2 text-sm font-bold text-zinc-200 hover:bg-zinc-700 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-zinc-800"
           >
             +0.5
           </button>
@@ -226,29 +232,33 @@ function BetAmountInput({
       <div className="grid grid-cols-4 gap-1.5">
         <button
           type="button"
+          disabled={disabled}
           onClick={() => setChips(thirdPot)}
-          className="rounded border border-zinc-600/70 bg-zinc-700/60 py-1 text-xs font-semibold text-zinc-300 hover:bg-zinc-600/60 active:scale-95"
+          className="rounded border border-zinc-600/70 bg-zinc-700/60 py-1 text-xs font-semibold text-zinc-300 hover:bg-zinc-600/60 active:scale-95 disabled:cursor-not-allowed disabled:opacity-40 disabled:active:scale-100 disabled:hover:bg-zinc-700/60"
         >
           1/3 Pot
         </button>
         <button
           type="button"
+          disabled={disabled}
           onClick={() => setChips(halfPot)}
-          className="rounded border border-zinc-600/70 bg-zinc-700/60 py-1 text-xs font-semibold text-zinc-300 hover:bg-zinc-600/60 active:scale-95"
+          className="rounded border border-zinc-600/70 bg-zinc-700/60 py-1 text-xs font-semibold text-zinc-300 hover:bg-zinc-600/60 active:scale-95 disabled:cursor-not-allowed disabled:opacity-40 disabled:active:scale-100 disabled:hover:bg-zinc-700/60"
         >
           1/2 Pot
         </button>
         <button
           type="button"
+          disabled={disabled}
           onClick={() => setChips(threeQPot)}
-          className="rounded border border-zinc-600/70 bg-zinc-700/60 py-1 text-xs font-semibold text-zinc-300 hover:bg-zinc-600/60 active:scale-95"
+          className="rounded border border-zinc-600/70 bg-zinc-700/60 py-1 text-xs font-semibold text-zinc-300 hover:bg-zinc-600/60 active:scale-95 disabled:cursor-not-allowed disabled:opacity-40 disabled:active:scale-100 disabled:hover:bg-zinc-700/60"
         >
           3/4 Pot
         </button>
         <button
           type="button"
+          disabled={disabled}
           onClick={() => setChips(fullPot)}
-          className="rounded border border-zinc-600/70 bg-zinc-700/60 py-1 text-xs font-semibold text-zinc-300 hover:bg-zinc-600/60 active:scale-95"
+          className="rounded border border-zinc-600/70 bg-zinc-700/60 py-1 text-xs font-semibold text-zinc-300 hover:bg-zinc-600/60 active:scale-95 disabled:cursor-not-allowed disabled:opacity-40 disabled:active:scale-100 disabled:hover:bg-zinc-700/60"
         >
           Pot
         </button>
@@ -524,36 +534,14 @@ export function ActionPanel({
 
   if (p == null) return null;
 
-  if (mySeat != null && p !== mySeat) {
-    return (
-      <div className="rounded-xl border border-zinc-600/60 bg-zinc-900/45 p-2.5 opacity-[0.72] shadow-inner">
-        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-zinc-700/50 pb-2">
-          <p className="text-sm font-medium text-zinc-300">
-            {isEn ? (
-              <>
-                Waiting for <span className="text-amber-100/90">{pl(p)}</span>
-              </>
-            ) : (
-              <>
-                지금은 <span className="text-amber-100/90">{pl(p)}</span> 차례
-              </>
-            )}
-          </p>
-          {actionTimerSecondsLeft != null ? (
-            <ActionTimerChip
-              secondsLeft={actionTimerSecondsLeft}
-              isHandSelect={false}
-              limitSeconds={streetActionLimitSec}
-              isEn={isEn}
-            />
-          ) : null}
-        </div>
-        <p className="mt-2 text-center text-[11px] text-zinc-500">
-          {isEn ? "Waiting for opponent action" : "상대 액션 대기 중"}
-        </p>
-      </div>
-    );
-  }
+  /**
+   * 온라인: 내 차례가 아님. 예전엔 버튼 박스 전체를 작은 안내 문구로 바꿔
+   * 표시했는데, 그 때문에 내 차례가 될 때마다 패널 높이가 크게 바뀌어
+   * 화면이 들썩이는 느낌을 줬다. 이제는 아래 버튼 레이아웃을 그대로 두고
+   * disabled로만 잠근다 — 상대가 실제로 고를 수 있는 액션 모양이 공개
+   * 정보(팟·스택·기여액)에서 그대로 계산되니 보여줘도 안전하다.
+   */
+  const disabled = mySeat != null && p !== mySeat;
 
   // ── 베팅 파생값 계산 ──────────────────────────────────────────────────────
 
@@ -755,11 +743,12 @@ export function ActionPanel({
           onChange={setPreflopRaiseValue}
           onSubmit={submitPreflopRaise}
           isEn={isEn}
+          disabled={disabled}
         />
         <button
           type="button"
           className={btnPrimary + " w-full"}
-          disabled={!preflopRaiseValid}
+          disabled={disabled || !preflopRaiseValid}
           title={
             preflopRaiseValid
               ? isEn
@@ -781,20 +770,36 @@ export function ActionPanel({
   return (
     <div
       className={[
-        "h-full space-y-2 rounded-xl border-2 bg-zinc-700/55 p-2 transition-[box-shadow] duration-300",
-        mySeat != null
-          ? "border-emerald-500/55 shadow-[0_0_28px_rgba(52,211,153,0.22)] ring-1 ring-emerald-400/35"
-          : "border-emerald-400/50 shadow-[0_0_32px_rgba(52,211,153,0.28)] ring-1 ring-emerald-400/40",
+        "h-full space-y-2 rounded-xl border-2 p-2 transition-[box-shadow,opacity] duration-300",
+        disabled
+          ? "border-zinc-600/60 bg-zinc-900/45 opacity-[0.72] shadow-inner"
+          : mySeat != null
+            ? "bg-zinc-700/55 border-emerald-500/55 shadow-[0_0_28px_rgba(52,211,153,0.22)] ring-1 ring-emerald-400/35"
+            : "bg-zinc-700/55 border-emerald-400/50 shadow-[0_0_32px_rgba(52,211,153,0.28)] ring-1 ring-emerald-400/40",
       ].join(" ")}
-      style={{ animation: "holdem-active-turn-glow 2.4s ease-in-out infinite" }}
+      style={disabled ? undefined : { animation: "holdem-active-turn-glow 2.4s ease-in-out infinite" }}
     >
       {/* ── 헤더 ── */}
       <div className="flex flex-wrap items-center justify-between gap-x-2.5 gap-y-1 border-b border-zinc-600/55 pb-1">
         <p className="min-w-0 flex-1 text-sm font-semibold text-zinc-50">
-          <span className="mr-0.5" aria-hidden>
-            👉
-          </span>
-          {isEn ? `${pl(p)} action` : `${pl(p)} 액션`} ({posShort})
+          {disabled ? (
+            isEn ? (
+              <>
+                Waiting for <span className="text-amber-100/90">{pl(p)}</span>
+              </>
+            ) : (
+              <>
+                지금은 <span className="text-amber-100/90">{pl(p)}</span> 차례
+              </>
+            )
+          ) : (
+            <>
+              <span className="mr-0.5" aria-hidden>
+                👉
+              </span>
+              {isEn ? `${pl(p)} action` : `${pl(p)} 액션`} ({posShort})
+            </>
+          )}
         </p>
         {actionTimerSecondsLeft != null ? (
           <ActionTimerChip
@@ -840,6 +845,7 @@ export function ActionPanel({
         <div className="flex flex-wrap items-center gap-2 border-b border-zinc-600/80 pb-2">
           <button
             type="button"
+            disabled={disabled}
             className={[btnIa, "inline-flex items-center gap-1.5"].join(" ")}
             title={
               isEn
@@ -875,6 +881,7 @@ export function ActionPanel({
                 {facing > 0 && callPay > 0 && !isAllInCallUi ? (
                   <button
                     type="button"
+                    disabled={disabled}
                     className={(isAllInCallUi ? btnAllInCall : btnPrimary) + " flex-1"}
                     title={isAllInCallUi ? callButtonTitle : preflopCallFacingTitle}
                     onClick={() => void dispatch({ type: "PREFLOP_CALL" })}
@@ -887,6 +894,7 @@ export function ActionPanel({
                 {preflopAllInAllowed ? (
                   <button
                     type="button"
+                    disabled={disabled}
                     className={btnPreflopAllIn}
                     title={preflopAllInTitle}
                     onClick={dispatchPreflopAllIn}
@@ -906,6 +914,7 @@ export function ActionPanel({
                 {facing === 0 && !blockVoluntaryOpen ? (
                   <button
                     type="button"
+                    disabled={disabled}
                     className={(isAllInCallUi ? btnAllInCall : btnPrimary) + " flex-1"}
                     title={isEn ? "Continue to the flop without adding chips." : "추가 칩 없이 프리플랍을 통과합니다."}
                     onClick={() => void dispatch({ type: "PREFLOP_CHECK" })}
@@ -916,6 +925,7 @@ export function ActionPanel({
                 {preflopAllInAllowed ? (
                   <button
                     type="button"
+                    disabled={disabled}
                     className={btnPreflopAllIn}
                     title={preflopAllInTitle}
                     onClick={dispatchPreflopAllIn}
@@ -935,6 +945,7 @@ export function ActionPanel({
                 {facing > 0 && callPay > 0 && !isAllInCallUi ? (
                   <button
                     type="button"
+                    disabled={disabled}
                     className={(isAllInCallUi ? btnAllInCall : btnPrimary) + " flex-1"}
                     title={isAllInCallUi ? callButtonTitle : preflopCallFacingTitle}
                     onClick={() => void dispatch({ type: "PREFLOP_CALL" })}
@@ -947,6 +958,7 @@ export function ActionPanel({
                 {preflopAllInAllowed ? (
                   <button
                     type="button"
+                    disabled={disabled}
                     className={btnPreflopAllIn}
                     title={preflopAllInTitle}
                     onClick={dispatchPreflopAllIn}
@@ -957,6 +969,7 @@ export function ActionPanel({
                 {facing > 0 ? (
                   <button
                     type="button"
+                    disabled={disabled}
                     className={btnDanger}
                     title={isEn ? "Fold this hand." : "이번 판을 포기합니다."}
                     onClick={() => void dispatch({ type: "FOLD" })}
@@ -976,6 +989,7 @@ export function ActionPanel({
                 {facing > 0 && callPay > 0 && !isAllInCallUi ? (
                   <button
                     type="button"
+                    disabled={disabled}
                     className={btnPrimary + " flex-1"}
                     title={isAllInCallUi ? callButtonTitle : preflopCallFacingTitle}
                     onClick={() => void dispatch({ type: "PREFLOP_CALL" })}
@@ -988,6 +1002,7 @@ export function ActionPanel({
                 {preflopAllInAllowed ? (
                   <button
                     type="button"
+                    disabled={disabled}
                     className={btnPreflopAllIn}
                     title={preflopAllInTitle}
                     onClick={dispatchPreflopAllIn}
@@ -998,6 +1013,7 @@ export function ActionPanel({
                 {facing > 0 ? (
                   <button
                     type="button"
+                    disabled={disabled}
                     className={btnDanger}
                     title={isEn ? "Fold this hand." : "이번 판을 포기합니다."}
                     onClick={() => void dispatch({ type: "FOLD" })}
@@ -1026,9 +1042,11 @@ export function ActionPanel({
                 onChange={setBetValue}
                 onSubmit={submitPostflopBet}
                 isEn={isEn}
+                disabled={disabled}
               />
               <button
                 type="button"
+                disabled={disabled}
                 className={btnPrimary + " w-full"}
                 title={`Bet ${chipsAsBbLabel(betClamped, bbUnit)} into the pot.`}
                 onClick={() => submitPostflopBet(betClamped)}
@@ -1050,9 +1068,11 @@ export function ActionPanel({
                 onChange={setRaiseValue}
                 onSubmit={submitPostflopRaise}
                 isEn={isEn}
+                disabled={disabled}
               />
               <button
                 type="button"
+                disabled={disabled}
                 className={btnPrimary + " w-full"}
                 title={
                   postRaiseOnlyByStack
@@ -1071,6 +1091,7 @@ export function ActionPanel({
             {facing === 0 && !blockVoluntaryOpen ? (
               <button
                 type="button"
+                disabled={disabled}
                 className={(isAllInCallUi ? btnAllInCall : btnPrimary) + " flex-1"}
                 title={isEn ? "Check without adding chips to the pot." : "베팅이 없을 때 팟을 늘리지 않고 넘깁니다."}
                 onClick={() => void dispatch({ type: "POSTFLOP_CHECK" })}
@@ -1081,6 +1102,7 @@ export function ActionPanel({
             {allInActionKind != null ? (
               <button
                 type="button"
+                disabled={disabled}
                 className={btnPostflopAllIn}
                 title={postAllInTitle}
                 onClick={dispatchPostflopAllIn}
@@ -1091,6 +1113,7 @@ export function ActionPanel({
             {facing > 0 && callPay > 0 && !isAllInCallUi ? (
               <button
                 type="button"
+                disabled={disabled}
                 className={btnPrimary + " flex-1"}
                 title={isAllInCallUi ? callButtonTitle : callDetailTitle}
                 onClick={() => void dispatch({ type: "POSTFLOP_CALL" })}
@@ -1103,6 +1126,7 @@ export function ActionPanel({
             {facing > 0 ? (
               <button
                 type="button"
+                disabled={disabled}
                 className={btnDanger}
                 title={
                   isEn
