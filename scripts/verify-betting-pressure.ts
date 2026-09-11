@@ -1,5 +1,9 @@
 import assert from "node:assert/strict";
-import { bettingActionPressure } from "../src/app/holdem/bettingActionPressure";
+import {
+  bettingActionDisplayAmount,
+  bettingActionLabel,
+  bettingActionPressure,
+} from "../src/app/holdem/bettingActionPressure";
 import type { GameMessage } from "../src/holdem/types";
 
 const action = (
@@ -21,11 +25,49 @@ assert.equal(bettingActionPressure(action("preflop_action", "레이즈"), 5)?.ba
 assert.equal(bettingActionPressure(action("preflop_action", "레이즈"), 6)?.badge, "7-BET");
 assert.equal(
   bettingActionPressure(action("preflop_action", "올인"), 3)?.badge,
-  "4-BET ALL-IN",
+  "ALL-IN",
 );
 assert.equal(
   bettingActionPressure(action("postflop_action", "올인 콜"), 1)?.badge,
-  "CALL ALL-IN",
+  "ALL-IN",
+);
+
+assert.equal(bettingActionLabel(action("postflop_action", "체크"), 0), "CHECK");
+assert.equal(bettingActionLabel(action("postflop_action", "콜"), 0), "CALL");
+assert.equal(bettingActionLabel(action("postflop_action", "베트"), 0), "BET");
+assert.equal(bettingActionLabel(action("preflop_action", "레이즈"), 1), "RAISE");
+assert.equal(bettingActionLabel(action("preflop_action", "레이즈"), 2), "3-BET");
+assert.equal(bettingActionLabel(action("preflop_action", "레이즈"), 3), "4-BET");
+assert.equal(bettingActionLabel(action("postflop_action", "올인"), 2), "ALL-IN");
+assert.equal(bettingActionLabel(action("postflop_action", "올인 콜"), 2), "ALL-IN");
+
+assert.equal(
+  bettingActionDisplayAmount(
+    { ...action("postflop_action", "콜"), amount: 3 },
+    24,
+  ),
+  3,
+);
+assert.equal(
+  bettingActionDisplayAmount(
+    { ...action("postflop_action", "체크"), amount: 3 },
+    24,
+  ),
+  undefined,
+);
+assert.equal(
+  bettingActionDisplayAmount(
+    { ...action("preflop_action", "올인"), amount: 149 },
+    150,
+  ),
+  150,
+);
+assert.equal(
+  bettingActionDisplayAmount(
+    { ...action("preflop_action", "올인 콜"), amount: 149 },
+    150,
+  ),
+  150,
 );
 
 const bet = bettingActionPressure(action("postflop_action", "베트"), 0)!;

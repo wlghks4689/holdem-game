@@ -2,6 +2,8 @@
 
 import * as React from "react";
 import {
+  bettingActionDisplayAmount,
+  bettingActionLabel,
   bettingActionPressure,
   type BettingPressure,
   type BettingPressureTier,
@@ -47,54 +49,25 @@ function tailSignature(logs: readonly GameMessage[]): string {
   return `${L}:${last.t}`;
 }
 
-/** 액션 스트립 한 줄 — 금액 앞 구분자는 모두 U+2192(→) 로 통일 */
-const FLASH_ARROW = " → ";
-
 function formatBettingFlashLine(
   m: Extract<GameMessage, { t: "preflop_action" } | { t: "postflop_action" }>,
-  name: string,
   bbUnit: number,
-  isEn: boolean,
-): string {
-  const amt = m.amount;
-  const act = (ko: string, en: string) => (isEn ? en : ko);
-  if (m.action === "체크(자동)") return "";
-  if (m.action === "체크") return `${name} · ${act("체크", "Check")}`;
-  if (m.action === "콜") {
-    const tail =
-      amt != null ? `${FLASH_ARROW}${chipsAsBbLabel(amt, bbUnit)}` : "";
-    return `${name} · ${act("콜", "Call")}${tail}`;
-  }
-  if (m.action === "올인 콜") {
-    const tail =
-      amt != null ? `${FLASH_ARROW}${chipsAsBbLabel(amt, bbUnit)}` : "";
-    return `${name} · ${act("올인 콜", "All-in Call")}${tail}`;
-  }
-  if (m.action === "레이즈") {
-    const tail =
-      amt != null
-        ? `${FLASH_ARROW}${isEn ? "total " : "총 "}${chipsAsBbLabel(amt, bbUnit)}`
-        : "";
-    return `${name} · ${act("레이즈", "Raise")}${tail}`;
-  }
-  if (m.action === "베트") {
-    const tail =
-      amt != null ? `${FLASH_ARROW}${chipsAsBbLabel(amt, bbUnit)}` : "";
-    return `${name} · ${act("베팅", "Bet")}${tail}`;
-  }
-  if (m.action === "올인") {
-    const tail =
-      amt != null
-        ? `${FLASH_ARROW}${isEn ? "total " : "총 "}${chipsAsBbLabel(amt, bbUnit)}`
-        : "";
-    return `${name} · ${act("올인", "All-in")}${tail}`;
-  }
-  return `${name} · ${m.action}`;
+  actionLabel: string,
+  allInTotal?: number,
+): { actionLabel: string; amountLabel?: string } | null {
+  if (m.action === "체크(자동)") return null;
+  const amount = bettingActionDisplayAmount(m, allInTotal);
+  return {
+    actionLabel,
+    amountLabel: amount != null ? chipsAsBbLabel(amount, bbUnit) : undefined,
+  };
 }
 
 type ActionStripState = {
   id: number;
-  text: string;
+  name: string;
+  actionLabel: string;
+  amountLabel?: string;
   who: "hero" | "opp";
   pressure: BettingPressure | null;
   specialBadge?: "IA";
@@ -214,24 +187,38 @@ export function PlayAreaPotBetting({
     }
 
     prevSigRef.current = sig;
-    const last = L > 0 ? logs[L - 1]! : null;
-    if (!last) return;
+    const latest = L > 0 ? logs[L - 1]! : null;
+    if (!latest) return;
 
-    if (last.t === "round_start") {
+    if (latest.t === "round_start") {
       setStrip(null);
       return;
     }
 
-    if (
-      last.t !== "preflop_action" &&
-      last.t !== "postflop_action" &&
-      last.t !== "ia"
-    ) {
-      return;
-    }
+    const recentStart = L > prevL ? prevL : Math.max(0, L - 8);
+    const last = [...logs.slice(recentStart)].reverse().find((message) =>
+      message.t === "preflop_action" ||
+      message.t === "postflop_action" ||
+      message.t === "ia" ||
+      (message.t === "showdown" && message.folder != null),
+    );
+    if (!last) return;
 
     const bb = resolveHandBlinds(s).bb;
     const me = viewer;
+
+    if (last.t === "showdown") {
+      const folder = last.folder!;
+      stripIdRef.current += 1;
+      setStrip({
+        id: stripIdRef.current,
+        name: playerNames[folder]!,
+        actionLabel: "FOLD",
+        who: folder === me ? "hero" : "opp",
+        pressure: null,
+      });
+      return;
+    }
 
     if (last.t === "ia") {
       const isHero = last.player === me;
@@ -241,9 +228,9 @@ export function PlayAreaPotBetting({
       else playBettingIASound();
       setStrip({
         id: stripIdRef.current,
-        text: isEn
-          ? `${name} · IA (−${chipsAsBbLabel(last.cost, bb)} · from stack)`
-          : `${name} · IA (−${chipsAsBbLabel(last.cost, bb)} · 스택에서 차감)`,
+        name,
+        actionLabel: "IA",
+        amountLabel: `−${chipsAsBbLabel(last.cost, bb)}`,
         who: isHero ? "hero" : "opp",
         pressure: null,
         specialBadge: "IA",
@@ -251,12 +238,18 @@ export function PlayAreaPotBetting({
       return;
     }
 
+    if (last.t !== "preflop_action" && last.t !== "postflop_action") return;
+
     const isHero = last.player === me;
     const name = playerNames[last.player]!;
-    const text = formatBettingFlashLine(last, name, bb, isEn);
-    if (!text) return;
-
     const pressure = bettingActionPressure(last, s.betting.raisesThisStreet);
+    const actionLabel = bettingActionLabel(last, s.betting.raisesThisStreet);
+    const allInTotal =
+      last.action === "올인" || last.action === "올인 콜"
+        ? s.betting.contributed[last.player]
+        : undefined;
+    const formatted = formatBettingFlashLine(last, bb, actionLabel, allInTotal);
+    if (!formatted) return;
 
     if (isHero) {
       if (pressure) {
@@ -280,11 +273,12 @@ export function PlayAreaPotBetting({
     stripIdRef.current += 1;
     setStrip({
       id: stripIdRef.current,
-      text,
+      name,
+      ...formatted,
       who: isHero ? "hero" : "opp",
       pressure,
     });
-  }, [logsSig, viewer, playerNames, isEn]);
+  }, [logsSig, viewer, playerNames]);
 
   const potBbUnit = resolveHandBlinds(state).bb;
   const allInSeats = ([0, 1] as PlayerIndex[]).filter(
@@ -329,12 +323,23 @@ export function PlayAreaPotBetting({
           ? "text-base text-amber-50 sm:text-lg"
           : "text-sm text-violet-100 sm:text-base";
 
+  const stripBadgeClass =
+    strip == null
+      ? ""
+      : strip.pressure
+        ? pressureBadgeClass(strip.pressure.tier)
+        : strip.specialBadge === "IA"
+          ? "border-sky-300/60 bg-sky-500/20 text-sky-100"
+          : strip.who === "hero"
+            ? "border-emerald-300/55 bg-emerald-500/18 text-emerald-100"
+            : "border-violet-300/55 bg-violet-500/18 text-violet-100";
+
   const stripAria =
     strip == null
       ? undefined
       : strip.who === "hero"
-        ? `내 액션: ${strip.text}`
-        : `상대 액션: ${strip.text}`;
+        ? `내 액션: ${strip.name} [${strip.actionLabel}]${strip.amountLabel ? ` ${strip.amountLabel}` : ""}`
+        : `상대 액션: ${strip.name} [${strip.actionLabel}]${strip.amountLabel ? ` ${strip.amountLabel}` : ""}`;
 
   return (
     <div className="rounded-xl border border-amber-900/45 bg-gradient-to-b from-zinc-900/80 to-zinc-800/90 px-3 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] sm:px-4 lg:border-amber-800/50">
@@ -414,28 +419,32 @@ export function PlayAreaPotBetting({
             aria-label={stripAria}
           >
             <div className="flex flex-wrap items-center justify-center gap-2">
-              {strip.pressure ? (
-                <span
-                  className={[
-                    "holdem-betting-pressure-label rounded-md border px-2 py-0.5 text-xs font-black tracking-[0.12em] sm:text-sm",
-                    pressureBadgeClass(strip.pressure.tier),
-                  ].join(" ")}
-                >
-                  {strip.pressure.badge}
-                </span>
-              ) : strip.specialBadge ? (
-                <span className="rounded-md border border-sky-300/60 bg-sky-500/20 px-2 py-0.5 text-xs font-black tracking-[0.12em] text-sky-100 sm:text-sm">
-                  {strip.specialBadge}
-                </span>
-              ) : null}
               <p
                 className={[
                   "font-semibold tabular-nums leading-snug",
                   stripTextClass,
                 ].join(" ")}
               >
-                {strip.text}
+                {strip.name}
               </p>
+              <span
+                className={[
+                  "holdem-betting-pressure-label rounded-md border px-2 py-0.5 text-xs font-black tracking-[0.08em] sm:text-sm",
+                  stripBadgeClass,
+                ].join(" ")}
+              >
+                [{strip.actionLabel}]
+              </span>
+              {strip.amountLabel ? (
+                <p
+                  className={[
+                    "font-semibold tabular-nums leading-snug",
+                    stripTextClass,
+                  ].join(" ")}
+                >
+                  {strip.amountLabel}
+                </p>
+              ) : null}
             </div>
           </div>
         ) : (

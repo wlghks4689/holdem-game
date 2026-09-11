@@ -24,6 +24,31 @@ function raiseBadge(raisesThisStreet: number): string {
   return "RAISE";
 }
 
+export function bettingActionLabel(
+  message: BettingActionMessage,
+  raisesThisStreet: number,
+): string {
+  if (message.action === "체크" || message.action === "체크(자동)") return "CHECK";
+  if (message.action === "콜") return "CALL";
+  if (message.action === "올인" || message.action === "올인 콜") return "ALL-IN";
+  if (message.action === "베트") return "BET";
+  if (message.action === "레이즈") {
+    return raiseBadge(Math.max(0, Math.round(raisesThisStreet)));
+  }
+  return message.action.toUpperCase();
+}
+
+export function bettingActionDisplayAmount(
+  message: BettingActionMessage,
+  allInTotal?: number,
+): number | undefined {
+  if (message.action === "체크" || message.action === "체크(자동)") return undefined;
+  if (message.action === "올인" || message.action === "올인 콜") {
+    return allInTotal ?? message.amount;
+  }
+  return message.amount;
+}
+
 export function bettingActionPressure(
   message: BettingActionMessage,
   raisesThisStreet: number,
@@ -31,17 +56,9 @@ export function bettingActionPressure(
   const raises = Math.max(0, Math.round(raisesThisStreet));
 
   if (message.action === "올인" || message.action === "올인 콜") {
-    const raisePrefix =
-      message.action === "올인 콜"
-        ? "CALL"
-        : raises >= 2
-          ? raiseBadge(raises)
-          : raises === 1
-            ? "RAISE"
-            : null;
     return {
       tier: "all-in",
-      badge: raisePrefix ? `${raisePrefix} ALL-IN` : "ALL-IN",
+      badge: "ALL-IN",
       soundLevel: 5,
       motionMs: 1_520,
     };
