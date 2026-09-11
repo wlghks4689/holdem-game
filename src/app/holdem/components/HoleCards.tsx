@@ -203,9 +203,12 @@ export function HoleCards({
     return { kind: "win" as const, winSeat, winSet };
   }, [showdownFxArmed, state.board, state.boardRevealed, state.holes, state.phase]);
   /**
-   * 포스트플랍 메이드 반응(글로우·족보 문구)을 카드가 실제로 다 깔리기 전에
-   * 즉시 바꾸면 너무 급작스럽다. 보드 공개 장수가 늘어날 때만 살짝 지연해
-   * 반영하고(카드 딜 애니메이션이 끝날 즈음), 라운드가 바뀌거나 값이
+   * 포스트플랍 족보 반응(하이카드 포함 전부 — 글로우 유무와 무관)을 카드가
+   * 실제로 다 깔리기 전에 바꾸면 안 된다. BoardDisplay의 딜 애니메이션은
+   * 일반(비-쇼다운) 딜에서 카드당 620ms(저모션 380ms)이고, 플랍은 카드마다
+   * 180ms씩 밀려 시작한다(마지막 장 시작이 +360ms). 그 "카드가 다 열리는"
+   * 시점 뒤에 사용자가 요청한 ~1초를 더한 값을 라운드 상수로 둔다.
+   * 값이 커지는 방향(새 카드 공개)에만 지연을 걸고, 라운드가 바뀌거나
    * 줄어들 때(리셋)는 지연 없이 바로 따라간다.
    */
   const [delayedBoardRevealed, setDelayedBoardRevealed] = React.useState(
@@ -225,7 +228,11 @@ export function HoleCards({
       setDelayedBoardRevealed(state.boardRevealed);
       return;
     }
-    const delayMs = subtleMotion ? 260 : 520;
+    // 플랍(3장, 카드당 180ms 스태거)은 턴·리버(1장)보다 다 깔리기까지 더 걸린다.
+    const isFlopReveal = state.boardRevealed <= 3;
+    const delayMs = isFlopReveal
+      ? subtleMotion ? 1800 : 2000
+      : subtleMotion ? 1500 : 1800;
     const nextRevealed = state.boardRevealed;
     const t = window.setTimeout(() => {
       delayedRevealedRef.current = nextRevealed;
