@@ -553,6 +553,15 @@ body {
   }
 }
 
+/** 상단의 설정·좌석 정보만 포커스 아웃하고 핵심 홀카드·보드는 선명하게 둔다. */
+.holdem-cinema-context-blur {
+  filter: blur(3px) brightness(0.46) saturate(0.72);
+  opacity: 0.48;
+  transform: scale(0.992);
+  transform-origin: 50% 0;
+  transition: filter 220ms ease, opacity 220ms ease, transform 220ms ease;
+}
+
 /* 락(ALL-IN) 순간에만 살짝 줌아웃 → 바로 복귀 */
 .holdem-cinema-active.holdem-allin-lock {
   animation: holdem-allin-impact-table 900ms cubic-bezier(0.16, 1, 0.3, 1) both;
@@ -704,6 +713,34 @@ body {
 
 .holdem-allin-phase-title {
   animation: holdem-allin-phase-title 460ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.holdem-allin-announcement {
+  min-width: min(21rem, calc(100vw - 1.5rem));
+  border-color: rgba(251, 191, 36, 0.72);
+  background:
+    linear-gradient(135deg, rgba(39, 39, 42, 0.94), rgba(9, 9, 11, 0.9)),
+    radial-gradient(circle at 50% 0%, rgba(251, 191, 36, 0.2), transparent 68%);
+  box-shadow:
+    0 0 0 1px rgba(251, 191, 36, 0.14) inset,
+    0 14px 42px rgba(0, 0, 0, 0.72),
+    0 0 48px rgba(251, 191, 36, 0.28);
+}
+
+.holdem-allin-announcement-turn {
+  border-color: rgba(249, 115, 22, 0.78);
+  box-shadow:
+    0 0 0 1px rgba(249, 115, 22, 0.16) inset,
+    0 14px 42px rgba(0, 0, 0, 0.72),
+    0 0 54px rgba(249, 115, 22, 0.34);
+}
+
+.holdem-allin-announcement-river {
+  border-color: rgba(251, 113, 133, 0.86);
+  box-shadow:
+    0 0 0 1px rgba(251, 113, 133, 0.2) inset,
+    0 14px 46px rgba(0, 0, 0, 0.76),
+    0 0 64px rgba(244, 63, 94, 0.42);
 }
 
 @keyframes holdem-allin-vignette-in {
@@ -1270,6 +1307,11 @@ body {
 /** 홀 카드 족보명은 요청한 Arial 계열로 통일한다. */
 .holdem-made-hand-copy {
   font-family: Arial, Helvetica, sans-serif;
+}
+
+/** 쇼다운 결과 단계는 패널의 정적 후광만 유지하고 메이드 충격 애니메이션은 재생하지 않는다. */
+.holdem-showdown-made-glow-only {
+  animation: none !important;
 }
 
 .holdem-made-fx-stack {

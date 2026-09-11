@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import type { AllInCinemaTimelineEvent } from "../src/app/holdem/allInCinemaTimeline";
+import { allInCinemaAnnouncementTitle } from "../src/app/holdem/allInCinemaPresentation";
 
 const timelineModulePath = "../src/app/holdem/allInCinemaTimeline.ts";
 
@@ -27,6 +28,12 @@ function assertOrdered(events: AllInCinemaTimelineEvent[]) {
 }
 
 async function main() {
+  assert.equal(allInCinemaAnnouncementTitle(null, false), "SHOWDOWN");
+  assert.equal(allInCinemaAnnouncementTitle("flop", false), "플랍");
+  assert.equal(allInCinemaAnnouncementTitle("turn", false), "턴");
+  assert.equal(allInCinemaAnnouncementTitle("river", false), "리버");
+  assert.equal(allInCinemaAnnouncementTitle("river", true), "RIVER");
+
   const { buildAllInCinemaTimeline } = await import(timelineModulePath);
   const { ALL_IN_CINEMA_TIMING, ALL_IN_RESULT_HOLD_MS } = await import(
     timelineModulePath

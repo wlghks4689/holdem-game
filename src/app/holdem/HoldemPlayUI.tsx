@@ -320,7 +320,14 @@ export function HoldemPlayUI({
         ].join(" ")}
       >
         {showPauseChrome ? (
-          <div className="pointer-events-auto absolute right-3 top-3 z-40 flex max-w-[min(19rem,calc(100%-1.5rem))] flex-col items-end gap-2 sm:right-5 sm:top-5">
+          <div
+            className={[
+              "pointer-events-auto absolute right-3 top-3 z-40 flex max-w-[min(19rem,calc(100%-1.5rem))] flex-col items-end gap-2 sm:right-5 sm:top-5",
+              showdownCinema.active && showdownCinema.phase !== "showdown-resolve"
+                ? "holdem-cinema-context-blur"
+                : "",
+            ].join(" ")}
+          >
             {onlinePause != null &&
             onlinePause.pause.kind === "pending" &&
             onlinePause.pause.from !== onlinePause.mySeat ? (
@@ -391,6 +398,9 @@ export function HoldemPlayUI({
           className={[
             "mb-3 flex flex-col gap-2 pr-[5.5rem] sm:pr-[6rem] lg:mb-4 lg:flex-row lg:items-start lg:justify-between",
             showPauseChrome ? "min-h-[5rem]" : "",
+            showdownCinema.active && showdownCinema.phase !== "showdown-resolve"
+              ? "holdem-cinema-context-blur"
+              : "",
           ].join(" ")}
         >
           <div>
@@ -525,7 +535,9 @@ export function HoldemPlayUI({
         <div
           className={[
             selecting ? "mb-2 lg:mb-3" : "mb-3 space-y-2 lg:mb-4 lg:grid lg:grid-cols-1 lg:gap-3",
-            showdownCinema.blockingInput ? "hidden" : "",
+            showdownCinema.active && showdownCinema.phase !== "showdown-resolve"
+              ? "holdem-cinema-context-blur"
+              : "",
           ].join(" ")}
         >
           {selecting ? (
@@ -539,7 +551,7 @@ export function HoldemPlayUI({
             <TableHeaderBar
               state={cinemaDisplayState}
               playerNames={playerNames}
-              mySeat={playMode === "local" ? undefined : mySeat}
+              mySeat={playMode === "local" ? viewer : mySeat}
             />
           )}
         </div>
