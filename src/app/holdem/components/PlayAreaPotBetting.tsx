@@ -153,7 +153,15 @@ export function PlayAreaPotBetting({
     };
   }, [state.pot, state.chips[0], state.chips[1]]);
 
-  const [strip, setStrip] = React.useState<ActionStripState | null>(null);
+  const [history, setHistory] = React.useState<{
+    current: ActionStripState | null;
+    previous: ActionStripState | null;
+  }>({ current: null, previous: null });
+  const strip = history.current;
+  const previousStrip = history.previous;
+  /** 새 액션이 들어오면 현재→이전으로 밀어내고 새 액션을 현재로 세팅 */
+  const pushStrip = (next: ActionStripState) =>
+    setHistory((h) => ({ current: next, previous: h.current }));
   const stripIdRef = React.useRef(0);
   const prevSigRef = React.useRef<string | null>(null);
   const hydrateRef = React.useRef(true);
@@ -182,7 +190,7 @@ export function PlayAreaPotBetting({
     const L = logs.length;
     if (L < prevL) {
       prevSigRef.current = sig;
-      setStrip(null);
+      setHistory({ current: null, previous: null });
       return;
     }
 
@@ -191,7 +199,7 @@ export function PlayAreaPotBetting({
     if (!latest) return;
 
     if (latest.t === "round_start") {
-      setStrip(null);
+      setHistory({ current: null, previous: null });
       return;
     }
 
@@ -210,7 +218,7 @@ export function PlayAreaPotBetting({
     if (last.t === "showdown") {
       const folder = last.folder!;
       stripIdRef.current += 1;
-      setStrip({
+      pushStrip({
         id: stripIdRef.current,
         name: playerNames[folder]!,
         actionLabel: "FOLD",
@@ -226,7 +234,7 @@ export function PlayAreaPotBetting({
       stripIdRef.current += 1;
       if (isHero) playHeroIASound();
       else playBettingIASound();
-      setStrip({
+      pushStrip({
         id: stripIdRef.current,
         name,
         actionLabel: "IA",
@@ -271,7 +279,7 @@ export function PlayAreaPotBetting({
     }
 
     stripIdRef.current += 1;
-    setStrip({
+    pushStrip({
       id: stripIdRef.current,
       name,
       ...formatted,
@@ -321,12 +329,15 @@ export function PlayAreaPotBetting({
             ? "border-emerald-300/55 bg-emerald-500/18 text-emerald-100"
             : "border-violet-300/55 bg-violet-500/18 text-violet-100";
 
+  const oneLineLabel = (s: ActionStripState) =>
+    `${s.name} [${s.actionLabel}]${s.amountLabel ? ` ${s.amountLabel}` : ""}`;
+
   const stripAria =
     strip == null
       ? undefined
-      : strip.who === "hero"
-        ? `내 액션: ${strip.name} [${strip.actionLabel}]${strip.amountLabel ? ` ${strip.amountLabel}` : ""}`
-        : `상대 액션: ${strip.name} [${strip.actionLabel}]${strip.amountLabel ? ` ${strip.amountLabel}` : ""}`;
+      : `${previousStrip ? `이전: ${oneLineLabel(previousStrip)} · ` : ""}${
+          strip.who === "hero" ? "내 액션" : "상대 액션"
+        }: ${oneLineLabel(strip)}`;
 
   return (
     <div className="rounded-xl border border-amber-900/45 bg-gradient-to-b from-zinc-900/80 to-zinc-800/90 px-3 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] sm:px-4 lg:border-amber-800/50">
@@ -379,53 +390,74 @@ export function PlayAreaPotBetting({
       </div>
       <div className="mt-3 min-h-[3rem] border-t border-zinc-700/55 pt-3">
         {strip != null ? (
-          <div
-            key={strip.id}
-            className={[
-              "rounded-lg px-3 py-2.5 text-center",
-              strip.pressure ? "holdem-betting-pressure" : "animate-[holdem-opponent-action-in_0.28s_cubic-bezier(0.22,1,0.36,1)_both]",
-              stripBoxClass,
-            ].join(" ")}
-            style={
-              strip.pressure
-                ? {
-                    animation: `holdem-betting-pressure-in ${strip.pressure.motionMs}ms cubic-bezier(0.22, 1, 0.36, 1) both`,
-                  }
-                : undefined
-            }
-            role="status"
-            aria-live="polite"
-            aria-label={stripAria}
-          >
-            <div className="flex flex-wrap items-center justify-center gap-2">
-              <p
-                className={[
-                  "font-semibold tabular-nums leading-snug",
-                  stripTextClass,
-                ].join(" ")}
+          <>
+            {previousStrip != null ? (
+              <div
+                key={`prev-${previousStrip.id}`}
+                className="mb-1.5 flex flex-wrap items-center justify-center gap-1.5 opacity-45 saturate-[0.55]"
+                aria-hidden
               >
-                {strip.name}
-              </p>
-              <span
-                className={[
-                  "holdem-betting-pressure-label rounded-md border px-2 py-0.5 text-xs font-black tracking-[0.08em] sm:text-sm",
-                  stripBadgeClass,
-                ].join(" ")}
-              >
-                [{strip.actionLabel}]
-              </span>
-              {strip.amountLabel ? (
+                <p className="text-[11px] font-medium leading-snug tabular-nums text-zinc-400 sm:text-xs">
+                  {previousStrip.name}
+                </p>
+                <span className="rounded border border-zinc-600/50 bg-zinc-800/40 px-1.5 py-px text-[9px] font-bold tracking-[0.06em] text-zinc-400 sm:text-[10px]">
+                  [{previousStrip.actionLabel}]
+                </span>
+                {previousStrip.amountLabel ? (
+                  <p className="text-[11px] font-medium leading-snug tabular-nums text-zinc-400 sm:text-xs">
+                    {previousStrip.amountLabel}
+                  </p>
+                ) : null}
+              </div>
+            ) : null}
+            <div
+              key={strip.id}
+              className={[
+                "rounded-lg px-3 py-2.5 text-center",
+                strip.pressure ? "holdem-betting-pressure" : "animate-[holdem-opponent-action-in_0.28s_cubic-bezier(0.22,1,0.36,1)_both]",
+                stripBoxClass,
+              ].join(" ")}
+              style={
+                strip.pressure
+                  ? {
+                      animation: `holdem-betting-pressure-in ${strip.pressure.motionMs}ms cubic-bezier(0.22, 1, 0.36, 1) both`,
+                    }
+                  : undefined
+              }
+              role="status"
+              aria-live="polite"
+              aria-label={stripAria}
+            >
+              <div className="flex flex-wrap items-center justify-center gap-2">
                 <p
                   className={[
                     "font-semibold tabular-nums leading-snug",
                     stripTextClass,
                   ].join(" ")}
                 >
-                  {strip.amountLabel}
+                  {strip.name}
                 </p>
-              ) : null}
+                <span
+                  className={[
+                    "holdem-betting-pressure-label rounded-md border px-2 py-0.5 text-xs font-black tracking-[0.08em] sm:text-sm",
+                    stripBadgeClass,
+                  ].join(" ")}
+                >
+                  [{strip.actionLabel}]
+                </span>
+                {strip.amountLabel ? (
+                  <p
+                    className={[
+                      "font-semibold tabular-nums leading-snug",
+                      stripTextClass,
+                    ].join(" ")}
+                  >
+                    {strip.amountLabel}
+                  </p>
+                ) : null}
+              </div>
             </div>
-          </div>
+          </>
         ) : (
           <div
             className="flex min-h-[2.75rem] items-center justify-center rounded-lg border border-dashed border-zinc-700/50 bg-zinc-900/25 text-[11px] text-zinc-500"
