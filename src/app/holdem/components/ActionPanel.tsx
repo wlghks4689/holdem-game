@@ -811,17 +811,8 @@ export function ActionPanel({
         ) : null}
       </div>
 
-      {/* 올인 대응 알림 */}
-      {respondToShoveOnly ? (
-        <p className="rounded-md border border-amber-500/35 bg-amber-950/20 px-2 py-1.5 text-[11px] text-amber-100/90">
-          Villain all-in —{" "}
-          <span className="font-semibold">Fold</span> or{" "}
-          <span className="font-semibold">
-            {isAllInCallUi ? "Call (full stack)" : "Call"}
-          </span>{" "}
-          only.
-        </p>
-      ) : facing > 0 && streetCapped ? (
+      {/* 올인 대응 안내는 위쪽 AllInBanner에서 이미 표시하므로 여기서는 중복 표시하지 않는다. */}
+      {!respondToShoveOnly && facing > 0 && streetCapped ? (
         <p className="rounded-md border border-sky-500/40 bg-sky-950/25 px-2 py-1.5 text-[11px] text-sky-100/95">
           {isEn ? (
             <>
