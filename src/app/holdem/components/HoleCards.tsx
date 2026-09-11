@@ -166,47 +166,14 @@ export function HoleCards({
   const opp = other(viewer);
   const showdownReveal = state.phase === "showdown";
   const sdCmp = showdownCompare(state);
-  const showdownHandLabels = React.useMemo(() => {
-    const h0 = state.holes[0];
-    const h1 = state.holes[1];
-    if (!showdownReveal || !h0 || !h1) return [null, null] as const;
-    return currentShowdownHandLabels(
-      [h0.hole, h1.hole],
-      state.board,
-      state.boardRevealed,
-      locale,
-    );
-  }, [locale, showdownReveal, state.board, state.boardRevealed, state.holes]);
-  const showdownMade = React.useMemo(() => {
-    if (!showdownFxArmed || state.phase !== "showdown") return null;
-    const h0 = state.holes[0];
-    const h1 = state.holes[1];
-    if (!h0 || !h1) return null;
-    // 보드 5장이 모두 공개된 뒤에만 확실하게 "메이드 5장"을 보여준다.
-    if (state.boardRevealed < 5) return null;
-
-    const all0 = [...h0.hole, ...state.board];
-    const all1 = [...h1.hole, ...state.board];
-    const v0 = best5Of7(all0);
-    const v1 = best5Of7(all1);
-    const cmp = compareHandValue(v0, v1);
-    const key = (c: { rank: number; suit: string }) => `${c.rank}:${c.suit}`;
-
-    if (cmp === 0) {
-      const s0 = new Set(bestFiveCardsFromSeven(all0).map(key));
-      const s1 = new Set(bestFiveCardsFromSeven(all1).map(key));
-      return { kind: "tie" as const, winSeat: null, sets: [s0, s1] as const };
-    }
-    const winSeat = (cmp > 0 ? 0 : 1) as 0 | 1;
-    const winAll = winSeat === 0 ? all0 : all1;
-    const winSet = new Set(bestFiveCardsFromSeven(winAll).map(key));
-    return { kind: "win" as const, winSeat, winSet };
-  }, [showdownFxArmed, state.board, state.boardRevealed, state.holes, state.phase]);
   /**
    * 포스트플랍 족보 반응(하이카드 포함 전부 — 글로우 유무와 무관)을 카드가
    * 실제로 깔리는 도중에 바꾸면 안 된다. 값이 커지는 방향(새 카드 공개)에만
    * 지연을 걸고, 라운드가 바뀌거나 줄어들 때(리셋)는 지연 없이 바로
-   * 따라간다. 2000ms는 답답하다는 피드백으로 1200ms로 조정.
+   * 따라간다. 2000ms는 답답하다는 피드백으로 900ms로 조정.
+   * 올인 쇼다운 시네마의 턴/리버 런아웃도 phase가 이미 "showdown"으로
+   * 바뀐 뒤 boardRevealed만 올라가므로, 아래 쇼다운 족보 라벨도 반드시
+   * 이 지연값을 같이 써야 카드가 깔리는 도중에 라벨이 먼저 바뀌지 않는다.
    */
   const [delayedBoardRevealed, setDelayedBoardRevealed] = React.useState(
     state.boardRevealed,
@@ -233,6 +200,43 @@ export function HoleCards({
     }, delayMs);
     return () => window.clearTimeout(t);
   }, [state.boardRevealed, state.roundNumber, subtleMotion]);
+
+  const showdownHandLabels = React.useMemo(() => {
+    const h0 = state.holes[0];
+    const h1 = state.holes[1];
+    if (!showdownReveal || !h0 || !h1) return [null, null] as const;
+    return currentShowdownHandLabels(
+      [h0.hole, h1.hole],
+      state.board,
+      delayedBoardRevealed,
+      locale,
+    );
+  }, [locale, showdownReveal, state.board, delayedBoardRevealed, state.holes]);
+  const showdownMade = React.useMemo(() => {
+    if (!showdownFxArmed || state.phase !== "showdown") return null;
+    const h0 = state.holes[0];
+    const h1 = state.holes[1];
+    if (!h0 || !h1) return null;
+    // 보드 5장이 모두 공개된 뒤에만 확실하게 "메이드 5장"을 보여준다.
+    if (state.boardRevealed < 5) return null;
+
+    const all0 = [...h0.hole, ...state.board];
+    const all1 = [...h1.hole, ...state.board];
+    const v0 = best5Of7(all0);
+    const v1 = best5Of7(all1);
+    const cmp = compareHandValue(v0, v1);
+    const key = (c: { rank: number; suit: string }) => `${c.rank}:${c.suit}`;
+
+    if (cmp === 0) {
+      const s0 = new Set(bestFiveCardsFromSeven(all0).map(key));
+      const s1 = new Set(bestFiveCardsFromSeven(all1).map(key));
+      return { kind: "tie" as const, winSeat: null, sets: [s0, s1] as const };
+    }
+    const winSeat = (cmp > 0 ? 0 : 1) as 0 | 1;
+    const winAll = winSeat === 0 ? all0 : all1;
+    const winSet = new Set(bestFiveCardsFromSeven(winAll).map(key));
+    return { kind: "win" as const, winSeat, winSet };
+  }, [showdownFxArmed, state.board, state.boardRevealed, state.holes, state.phase]);
 
   const turnPulse = useTurnPulse(
     state.phase !== "showdown" && state.phase !== "hand_over"
