@@ -6,6 +6,7 @@ import { createInitialGameState } from "@/holdem/gameReducer";
 import type {
   GameMessage,
   GameState,
+  PlayerIndex,
   SelectedHand,
 } from "@/holdem/types";
 
@@ -294,7 +295,11 @@ const SHOWDOWN_LOG: GameMessage = {
   hands: ["K 쿼즈", "A 풀하우스"],
 };
 
-export function AllInShowcaseClient() {
+export function AllInShowcaseClient({
+  initialViewer = 0,
+}: {
+  initialViewer?: PlayerIndex;
+}) {
   const [run, setRun] = React.useState(0);
   const scenarioStreet = React.useMemo<ShowcaseStreet | null>(() => {
     if (typeof window === "undefined") return null;
@@ -368,10 +373,10 @@ export function AllInShowcaseClient() {
           state={state}
           dispatch={() => undefined}
           actionTimerSecondsLeft={null}
-          viewer={0}
+          viewer={initialViewer}
           playerNames={["빌런", "Pro"]}
           updateName={() => undefined}
-          mySeat={0}
+          mySeat={initialViewer}
           playMode="single"
           singleDifficulty="hard"
         />

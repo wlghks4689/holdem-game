@@ -10,6 +10,10 @@ import {
   buildShowdownResultPresentation,
   currentShowdownHandLabels,
 } from "../src/app/holdem/showdownPresentation";
+import {
+  madeHandFxReplayKey,
+  shouldPlayMadeHandBurst,
+} from "../src/app/holdem/madeHandFxPresentation";
 
 const c = (rank: number, suit: Card["suit"]): Card => ({ rank, suit });
 
@@ -101,6 +105,38 @@ assert.equal(
   "로얄 스트레이트 플러시",
 );
 assert.equal(handValueDisplayForLocale(royalFlush, "en"), "Royal Flush");
+
+const straightFxKey = madeHandFxReplayKey(8, 0, "straight");
+assert.equal(
+  straightFxKey,
+  madeHandFxReplayKey(8, 0, "straight"),
+  "the same made hand must keep one replay key across later streets",
+);
+assert.notEqual(
+  straightFxKey,
+  madeHandFxReplayKey(8, 0, "flush"),
+  "an upgraded made hand must receive a new replay key",
+);
+assert.equal(
+  shouldPlayMadeHandBurst({
+    madeFxTier: 2,
+    showdownReveal: true,
+    showdownResultGlow: false,
+    showdownRunoutFx: true,
+  }),
+  true,
+  "a newly made runout hand should play its burst",
+);
+assert.equal(
+  shouldPlayMadeHandBurst({
+    madeFxTier: 2,
+    showdownReveal: true,
+    showdownResultGlow: true,
+    showdownRunoutFx: false,
+  }),
+  false,
+  "showdown resolution must keep glow without replaying the made-hand burst",
+);
 
 const kingHighStraightFlush = best5Of7([
   c(13, "h"),

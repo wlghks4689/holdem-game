@@ -20,6 +20,10 @@ import { iaCategoryHandListText, iaCategoryLabelKo } from "@/holdem/handPool";
 import type { GameState, PlayerIndex } from "@/holdem/types";
 import { useHoldemMotionMode } from "../HoldemMotionRuntime";
 import { useTurnPulse } from "../hooks/useTurnPulse";
+import {
+  madeHandFxReplayKey,
+  shouldPlayMadeHandBurst,
+} from "../madeHandFxPresentation";
 import { currentShowdownHandLabels } from "../showdownPresentation";
 import { CardBack, PlayingCard } from "./Card";
 
@@ -154,6 +158,7 @@ function showdownCompare(state: GameState): number | null {
 export function HoleCards({
   state,
   viewer,
+  playerNames,
   seatFilter = "both",
   cinematicWinnerPulse = false,
   showdownFxArmed = true,
@@ -162,11 +167,14 @@ export function HoleCards({
   showdownHoleCardsRevealed = true,
 }: HoleCardsProps) {
   const { t, locale } = useHoldemI18n();
+  const isEn = locale === "en";
   const motionMode = useHoldemMotionMode();
   const subtleMotion = motionMode === "subtle";
   const madeHandFxOn = useMadeHandFxEnabled();
   const selecting = state.phase === "hand_select";
   const opp = other(viewer);
+  const seatOrder: PlayerIndex[] =
+    seatFilter === "both" ? [viewer, opp] : [0, 1];
   const showdownReveal = state.phase === "showdown";
   const sdCmp = showdownCompare(state);
   /**
@@ -266,7 +274,7 @@ export function HoleCards({
         seatFilter !== "both" ? "h-full" : "",
       ].join(" ")}
     >
-      {([0, 1] as PlayerIndex[]).map((p) => {
+      {seatOrder.map((p) => {
         if (seatFilter === "hero" && p !== viewer) return null;
         if (seatFilter === "opponent" && p !== opp) return null;
         const sel = state.holes[p];
@@ -339,9 +347,7 @@ export function HoleCards({
           (madeFxTier > 0 ? MADE_FX_CARD_GLOW[madeFxTier] : "");
         const madeFxOuterKey =
           madeFxTier > 0
-            ? showdownRunoutFx
-              ? `made-fx-runout-${state.roundNumber}-${madeFxKind}-p${p}`
-              : `made-fx-${state.roundNumber}-${delayedBoardRevealed}-${madeFxKind}-p${p}`
+            ? madeHandFxReplayKey(state.roundNumber, p, madeFxKind)
             : showdownReveal
               ? `showdown-default-fx-${state.roundNumber}-p${p}`
               : `hole-row-${p}`;
@@ -372,10 +378,16 @@ export function HoleCards({
         const showMadeFx =
           madeFxTier > 0 &&
           (!showdownReveal || showdownResultGlow || showdownRunoutFx);
+        const playMadeFxBurst = shouldPlayMadeHandBurst({
+          madeFxTier,
+          showdownReveal,
+          showdownResultGlow,
+          showdownRunoutFx,
+        });
         const showDefaultShowdownGlow =
           showdownResultGlow && madeFxTier === 0;
         const royalPanelCelebration =
-          showMadeFx && madeFxKind === "royal-flush" && !loserShowdown;
+          playMadeFxBurst && madeFxKind === "royal-flush" && !loserShowdown;
 
         /** 쇼다운 승자·무승부 패널도 족보 색상, 트리플 이하는 에메랄드로 통일 */
         const showdownFrame =
@@ -421,6 +433,9 @@ export function HoleCards({
             ? "holdem-preview-royal-panel-celebration"
             : "",
           showMadeFx ? "holdem-hole-fx-bounds" : "",
+          showdownResultGlow && madeFxTier > 0
+            ? "holdem-showdown-made-glow-only"
+            : "",
         ].join(" ");
 
         const frameStyle: CSSProperties | undefined =
@@ -477,6 +492,29 @@ export function HoleCards({
         const madeKey = (c: { rank: number; suit: string }) => `${c.rank}:${c.suit}`;
         return (
           <div key={p} className={frameClass} style={frameStyle}>
+            {seatFilter === "both" && !selecting ? (
+              <div className="mb-1 flex min-h-5 min-w-0 items-center gap-1.5 border-b border-zinc-600/55 px-0.5 pb-1 text-left sm:mb-1.5 sm:px-1">
+                <span className="min-w-0 truncate text-[10px] font-bold text-zinc-100 sm:text-xs">
+                  {playerNames[p]}
+                </span>
+                <span
+                  className={[
+                    "ml-auto shrink-0 rounded px-1 py-0.5 text-[8px] font-bold sm:px-1.5 sm:text-[9px]",
+                    isMe
+                      ? "bg-emerald-600/25 text-emerald-100 ring-1 ring-emerald-400/35"
+                      : "bg-violet-600/20 text-violet-100 ring-1 ring-violet-400/30",
+                  ].join(" ")}
+                >
+                  {isMe
+                    ? isEn
+                      ? "MY CARDS"
+                      : "내 카드"
+                    : isEn
+                      ? "OPPONENT"
+                      : "상대 카드"}
+                </span>
+              </div>
+            ) : null}
             {royalPanelCelebration ? (
               <div
                 key={`royal-panel-flash-${madeFxOuterKey}`}
@@ -497,18 +535,18 @@ export function HoleCards({
                   <div
                     key={madeFxOuterKey}
                     className={[
-                      showMadeFx
+                      playMadeFxBurst
                         ? `holdem-made-fx holdem-made-fx-t${madeFxTier} overflow-visible`
                         : showDefaultShowdownGlow
                           ? "holdem-made-fx holdem-showdown-default-fx overflow-visible"
                         : "",
-                      showMadeFx ? madeFxImpactClass ?? "" : "",
-                      showMadeFx ? madeFxVariant?.fx ?? "" : "",
+                      playMadeFxBurst ? madeFxImpactClass ?? "" : "",
+                      playMadeFxBurst ? madeFxVariant?.fx ?? "" : "",
                     ]
                       .filter(Boolean)
                       .join(" ")}
                   >
-                    {showMadeFx && madeFxCycleAuraClass ? (
+                    {playMadeFxBurst && madeFxCycleAuraClass ? (
                       <span
                         className={`holdem-preview-cycle-aura ${madeFxCycleAuraClass}`}
                         aria-hidden
@@ -526,9 +564,9 @@ export function HoleCards({
                       {sel.hole.map((c, i) => (
                         <div
                           key={i}
-                          className={showMadeFx ? "holdem-made-fx-card" : undefined}
+                          className={playMadeFxBurst ? "holdem-made-fx-card" : undefined}
                           style={
-                            showMadeFx
+                            playMadeFxBurst
                               ? { animationDelay: `${i * 0.08}s` }
                               : undefined
                           }
@@ -595,7 +633,7 @@ export function HoleCards({
                               : "",
                           showMadeFx
                             ? [
-                                "holdem-made-hand-label",
+                                playMadeFxBurst ? "holdem-made-hand-label" : "",
                                 madeFxVariant?.label ??
                                   `holdem-made-hand-label-t${madeFxTier}`,
                               ].join(" ")

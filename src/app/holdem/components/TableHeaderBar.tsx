@@ -132,6 +132,8 @@ export function TableHeaderBar({ state, playerNames, mySeat }: TableHeaderBarPro
   }, [state.potAwardFlash]);
 
   const hb = resolveHandBlinds(state);
+  const seatOrder: PlayerIndex[] =
+    mySeat == null ? [0, 1] : [mySeat, mySeat === 0 ? 1 : 0];
 
   /** 매치 승자 확정 시(버스트·30R·조기 종료 무관) 승/패 배너 구분 */
   const matchDecided = state.matchEnded;
@@ -157,7 +159,7 @@ export function TableHeaderBar({ state, playerNames, mySeat }: TableHeaderBarPro
       </div>
 
       <div className="grid grid-cols-2 gap-1 sm:gap-2">
-        {([0, 1] as PlayerIndex[]).map((p) => {
+        {seatOrder.map((p) => {
           const bettingUi =
             !state.matchEnded &&
             state.phase !== "showdown" &&
