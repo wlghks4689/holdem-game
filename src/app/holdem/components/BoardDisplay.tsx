@@ -276,7 +276,10 @@ export function BoardDisplay({
   return (
     <div
       className={[
-        "-mx-3 w-[calc(100%+1.5rem)] rounded-xl border bg-gradient-to-b from-zinc-900 via-zinc-800/95 to-zinc-800/90 sm:mx-0 sm:w-auto",
+        // 모바일 풀블리드 보정: 부모 섹션의 실제 패딩(p-2=8px)과 맞춘다.
+        // 이전 -mx-3(12px)은 4px 과보정되어 640px 미만 전 구간에서 패널이
+        // 섹션 경계를 살짝 넘었다(폭에 상관없이 균일하게 발생).
+        "-mx-2 w-[calc(100%+1rem)] rounded-xl border bg-gradient-to-b from-zinc-900 via-zinc-800/95 to-zinc-800/90 sm:mx-0 sm:w-auto",
         showdown
           ? "border-zinc-600/70 px-px py-2 sm:px-3 sm:py-2.5"
           : "border-amber-900/40 px-px py-2.5 shadow-[0_0_40px_rgba(245,158,11,0.06)] sm:px-3.5 sm:py-2.5 lg:px-4 lg:py-3",
