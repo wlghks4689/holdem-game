@@ -225,7 +225,7 @@ export function HoleCards({
       setDelayedBoardRevealed(state.boardRevealed);
       return;
     }
-    const delayMs = subtleMotion ? 900 : 1200;
+    const delayMs = 900;
     const nextRevealed = state.boardRevealed;
     const t = window.setTimeout(() => {
       delayedRevealedRef.current = nextRevealed;

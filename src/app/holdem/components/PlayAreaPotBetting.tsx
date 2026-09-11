@@ -330,7 +330,7 @@ export function PlayAreaPotBetting({
             : "border-violet-300/55 bg-violet-500/18 text-violet-100";
 
   const oneLineLabel = (s: ActionStripState) =>
-    `${s.name} [${s.actionLabel}]${s.amountLabel ? ` ${s.amountLabel}` : ""}`;
+    `${s.name} ${s.actionLabel}${s.amountLabel ? ` ${s.amountLabel}` : ""}`;
 
   const stripAria =
     strip == null
@@ -401,7 +401,7 @@ export function PlayAreaPotBetting({
                   {previousStrip.name}
                 </p>
                 <span className="rounded border border-zinc-600/50 bg-zinc-800/40 px-1.5 py-px text-[9px] font-bold tracking-[0.06em] text-zinc-400 sm:text-[10px]">
-                  [{previousStrip.actionLabel}]
+                  {previousStrip.actionLabel}
                 </span>
                 {previousStrip.amountLabel ? (
                   <p className="text-[11px] font-medium leading-snug tabular-nums text-zinc-400 sm:text-xs">
@@ -443,7 +443,7 @@ export function PlayAreaPotBetting({
                     stripBadgeClass,
                   ].join(" ")}
                 >
-                  [{strip.actionLabel}]
+                  {strip.actionLabel}
                 </span>
                 {strip.amountLabel ? (
                   <p
