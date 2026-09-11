@@ -184,6 +184,8 @@ export function TableHeaderBar({ state, playerNames, mySeat }: TableHeaderBarPro
             gainVisible &&
             state.potAwardFlash != null &&
             Math.abs(flashDelta) > GAIN_EPS;
+          const showPotArrival =
+            gainVisible && (state.potAwardFlash?.[p] ?? 0) > GAIN_EPS;
           return (
             <div
               key={p}
@@ -229,6 +231,12 @@ export function TableHeaderBar({ state, playerNames, mySeat }: TableHeaderBarPro
                       : undefined
               }
             >
+              {showPotArrival ? (
+                <span
+                  className="holdem-pot-award-arrival pointer-events-none absolute inset-0 rounded-lg border border-amber-300/70"
+                  aria-hidden
+                />
+              ) : null}
               <div className="flex min-w-0 items-center gap-1 sm:gap-2">
                 <span className="min-w-0 truncate text-xs font-semibold text-zinc-50 sm:text-sm">
                   {label}

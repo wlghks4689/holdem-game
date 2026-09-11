@@ -137,6 +137,8 @@ export type HoleCardsProps = {
   showdownEquityPercent?: [number | null, number | null];
   /** 올인 런아웃에서 새 스트리트 공개 후 현재 메이드 족보 연출을 허용 */
   showdownRunoutFx?: boolean;
+  /** 올인 콜 확인 구간에는 양쪽 카드를 뒷면으로 유지한다. */
+  showdownHoleCardsRevealed?: boolean;
 };
 
 function showdownCompare(state: GameState): number | null {
@@ -157,6 +159,7 @@ export function HoleCards({
   showdownFxArmed = true,
   showdownEquityPercent = [null, null],
   showdownRunoutFx = false,
+  showdownHoleCardsRevealed = true,
 }: HoleCardsProps) {
   const { t, locale } = useHoldemI18n();
   const motionMode = useHoldemMotionMode();
@@ -291,9 +294,11 @@ export function HoleCards({
 
         const showFaces =
           sel != null &&
-          (showdownReveal ||
+          ((showdownReveal && showdownHoleCardsRevealed) ||
             (isMe && (state.phase === "hand_over" || !selecting)));
 
+        const showShowdownBacks =
+          sel != null && showdownReveal && !showdownHoleCardsRevealed;
         const showOpponentBacks =
           sel != null && !isMe && !selecting && !showdownReveal;
         const foldedSeat =
@@ -619,7 +624,7 @@ export function HoleCards({
                   </p>
                 ) : null}
               </div>
-            ) : showOpponentBacks ? (
+            ) : showShowdownBacks || showOpponentBacks ? (
               <div className="flex h-full flex-col items-center justify-center gap-1.5 text-center">
                 <div
                   className={[
@@ -627,8 +632,24 @@ export function HoleCards({
                     foldedSeat ? "opacity-70 brightness-75" : "",
                   ].join(" ")}
                 >
-                  <CardBack size={foldedSeat || opponentFoldWinner ? "hero" : "board"} />
-                  <CardBack size={foldedSeat || opponentFoldWinner ? "hero" : "board"} />
+                    <CardBack
+                      size={
+                        showShowdownBacks
+                          ? "showdown"
+                          : foldedSeat || opponentFoldWinner
+                            ? "hero"
+                            : "board"
+                      }
+                    />
+                    <CardBack
+                      size={
+                        showShowdownBacks
+                          ? "showdown"
+                          : foldedSeat || opponentFoldWinner
+                            ? "hero"
+                            : "board"
+                      }
+                    />
                 </div>
                 {foldedSeat || opponentFoldWinner ? (
                   <div className="flex min-h-7 w-full items-center justify-center px-1">
@@ -641,7 +662,7 @@ export function HoleCards({
                       {foldedSeat ? "FOLD" : "WIN"}
                     </span>
                   </div>
-                ) : p === opp && iaCategoryForOpp ? (
+                ) : !showShowdownBacks && p === opp && iaCategoryForOpp ? (
                   <p className="text-[11px] leading-snug text-indigo-200/90">
                     {t("hole.iaOppCategory")}{" "}
                     <span className="font-semibold text-indigo-100">

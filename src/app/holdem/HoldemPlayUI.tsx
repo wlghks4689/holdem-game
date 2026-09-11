@@ -133,7 +133,7 @@ export function HoldemPlayUI({
         ? visualRevealed
         : heldState.boardRevealed,
       winner: hiddenResolution ? null : heldState.winner,
-      // 올인 콜 직후 양쪽 홀카드는 즉시 공개하고 승패 강조만 마지막까지 숨긴다.
+      // 콜 확인 pause 뒤 홀카드를 공개하고 승패 강조는 마지막까지 숨긴다.
       holes: heldState.holes,
       matchEnded: false,
       matchWinner: null,
@@ -590,6 +590,7 @@ export function HoldemPlayUI({
                 cinematicWinnerPulse={winnerCinematicPulse}
                 showdownFxArmed={showdownFxArmed}
                 showdownRunoutFx={showdownRunoutFx}
+                showdownHoleCardsRevealed={showdownCinema.showHoleCards}
               />
             </div>
           ) : null}
@@ -640,6 +641,7 @@ export function HoldemPlayUI({
                 cinematicFlip={showdownCinema.active && showdownCinema.phase === "showdown-reveal"}
                 cinemaStreetPulse={showdownCinema.streetPulse}
                 cinemaAnticipation={showdownCinema.activeStreet}
+                showdownFxArmed={showdownFxArmed}
                 rabbitHunt={rabbitBoardUi}
               />
             </div>

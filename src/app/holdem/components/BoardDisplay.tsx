@@ -87,7 +87,8 @@ function buildEnterDeal(
     return {
       id,
       slot,
-      delayMs: order * FLOP_STAGGER_MS,
+      // 올인 시네마의 플랍은 세 장을 하나의 정보 단위로 함께 공개한다.
+      delayMs: cinematicFlip ? 0 : order * FLOP_STAGGER_MS,
       durationMs: subtle ? subtleDuration : normalDuration,
       animClass,
     };
@@ -130,6 +131,8 @@ export type BoardDisplayProps = {
   /** 강조할 스트리트 — 해당 슬롯에 글로우 */
   cinemaStreetPulse?: "flop" | "turn" | "river" | null;
   cinemaAnticipation?: "flop" | "turn" | "river" | null;
+  /** 최종 resolve 전에는 승패 기반 best-5 강조를 숨긴다. */
+  showdownFxArmed?: boolean;
   /** 레빗 헌트(폴드 당사자만 active) */
   rabbitHunt?: BoardRabbitHuntUi | null;
 };
@@ -140,6 +143,7 @@ export function BoardDisplay({
   cinematicFlip = false,
   cinemaStreetPulse = null,
   cinemaAnticipation = null,
+  showdownFxArmed = true,
   rabbitHunt = null,
 }: BoardDisplayProps) {
   const { locale } = useHoldemI18n();
@@ -155,7 +159,9 @@ export function BoardDisplay({
 
   const showdownMadeKeySet = React.useMemo(() => {
     // 올인 시네마 리빌 단계(긴장감 구간)에는 디밍을 걸지 않는다.
-    if (state.phase !== "showdown" || cinematicFlip) return null;
+    if (state.phase !== "showdown" || cinematicFlip || !showdownFxArmed) {
+      return null;
+    }
     const h0 = state.holes[0];
     const h1 = state.holes[1];
     if (!h0 || !h1) return null;
@@ -184,7 +190,7 @@ export function BoardDisplay({
         fxKind: madeHandFxKind(cmp > 0 ? v0 : v1),
       };
     }
-  }, [cinematicFlip, rev, state.board, state.holes, state.phase]);
+  }, [cinematicFlip, rev, showdownFxArmed, state.board, state.holes, state.phase]);
 
   const [enterDeals, setEnterDeals] = React.useState<EnterDeal[]>([]);
   const prevRevRef = React.useRef(rev);
@@ -248,22 +254,27 @@ export function BoardDisplay({
       for (const deal of next) {
         // SFX: 각 카드가 들어올 때 가볍게 "사사삭" 한 번
         const sfxDelay = deal.delayMs;
-        const sfxTimer = window.setTimeout(() => {
-          if (cinematicFlip) {
-            playShowdownBoardReveal(
-              deal.slot < 3 ? "flop" : deal.slot === 3 ? "turn" : "river",
-            );
-          } else {
-            playBoardDealSoft();
-          }
-        }, sfxDelay);
+        const shouldPlaySound =
+          !cinematicFlip || deal.slot >= 3 || deal === next[0];
+        const sfxTimer = shouldPlaySound
+          ? window.setTimeout(() => {
+              if (cinematicFlip) {
+                playShowdownBoardReveal(
+                  deal.slot < 3 ? "flop" : deal.slot === 3 ? "turn" : "river",
+                );
+              } else {
+                playBoardDealSoft();
+              }
+            }, sfxDelay)
+          : null;
         const t = window.setTimeout(() => {
           setEnterDeals((cur) => cur.filter((x) => x.id !== deal.id));
           clearTimersRef.current = clearTimersRef.current.filter(
-            (id) => id !== t && id !== sfxTimer,
+            (id) => id !== t && (sfxTimer == null || id !== sfxTimer),
           );
         }, deal.delayMs + deal.durationMs + 80);
-        clearTimersRef.current.push(t, sfxTimer);
+        clearTimersRef.current.push(t);
+        if (sfxTimer != null) clearTimersRef.current.push(sfxTimer);
       }
     }
     prevRevRef.current = rev;

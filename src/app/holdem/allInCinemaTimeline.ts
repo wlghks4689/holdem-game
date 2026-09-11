@@ -1,6 +1,7 @@
 export type AllInCinemaStreet = "flop" | "turn" | "river";
 
 export type AllInCinemaTimelineEvent =
+  | { atMs: number; kind: "hole-reveal" }
   | { atMs: number; kind: "windup"; street: AllInCinemaStreet }
   | {
       atMs: number;
@@ -16,15 +17,16 @@ export type AllInCinemaTimelineEvent =
  * 실제 카드 공개 간격은 모든 기기에서 동일하게 유지한다.
  */
 export const ALL_IN_CINEMA_TIMING = {
-  introHoldMs: 1_000,
+  /** 상대 콜 확정 문구를 읽는 시간 */
+  responseHoldMs: 800,
+  /** 양쪽 홀카드 공개 후 현재 보드를 읽는 시간 */
+  holeCardsHoldMs: 900,
   flopWindupMs: 420,
-  /** 일반 보드 공개 620ms의 130% */
-  flopCardIntervalMs: 806,
-  turnWindupMs: 806,
-  /** 턴보다 정확히 0.5초 더 긴 리버 예고 */
-  riverWindupMs: 1_306,
-  revealSettleMs: { flop: 520, turn: 620, river: 760 },
-  streetHoldMs: { flop: 1_400, turn: 1_400, river: 1_710 },
+  turnWindupMs: 600,
+  riverWindupMs: 800,
+  revealSettleMs: { flop: 280, turn: 300, river: 360 },
+  /** 새 정보가 등장한 스트릿에서만 읽을 시간을 둔다. */
+  streetHoldMs: { flop: 1_200, turn: 1_000, river: 1_300 },
 } as const;
 
 /** 최종 승패·족보 화면과 입력 잠금을 유지하는 최소 시간. */
@@ -51,36 +53,45 @@ export function buildAllInCinemaTimeline(
   void _subtleMotion;
   const start = Math.min(5, Math.max(0, Math.round(startRevealed)));
 
-  // 리버 올인은 추가 런아웃 없이 완성 보드와 양쪽 홀카드를 1초 보여준 뒤 비교한다.
+  const events: AllInCinemaTimelineEvent[] = [
+    { atMs: ALL_IN_CINEMA_TIMING.responseHoldMs, kind: "hole-reveal" },
+  ];
+  let atMs =
+    ALL_IN_CINEMA_TIMING.responseHoldMs +
+    ALL_IN_CINEMA_TIMING.holeCardsHoldMs;
+
+  // 리버 올인은 양쪽 홀카드와 완성 보드만 읽은 뒤 바로 결과로 합류한다.
   if (start >= 5) {
-    return [{ atMs: ALL_IN_CINEMA_TIMING.introHoldMs, kind: "resolve" }];
+    events.push({ atMs, kind: "resolve" });
+    return events;
   }
 
-  const events: AllInCinemaTimelineEvent[] = [];
-  let atMs = ALL_IN_CINEMA_TIMING.introHoldMs;
   let previousStreet: AllInCinemaStreet | null =
     start >= 4 ? "turn" : start >= 3 ? "flop" : null;
 
   for (let target = start + 1; target <= 5; target += 1) {
     const street = allInCinemaStreetForTarget(target);
+    // 플랍은 한 스트릿 이벤트로 3장을 함께 공개한다.
+    const revealTarget = street === "flop" ? 3 : target;
     if (street !== previousStreet) {
       events.push({ atMs, kind: "windup", street });
       atMs += windupMs(street);
     }
 
-    events.push({ atMs, kind: "reveal", street, targetRevealed: target });
-
-    if (target < 3) {
-      atMs += ALL_IN_CINEMA_TIMING.flopCardIntervalMs;
-    } else {
-      events.push({
-        atMs: atMs + ALL_IN_CINEMA_TIMING.revealSettleMs[street],
-        kind: "hold",
-        street,
-      });
-      atMs += ALL_IN_CINEMA_TIMING.streetHoldMs[street];
-    }
+    events.push({
+      atMs,
+      kind: "reveal",
+      street,
+      targetRevealed: revealTarget,
+    });
+    events.push({
+      atMs: atMs + ALL_IN_CINEMA_TIMING.revealSettleMs[street],
+      kind: "hold",
+      street,
+    });
+    atMs += ALL_IN_CINEMA_TIMING.streetHoldMs[street];
     previousStreet = street;
+    if (street === "flop") target = 3;
   }
 
   events.push({ atMs, kind: "resolve" });

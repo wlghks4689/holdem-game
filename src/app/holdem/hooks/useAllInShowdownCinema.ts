@@ -17,6 +17,7 @@ import {
 export type AllInCinemaPhase =
   | "off"
   | "allin-lock"
+  | "hole-reveal"
   | "street-windup"
   | "showdown-reveal"
   | "showdown-hold"
@@ -67,22 +68,16 @@ export function useAllInShowdownCinema(state: GameState) {
   const [activeStreet, setActiveStreet] =
     React.useState<AllInCinemaStreet | null>(null);
   const [showHandResult, setShowHandResult] = React.useState(true);
-  const [awardReleased, setAwardReleased] = React.useState(false);
-  const [interactionReleased, setInteractionReleased] = React.useState(false);
+  /** 결과 홀드가 끝날 때 팟 표시와 입력 잠금을 함께 해제한다. */
+  const [resultReleased, setResultReleased] = React.useState(false);
 
   const timersRef = React.useRef<ReturnType<typeof setTimeout>[]>([]);
-  const awardTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
   const resultTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
   const startedRunKeyRef = React.useRef<string | null>(null);
 
   const clearTimers = React.useCallback(() => {
     for (const id of timersRef.current) clearTimeout(id);
     timersRef.current = [];
-  }, []);
-
-  const clearAwardTimer = React.useCallback(() => {
-    if (awardTimerRef.current != null) clearTimeout(awardTimerRef.current);
-    awardTimerRef.current = null;
   }, []);
 
   const clearResultTimer = React.useCallback(() => {
@@ -97,14 +92,12 @@ export function useAllInShowdownCinema(state: GameState) {
     setPhase("showdown-resolve");
     setShowHandResult(true);
     playShowdownResultChime();
-    clearAwardTimer();
-    awardTimerRef.current = setTimeout(() => setAwardReleased(true), 850);
     clearResultTimer();
     resultTimerRef.current = setTimeout(
-      () => setInteractionReleased(true),
+      () => setResultReleased(true),
       ALL_IN_RESULT_HOLD_MS,
     );
-  }, [clearAwardTimer, clearResultTimer, clearTimers]);
+  }, [clearResultTimer, clearTimers]);
 
   React.useLayoutEffect(() => {
     if (runKey == null) {
@@ -113,9 +106,7 @@ export function useAllInShowdownCinema(state: GameState) {
       setVisualRevealed(0);
       setActiveStreet(null);
       setShowHandResult(true);
-      setAwardReleased(false);
-      setInteractionReleased(false);
-      clearAwardTimer();
+      setResultReleased(false);
       clearResultTimer();
       return;
     }
@@ -123,14 +114,13 @@ export function useAllInShowdownCinema(state: GameState) {
     setVisualRevealed(startRev);
     setActiveStreet(null);
     setShowHandResult(false);
-    setAwardReleased(false);
-    setInteractionReleased(false);
+    setResultReleased(false);
     clearResultTimer();
     if (startedRunKeyRef.current !== runKey) {
       startedRunKeyRef.current = runKey;
       playAllInImpact();
     }
-  }, [clearAwardTimer, clearResultTimer, runKey, startRev]);
+  }, [clearResultTimer, runKey, startRev]);
 
   React.useEffect(() => {
     clearTimers();
@@ -139,6 +129,10 @@ export function useAllInShowdownCinema(state: GameState) {
     for (const event of timeline) {
       const id = setTimeout(() => {
         switch (event.kind) {
+          case "hole-reveal":
+            setActiveStreet(null);
+            setPhase("hole-reveal");
+            break;
           case "windup":
             setActiveStreet(event.street);
             setPhase("street-windup");
@@ -166,18 +160,17 @@ export function useAllInShowdownCinema(state: GameState) {
 
   React.useEffect(
     () => () => {
-      clearAwardTimer();
       clearResultTimer();
     },
-    [clearAwardTimer, clearResultTimer],
+    [clearResultTimer],
   );
 
   const active = runKey != null;
-  const blockingInput = active && phase !== "off" && !interactionReleased;
+  const blockingInput = active && phase !== "off" && !resultReleased;
 
   const boardStreetLabelKo = React.useMemo(() => {
     if (!active) return null;
-    if (phase === "allin-lock") return "SHOWDOWN";
+    if (phase === "allin-lock" || phase === "hole-reveal") return "SHOWDOWN";
     if (phase === "showdown-resolve") return "쇼다운";
     if (activeStreet === "flop") return "플랍";
     if (activeStreet === "turn") return "턴";
@@ -192,7 +185,10 @@ export function useAllInShowdownCinema(state: GameState) {
     blockingInput,
     visualRevealed: active ? visualRevealed : null,
     showHandResult: active ? showHandResult : true,
-    holdAwardedChips: active && !awardReleased,
+    showHoleCards: !active || phase !== "allin-lock",
+    // 실제 분배는 이미 끝났지만 결과 화면 동안에는 직전 팟/스택을 유지한다.
+    // 결과 종료와 동시에 실제 스택을 노출해 TableHeaderBar의 +BB 애니메이션을 시작한다.
+    holdAwardedChips: active && !resultReleased,
     boardStreetLabelKo,
     streetPulse:
       phase === "street-windup" ||

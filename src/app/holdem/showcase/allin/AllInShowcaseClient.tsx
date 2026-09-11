@@ -44,6 +44,28 @@ type Beat = {
   patch: Partial<GameState>;
 };
 
+type ShowcaseStreet = "preflop" | "flop" | "turn" | "river";
+
+const STREET_REVEALED: Record<ShowcaseStreet, number> = {
+  preflop: 0,
+  flop: 3,
+  turn: 4,
+  river: 5,
+};
+
+function isShowcaseStreet(value: string | null): value is ShowcaseStreet {
+  return value !== null && value in STREET_REVEALED;
+}
+
+function scenarioActionLogs(street: ShowcaseStreet): GameMessage[] {
+  const actionType = street === "preflop" ? "preflop_action" : "postflop_action";
+  return [
+    ...PREFLOP_LOGS,
+    { t: actionType, player: 0, action: "올인", amount: 200 },
+    { t: actionType, player: 1, action: "콜", amount: 200 },
+  ];
+}
+
 function baseState(): GameState {
   const state = createInitialGameState("classic", "deep");
   return {
@@ -70,6 +92,48 @@ function baseState(): GameState {
     toAct: 0,
     lastActionNote: "블라인드 포스팅 · 액션 시작",
     logs: [{ t: "round_start", round: 1 }],
+  };
+}
+
+function scenarioState(street: ShowcaseStreet): GameState {
+  const startRevealed = STREET_REVEALED[street];
+  return {
+    ...baseState(),
+    phase: street,
+    chips: [0, 0],
+    pot: 400,
+    boardRevealed: startRevealed,
+    betting: {
+      contributed: [200, 200],
+      currentLevel: 200,
+      raiseDone: false,
+      checksThisStreet: 0,
+      raisesThisStreet: 1,
+    },
+    toAct: null,
+    isAllIn: true,
+    preflopStage: street === "preflop" ? "facing_raise" : null,
+    lastActionNote: `Pro · 콜 · ${street.toUpperCase()} 올인`,
+    logs: scenarioActionLogs(street),
+  };
+}
+
+function scenarioBeat(street: ShowcaseStreet): Beat {
+  return {
+    at: 1_200,
+    patch: {
+      chips: [400, 0],
+      pot: 0,
+      potAwardFlash: [400, -400],
+      phase: "showdown",
+      boardRevealed: 5,
+      runoutUiStartRevealed: STREET_REVEALED[street],
+      toAct: null,
+      isAllIn: false,
+      winner: 0,
+      handEndMode: "showdown",
+      lastActionNote: "K 쿼즈 vs A 풀하우스",
+    },
   };
 }
 
@@ -232,6 +296,11 @@ const SHOWDOWN_LOG: GameMessage = {
 
 export function AllInShowcaseClient() {
   const [run, setRun] = React.useState(0);
+  const scenarioStreet = React.useMemo<ShowcaseStreet | null>(() => {
+    if (typeof window === "undefined") return null;
+    const street = new URLSearchParams(window.location.search).get("street");
+    return isShowcaseStreet(street) ? street : null;
+  }, []);
   const [state, setState] = React.useState<GameState>(() => baseState());
 
   const start = React.useCallback(() => {
@@ -239,16 +308,19 @@ export function AllInShowcaseClient() {
   }, []);
 
   React.useEffect(() => {
-    const initial = baseState();
+    const initial = scenarioStreet ? scenarioState(scenarioStreet) : baseState();
     setState(initial);
     if (run === 0) return;
 
-    const timers = BEATS.map((beat, index) =>
+    const beats = scenarioStreet ? [scenarioBeat(scenarioStreet)] : BEATS;
+    const timers = beats.map((beat, index) =>
       window.setTimeout(() => {
         setState((current) => {
           const logs =
-            index >= 7
-              ? [...PREFLOP_LOGS, SHOWDOWN_LOG]
+            scenarioStreet
+              ? [...scenarioActionLogs(scenarioStreet), SHOWDOWN_LOG]
+              : index >= 7
+                ? [...PREFLOP_LOGS, SHOWDOWN_LOG]
               : index >= 3
                 ? PREFLOP_LOGS
                 : current.logs;
@@ -257,7 +329,7 @@ export function AllInShowcaseClient() {
       }, beat.at),
     );
     return () => timers.forEach(window.clearTimeout);
-  }, [run]);
+  }, [run, scenarioStreet]);
 
   React.useEffect(() => {
     const params = new URLSearchParams(window.location.search);
