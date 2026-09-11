@@ -202,6 +202,38 @@ export function HoleCards({
     const winSet = new Set(bestFiveCardsFromSeven(winAll).map(key));
     return { kind: "win" as const, winSeat, winSet };
   }, [showdownFxArmed, state.board, state.boardRevealed, state.holes, state.phase]);
+  /**
+   * 포스트플랍 메이드 반응(글로우·족보 문구)을 카드가 실제로 다 깔리기 전에
+   * 즉시 바꾸면 너무 급작스럽다. 보드 공개 장수가 늘어날 때만 살짝 지연해
+   * 반영하고(카드 딜 애니메이션이 끝날 즈음), 라운드가 바뀌거나 값이
+   * 줄어들 때(리셋)는 지연 없이 바로 따라간다.
+   */
+  const [delayedBoardRevealed, setDelayedBoardRevealed] = React.useState(
+    state.boardRevealed,
+  );
+  const delayedRevealedRef = React.useRef(state.boardRevealed);
+  const delayedRoundRef = React.useRef(state.roundNumber);
+  React.useEffect(() => {
+    if (delayedRoundRef.current !== state.roundNumber) {
+      delayedRoundRef.current = state.roundNumber;
+      delayedRevealedRef.current = state.boardRevealed;
+      setDelayedBoardRevealed(state.boardRevealed);
+      return;
+    }
+    if (state.boardRevealed <= delayedRevealedRef.current) {
+      delayedRevealedRef.current = state.boardRevealed;
+      setDelayedBoardRevealed(state.boardRevealed);
+      return;
+    }
+    const delayMs = subtleMotion ? 260 : 520;
+    const nextRevealed = state.boardRevealed;
+    const t = window.setTimeout(() => {
+      delayedRevealedRef.current = nextRevealed;
+      setDelayedBoardRevealed(nextRevealed);
+    }, delayMs);
+    return () => window.clearTimeout(t);
+  }, [state.boardRevealed, state.roundNumber, subtleMotion]);
+
   const turnPulse = useTurnPulse(
     state.phase !== "showdown" && state.phase !== "hand_over"
       ? state.toAct
@@ -271,7 +303,7 @@ export function HoleCards({
           state.winner === p &&
           !isMe;
 
-        const boardUsedForFx = state.board.slice(0, state.boardRevealed);
+        const boardUsedForFx = state.board.slice(0, delayedBoardRevealed);
         let madeFxTier = 0;
         let madeFxKind: MadeHandFxKind = "none";
         if (
@@ -296,7 +328,7 @@ export function HoleCards({
           madeFxTier > 0
             ? showdownRunoutFx
               ? `made-fx-runout-${state.roundNumber}-${madeFxKind}-p${p}`
-              : `made-fx-${state.roundNumber}-${state.boardRevealed}-${madeFxKind}-p${p}`
+              : `made-fx-${state.roundNumber}-${delayedBoardRevealed}-${madeFxKind}-p${p}`
             : showdownReveal
               ? `showdown-default-fx-${state.roundNumber}-p${p}`
               : `hole-row-${p}`;
@@ -411,7 +443,7 @@ export function HoleCards({
             ? currentCompactHandLabel(
                 sel.hole,
                 state.board,
-                state.boardRevealed,
+                delayedBoardRevealed,
                 locale,
               )
             : "";
