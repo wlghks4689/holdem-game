@@ -3,15 +3,29 @@
 import * as React from "react";
 import Link from "next/link";
 import { CardBack, PlayingCard } from "@/app/holdem/components/Card";
+import {
+  MADE_FX_CARD_GLOW,
+  MADE_FX_CYCLE_AURA_CLASS,
+  MADE_FX_IMPACT_CLASS,
+  MADE_FX_VARIANT_CLASSES,
+} from "@/app/holdem/components/HoleCards";
+import { shouldPlayMadeHandBurst } from "@/app/holdem/madeHandFxPresentation";
+import type { Card } from "@/holdem/cards";
+import { HOLDEM_PREFS_CHANGED_EVENT, loadMadeHandFxEnabled } from "@/holdem/holdemPrefs";
+import { handValueDisplayPatternKorean, madeHandFxKind, madeHandFxTier } from "@/holdem/pokerEval";
+import type { MadeHandFxKind } from "@/holdem/pokerEval";
 import { DEFAULT_PROTOTYPE_SEAT_COUNT, MYSTERY_HOLDEM_CONFIG } from "@/mysteryHoldem/config";
 import { createInitialMysteryGameState, currentTotalPot, mysteryHoldemReducer } from "@/mysteryHoldem/gameReducer";
 import { positionLabelForSeat } from "@/mysteryHoldem/positions";
 import { legalActionsForSeat, potLimitMaxRaiseDisplay } from "@/mysteryHoldem/selectors";
+import { computeBestHandForPlayer } from "@/mysteryHoldem/showdown";
 import type { MysteryGameAction, MysteryGameState, PlayerState, Seat } from "@/mysteryHoldem/types";
 import { decideBotAction, pickHoleKeepIndexes, pickMissionId } from "./mysteryBot";
 
 const HERO_SEAT: Seat = 0;
 const BOT_DELAY_MS = 650;
+/** 상대에게는 실제 홀카드 수(2 또는 Extra Hand Mission의 4)를 절대 노출하지 않는다 */
+const OPPONENT_CARD_BACK_COUNT = 2;
 
 function reducerWithRng(state: MysteryGameState, action: MysteryGameAction): MysteryGameState {
   return mysteryHoldemReducer(state, action, Math.random);
@@ -28,6 +42,127 @@ function seatStyle(indexFromHero: number, total: number): React.CSSProperties {
 
 function fmt(n: number): string {
   return Math.round(n * 10) / 10 === Math.round(n) ? String(Math.round(n)) : n.toFixed(1);
+}
+
+/** 기존 홀덤(§25 공용 모듈)의 메이드 연출 설정을 그대로 공유한다 */
+function useMadeHandFxEnabled(): boolean {
+  const [on, setOn] = React.useState(() => (typeof window !== "undefined" ? loadMadeHandFxEnabled() : true));
+  React.useEffect(() => {
+    setOn(loadMadeHandFxEnabled());
+    const handler = () => setOn(loadMadeHandFxEnabled());
+    window.addEventListener(HOLDEM_PREFS_CHANGED_EVENT, handler);
+    return () => window.removeEventListener(HOLDEM_PREFS_CHANGED_EVENT, handler);
+  }, []);
+  return on;
+}
+
+interface HeroMadeFx {
+  tier: number;
+  kind: MadeHandFxKind;
+  label: string;
+  cardClass: string;
+  labelClass: string;
+  outerFxClass: string;
+  cycleAuraClass: string | undefined;
+  showBurst: boolean;
+  replayKey: string;
+}
+
+const NO_MADE_FX: HeroMadeFx = {
+  tier: 0,
+  kind: "none",
+  label: "",
+  cardClass: "",
+  labelClass: "",
+  outerFxClass: "",
+  cycleAuraClass: undefined,
+  showBurst: false,
+  replayKey: "no-fx",
+};
+
+/**
+ * 상대 카드가 보이지 않아도 "내 카드"가 메이드되면 기존 홀덤과 동일한 연출을 재생한다(§25 재사용).
+ * 상대(봇) 좌석에는 절대 적용하지 않는다 — 이 연출은 본인 시야 전용이다.
+ */
+function useHeroMadeHandFx(state: MysteryGameState, hero: PlayerState | undefined): HeroMadeFx {
+  const enabled = useMadeHandFxEnabled();
+  return React.useMemo(() => {
+    if (!enabled || hero == null || hero.holeCards.length === 0) return NO_MADE_FX;
+    const board = state.board.slice(0, state.boardRevealed);
+    const value = computeBestHandForPlayer(hero, board);
+    const tier = madeHandFxTier(value);
+    if (tier <= 0) return NO_MADE_FX;
+    const kind = madeHandFxKind(value);
+    const variant = MADE_FX_VARIANT_CLASSES[kind];
+    const cardClass = variant?.card ?? MADE_FX_CARD_GLOW[tier] ?? "";
+    const labelClass = variant?.label ?? `holdem-made-hand-label-t${tier}`;
+    const impactClass = MADE_FX_IMPACT_CLASS[kind] ?? "";
+    const outerFxClass = ["holdem-made-fx", `holdem-made-fx-t${tier}`, "overflow-visible", impactClass, variant?.fx ?? ""]
+      .filter(Boolean)
+      .join(" ");
+    const showBurst = shouldPlayMadeHandBurst({
+      madeFxTier: tier,
+      showdownReveal: false,
+      showdownResultGlow: false,
+      showdownRunoutFx: false,
+    });
+    return {
+      tier,
+      kind,
+      label: handValueDisplayPatternKorean(value),
+      cardClass,
+      labelClass,
+      outerFxClass,
+      cycleAuraClass: MADE_FX_CYCLE_AURA_CLASS[kind],
+      showBurst,
+      // 같은 라운드에서 족보 종류가 유지되는 동안은 재마운트하지 않고, 실제로 족보가
+      // 바뀔 때만(예: 트립스→풀하우스) 새 키를 받아 연출을 다시 재생한다.
+      replayKey: `mystery-made-fx-${state.round}-${kind}`,
+    };
+  }, [enabled, hero, state.board, state.boardRevealed, state.round]);
+}
+
+function HeroCardsWithMadeFx({
+  cards,
+  size,
+  fx,
+}: {
+  cards: Card[];
+  size: "compact" | "hero";
+  fx: HeroMadeFx;
+}) {
+  if (fx.tier <= 0) {
+    return (
+      <div className="flex gap-1.5">
+        {cards.map((c, i) => (
+          <PlayingCard key={i} card={c} size={size} />
+        ))}
+      </div>
+    );
+  }
+  return (
+    <div key={fx.replayKey} className={["holdem-hole-fx-bounds", fx.outerFxClass].join(" ")}>
+      {fx.showBurst && fx.cycleAuraClass ? (
+        <span className={`holdem-preview-cycle-aura ${fx.cycleAuraClass}`} aria-hidden />
+      ) : null}
+      <div className="flex gap-1.5 holdem-made-fx-stack">
+        {cards.map((c, i) => (
+          <div
+            key={i}
+            className={fx.showBurst ? "holdem-made-fx-card" : undefined}
+            style={fx.showBurst ? { animationDelay: `${i * 0.08}s` } : undefined}
+          >
+            <PlayingCard card={c} size={size} className={fx.cardClass} />
+          </div>
+        ))}
+      </div>
+      {size === "hero" ? (
+        <p className={["holdem-made-hand-copy mt-1 text-center text-xs font-extrabold tracking-tight", fx.labelClass].join(" ")}>
+          {fx.label}
+        </p>
+      ) : null}
+    </div>
+  );
 }
 
 export function MysteryHoldemClient() {
@@ -65,11 +200,15 @@ export function MysteryHoldemClient() {
     setRaiseTo(null);
   }, [state.round, state.phase]);
 
-  if (state.phase === "lobby") {
+  // 로비 단계에도 훅 호출 순서를 동일하게 유지해야 하므로(Rules of Hooks),
+  // hero가 아직 없을 수 있는 상태 그대로 무조건 호출한다.
+  const hero = state.players.find((p) => p.seat === HERO_SEAT);
+  const heroFx = useHeroMadeHandFx(state, hero);
+
+  if (state.phase === "lobby" || hero == null) {
     return <LobbyScreen seatCount={seatCount} onSeatCount={setSeatCount} onStart={() => dispatch({ type: "START_MATCH", seatCount })} />;
   }
 
-  const hero = state.players.find((p) => p.seat === HERO_SEAT)!;
   const legal = legalActionsForSeat(state, HERO_SEAT);
   const potMax = potLimitMaxRaiseDisplay(state, HERO_SEAT);
   const pot = currentTotalPot(state);
@@ -112,6 +251,7 @@ export function MysteryHoldemClient() {
                 state={state}
                 style={seatStyle(idx, state.seatCount)}
                 isHero={p.seat === HERO_SEAT}
+                heroFx={p.seat === HERO_SEAT ? heroFx : NO_MADE_FX}
               />
             );
           })}
@@ -133,6 +273,7 @@ export function MysteryHoldemClient() {
         {["preflop", "flop", "turn", "river"].includes(state.phase) && !heroNeedsHoleSelection && !heroNeedsMission ? (
           <HeroPanel
             hero={hero}
+            heroFx={heroFx}
             state={state}
             legal={legal}
             potMax={potMax}
@@ -252,11 +393,13 @@ function SeatView({
   state,
   style,
   isHero,
+  heroFx,
 }: {
   player: PlayerState;
   state: MysteryGameState;
   style: React.CSSProperties;
   isHero: boolean;
+  heroFx: HeroMadeFx;
 }) {
   const pos = positionLabelForSeat(player.seat, state.buttonSeat, state.seatCount);
   const isActing = state.toActSeat === player.seat;
@@ -268,15 +411,19 @@ function SeatView({
       style={style}
     >
       <div className="flex gap-0.5">
-        {player.holeCards.length > 0 && !player.folded
-          ? player.holeCards.map((c, i) =>
-              showCards && !player.folded ? (
-                <PlayingCard key={i} card={c} size="compact" />
-              ) : (
-                <CardBack key={i} size="compact" />
-              ),
+        {player.holeCards.length > 0 && !player.folded ? (
+          showCards ? (
+            isHero ? (
+              <HeroCardsWithMadeFx cards={player.holeCards} size="compact" fx={heroFx} />
+            ) : (
+              player.holeCards.map((c, i) => <PlayingCard key={i} card={c} size="compact" />)
             )
-          : null}
+          ) : (
+            // 상대는 실제 홀카드 수(Extra Hand Mission의 4장 포함)와 무관하게 항상 2장
+            // 뒷면만 보여준다 — 카드 매수만으로도 어떤 Mission인지 추론되지 않게 한다(§13).
+            Array.from({ length: OPPONENT_CARD_BACK_COUNT }, (_, i) => <CardBack key={i} size="compact" />)
+          )
+        ) : null}
       </div>
       <div
         className={[
@@ -394,6 +541,7 @@ function HandSetupPanel({
 
 function HeroPanel({
   hero,
+  heroFx,
   state,
   legal,
   potMax,
@@ -402,6 +550,7 @@ function HeroPanel({
   dispatch,
 }: {
   hero: PlayerState;
+  heroFx: HeroMadeFx;
   state: MysteryGameState;
   legal: ReturnType<typeof legalActionsForSeat>;
   potMax: number;
@@ -416,11 +565,7 @@ function HeroPanel({
   return (
     <div className="rounded-2xl border border-zinc-700/70 bg-zinc-900/70 p-4 shadow-xl">
       <div className="mb-3 flex items-center justify-between">
-        <div className="flex gap-1.5">
-          {hero.holeCards.map((c, i) => (
-            <PlayingCard key={i} card={c} size="hero" />
-          ))}
-        </div>
+        <HeroCardsWithMadeFx cards={hero.holeCards} size="hero" fx={heroFx} />
         {hero.mission ? (
           <div className="max-w-[55%] rounded-lg border border-fuchsia-700/50 bg-fuchsia-950/20 px-3 py-1.5 text-right">
             <p className="text-[10px] font-bold uppercase tracking-wide text-fuchsia-400">My Mission</p>

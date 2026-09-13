@@ -56,20 +56,21 @@ export const MADE_TURN_PANEL: Record<number, string> = {
   5: "border-zinc-600/70 bg-sky-950/22 shadow-[0_0_56px_rgba(192,132,252,0.4)] z-[2]",
 };
 
-const MADE_FX_IMPACT_CLASS: Partial<Record<MadeHandFxKind, string>> = {
+/** MysteryHoldem 등 다른 게임에서도 동일한 메이드 연출을 재사용할 수 있도록 export(§25 공용 모듈 추출) */
+export const MADE_FX_IMPACT_CLASS: Partial<Record<MadeHandFxKind, string>> = {
   straight: "holdem-preview-impact-t1-fx",
   flush: "holdem-preview-impact-t2-fx",
   "full-house": "holdem-preview-impact-t3-fx",
 };
 
-const MADE_FX_CYCLE_AURA_CLASS: Partial<Record<MadeHandFxKind, string>> = {
+export const MADE_FX_CYCLE_AURA_CLASS: Partial<Record<MadeHandFxKind, string>> = {
   straight: "holdem-preview-cycle-aura-straight",
   flush: "holdem-preview-cycle-aura-flush",
   "full-house": "holdem-preview-cycle-aura-full-house",
   quads: "holdem-preview-cycle-aura-quads",
 };
 
-type MadeFxVariantClasses = {
+export type MadeFxVariantClasses = {
   panel: string;
   fx: string;
   card: string;
@@ -77,7 +78,7 @@ type MadeFxVariantClasses = {
   badge: string;
 };
 
-const MADE_FX_VARIANT_CLASSES: Partial<
+export const MADE_FX_VARIANT_CLASSES: Partial<
   Record<MadeHandFxKind, MadeFxVariantClasses>
 > = {
   quads: {
