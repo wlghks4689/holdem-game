@@ -39,23 +39,38 @@ assert.deepEqual(MYSTERY_HOLDEM_CONFIG.missionChangeRounds, [1, 4, 7, 10, 13]);
   }
 }
 
-// 정규 라운드가 아닌 라운드(예: 2)에서는 이미 Mission을 보유한 플레이어에게 새 후보가 오지 않는다.
+// 비정규 라운드(예: 2)에서는 "직전 핸드에 Mission을 달성한 좌석"만 새 후보를 받는다.
+// 달성하지 못한 좌석은 기존 Mission을 그대로 유지해야 한다.
+// (어떤 Mission이 뽑히는지는 시드에 따라 달라지므로, 뽑기 결과가 아니라 규칙 자체를 검증한다.)
 {
   const rng = mulberry32(4);
   let state = startMatch(2, rng);
   state = autoCompleteHandSetup(state, rng);
   assert.equal(state.round, 1);
-  // 강제로 두 좌석 모두 "achieved=false" 유지한 채 다음 핸드로 넘어가면(라운드 2는 비정규),
-  // 새 Mission 후보가 오지 않아야 한다.
   // preflop에서 바로 폴드시켜 라운드를 빠르게 종료한다.
   state = dispatch(state, { type: "FOLD", seat: state.toActSeat! }, rng);
   assert.equal(state.phase, "hand_over");
-  const missionBefore = state.players.map((p) => p.mission?.def.id);
+
+  const before = new Map(state.players.map((p) => [p.seat, p.mission] as const));
+  const achievedSeats = state.players.filter((p) => p.mission?.achieved).map((p) => p.seat);
+
   state = dispatch(state, { type: "START_NEXT_HAND" }, rng);
   assert.equal(state.round, 2);
-  assert.deepEqual(state.awaitingMissionSelection, [], "라운드 2는 비정규 라운드이므로 새 Mission 제안이 없어야 한다");
-  const missionAfter = state.players.map((p) => p.mission?.def.id);
-  assert.deepEqual(missionBefore, missionAfter, "Mission이 그대로 유지되어야 한다");
+
+  assert.deepEqual(
+    [...state.awaitingMissionSelection].sort((a, b) => a - b),
+    [...achievedSeats].sort((a, b) => a - b),
+    "비정규 라운드에서는 직전 핸드에 Mission을 달성한 좌석만 새 후보를 받아야 한다",
+  );
+
+  for (const p of state.players) {
+    if (achievedSeats.includes(p.seat)) continue;
+    assert.equal(
+      p.mission?.def.id,
+      before.get(p.seat)?.def.id,
+      `좌석 ${p.seat}은 미달성이므로 Mission이 유지되어야 한다`,
+    );
+  }
 }
 
 // Mission 성공 시 정규 변경 라운드가 아니어도 다음 핸드 전에 새 Mission을 받는다.

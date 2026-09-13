@@ -69,17 +69,8 @@ export const MISSION_POOL: MysteryMissionDef[] = [
     reward: 270,
   }),
 
-  // ── Pair 계열: 완성 + 승리까지 필요 (§12) ──
-  {
-    id: "pair_one_pair_win",
-    name: "원페어 클로저",
-    category: "pair",
-    description: "원페어로 팟을 승리한다.",
-    trigger: "hand_result(showdown+win)",
-    condition: (ctx) =>
-      ctx.wentToShowdown && ctx.wonAnyPot && ctx.bestHandValue?.rank === HAND_RANK.PAIR,
-    reward: 120,
-  },
+  // ── Pair 계열: "정확히 그 족보로" + "승리까지" 두 조건을 모두 요구해 체감 난도가 높다(§12).
+  // 원페어 클로저는 난도 대비 보상 설계를 다시 잡기로 하고 일단 풀에서 제외했다.
   {
     id: "pair_two_pair_win",
     name: "투페어 클로저",
@@ -169,7 +160,7 @@ export const MISSION_POOL: MysteryMissionDef[] = [
   // ── Position 계열(§12) ──
   {
     id: "position_win_button",
-    name: "버튼 강자",
+    name: "윈 더 버튼",
     category: "position",
     description: "버튼(BTN) 포지션에서 팟을 승리한다.",
     trigger: "hand_result(win)",

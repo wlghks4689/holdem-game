@@ -45,7 +45,8 @@ for (const rank of LADDER) {
 console.log("\n=== Mission별 기본 점수 ===");
 console.log(`  ${"Mission".padEnd(20)} ${"분류".padEnd(10)} ${"기본점수".padStart(8)}   조건`);
 for (const m of MISSION_POOL) {
-  const reward = m.id === "counter_steal" ? "피해자의 50%" : String(m.reward);
+  // 보상이 onAchieved에서 동적으로 계산되는 Mission(강탈 등)은 고정값이 없으므로 설명을 따른다.
+  const reward = m.reward === 0 && m.onAchieved != null ? "가변" : String(m.reward);
   console.log(`  ${m.name.padEnd(20)} ${m.category.padEnd(10)} ${reward.padStart(8)}   ${m.description}`);
 }
 
