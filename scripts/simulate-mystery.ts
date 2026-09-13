@@ -1,4 +1,4 @@
-import { MYSTERY_HOLDEM_CONFIG } from "../src/mysteryHoldem/config";
+import { MYSTERY_HOLDEM_CONFIG, bountyRewardForSeatCount } from "../src/mysteryHoldem/config";
 import { createInitialMysteryGameState, mysteryHoldemReducer } from "../src/mysteryHoldem/gameReducer";
 import { decideBotAction, pickHoleKeepIndexes, pickMissionId } from "../src/mysteryHoldem/bot/botPolicy";
 import { MISSION_POOL } from "../src/mysteryHoldem/mysteryMissions";
@@ -50,6 +50,11 @@ interface Totals {
   missionActive: Record<string, number>;
   missionAchieved: Record<string, number>;
   missionRewardTotal: Record<string, number>;
+  /** 이 Mission이 상대에게서 지운 점수(Counter 계열의 실제 가치) */
+  missionDeniedByCounter: number;
+  missionDeniedCount: number;
+  /** 버스트를 시킨 플레이어가 그 핸드에서 가져간 칩(Chip Point 환산) */
+  bustChipGain: number[];
 }
 
 const totals: Totals = {
@@ -71,6 +76,9 @@ const totals: Totals = {
   missionActive: {},
   missionAchieved: {},
   missionRewardTotal: {},
+  missionDeniedByCounter: 0,
+  missionDeniedCount: 0,
+  bustChipGain: [],
 };
 
 function dispatch(state: MysteryGameState, action: MysteryGameAction, rng: () => number): MysteryGameState {
@@ -153,8 +161,22 @@ function collectHandStats(state: MysteryGameState, cursor: number): number {
   // 한 핸드가 Main/Side Pot을 여러 개 만들면 showdown 로그도 여러 개 나온다.
   // "쇼다운 도달 핸드 수"는 핸드 단위로 세고, 팟 크기만 팟 단위로 모은다.
   let sawShowdownThisBatch = false;
+  // 이 핸드에서 좌석별로 가져간 팟(버스트 1건의 실제 가치를 재기 위해)
+  const wonBySeat = new Map<number, number>();
   for (let i = cursor; i < state.logs.length; i++) {
     const log = state.logs[i]!;
+    if (log.t === "showdown") {
+      for (const w of log.winners) {
+        wonBySeat.set(w, (wonBySeat.get(w) ?? 0) + log.potAmount / log.winners.length);
+      }
+    }
+    if (log.t === "fold_win") {
+      wonBySeat.set(log.winner, (wonBySeat.get(log.winner) ?? 0) + log.pot);
+    }
+    if (log.t === "bounty_awarded") {
+      const chipsWon = wonBySeat.get(log.seat) ?? 0;
+      totals.bustChipGain.push(chipsWon / MYSTERY_HOLDEM_CONFIG.chipPointDivisor);
+    }
     if (log.t === "round_start") totals.handsPlayed++;
     if (log.t === "showdown") {
       if (!sawShowdownThisBatch) {
@@ -173,6 +195,10 @@ function collectHandStats(state: MysteryGameState, cursor: number): number {
       if (log.achieved) {
         totals.missionAchieved[log.missionId] = (totals.missionAchieved[log.missionId] ?? 0) + 1;
         totals.missionRewardTotal[log.missionId] = (totals.missionRewardTotal[log.missionId] ?? 0) + log.reward;
+      }
+      if (log.deniedReward > 0) {
+        totals.missionDeniedByCounter += log.deniedReward;
+        totals.missionDeniedCount++;
       }
     }
   }
@@ -219,9 +245,24 @@ console.log(`  Mission Point 평균 ${mean(totals.missionPoints).toFixed(1)}  (p
 console.log(`  Bounty Point  평균 ${mean(totals.bountyPoints).toFixed(1)}  (p10 ${percentile(totals.bountyPoints, 0.1).toFixed(0)} / p90 ${percentile(totals.bountyPoints, 0.9).toFixed(0)})`);
 const avgTotal = mean(totals.totalPoints);
 console.log(`  Total Point   평균 ${avgTotal.toFixed(1)}`);
-console.log(
-  `  → 비중: Chip ${pct(mean(totals.chipPoints), avgTotal)} / Mission ${pct(mean(totals.missionPoints), avgTotal)} / Bounty ${pct(mean(totals.bountyPoints), avgTotal)}`,
-);
+
+/**
+ * 중요: Chip Point 평균은 항상 시작 칩 / 100(= 300)으로 고정된다(제로섬).
+ * 따라서 "Mission이 전체의 몇 %인가"는 의미가 없고, 승패를 가르는 것은
+ * 기본값 300에서 얼마나 벗어났는지(편차)다. Mission/Bounty는 그 편차와 비교해야 한다.
+ */
+const baseline = MYSTERY_HOLDEM_CONFIG.startingChips / MYSTERY_HOLDEM_CONFIG.chipPointDivisor;
+const chipDeviations = totals.chipPoints.map((c) => Math.abs(c - baseline));
+const avgChipDev = mean(chipDeviations);
+console.log(`\n  [기본값 ${baseline}점 기준 실질 영향력]`);
+console.log(`  Chip Point 편차   평균 ${avgChipDev.toFixed(1)}  (p90 ${percentile(chipDeviations, 0.9).toFixed(0)})`);
+console.log(`  Mission Point     평균 ${mean(totals.missionPoints).toFixed(1)}  → 칩 편차 대비 ${pct(mean(totals.missionPoints), avgChipDev)}`);
+console.log(`  Bounty Point      평균 ${mean(totals.bountyPoints).toFixed(1)}  → 칩 편차 대비 ${pct(mean(totals.bountyPoints), avgChipDev)}`);
+if (totals.bustChipGain.length > 0) {
+  console.log(
+    `\n  버스트 1건의 총 가치 = 그 핸드에서 얻은 칩 ${mean(totals.bustChipGain).toFixed(0)}점 + Bounty ${bountyRewardForSeatCount(seatCount)}점`,
+  );
+}
 if (totals.winnerMissionShare.length > 0) {
   console.log(`  우승자의 Mission+Bounty 의존도 평균 ${(mean(totals.winnerMissionShare) * 100).toFixed(1)}%`);
 }
@@ -247,6 +288,14 @@ for (const r of rows) {
   console.log(
     `  ${r.name.padEnd(22)} ${String(r.active).padStart(8)} ${(r.rate * 100).toFixed(1).padStart(7)}% ${r.avgReward.toFixed(1).padStart(9)} ${r.evPerHand.toFixed(2).padStart(9)}`,
   );
+}
+
+if (totals.missionDeniedCount > 0) {
+  const avgDenied = totals.missionDeniedByCounter / totals.missionDeniedCount;
+  console.log(
+    `\n  Counter 계열이 지운 상대 점수: ${totals.missionDeniedCount}건 / 총 ${totals.missionDeniedByCounter.toFixed(0)}점 (건당 평균 ${avgDenied.toFixed(0)}점)`,
+  );
+  console.log("  → Counter 미션의 실제 가치 = 위 표의 획득 EV + 이 '지운 점수'");
 }
 
 const evs = rows.filter((r) => r.active > 0).map((r) => r.evPerHand);

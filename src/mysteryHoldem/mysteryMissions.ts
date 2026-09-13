@@ -1,5 +1,6 @@
 import { shuffle } from "@/holdem/cards";
 import { HAND_RANK } from "@/holdem/pokerEval";
+import { roundToTen } from "./missionRewards";
 import { isUnderdogVersus } from "./mysteryHandRanking";
 import type { MissionEvalContext, MysteryMissionDef } from "./types";
 
@@ -44,28 +45,28 @@ export const MISSION_POOL: MysteryMissionDef[] = [
     name: "트립스 헌터",
     description: "쇼다운에서 트립스 이상을 완성한다.",
     threshold: HAND_RANK.TRIPS,
-    reward: 55,
+    reward: 70,
   }),
   madeMission({
     id: "made_straight_plus",
     name: "스트레이트 헌터",
     description: "쇼다운에서 스트레이트 이상을 완성한다.",
     threshold: HAND_RANK.STRAIGHT,
-    reward: 60,
+    reward: 100,
   }),
   madeMission({
     id: "made_flush_plus",
     name: "플러시 헌터",
     description: "쇼다운에서 플러시 이상을 완성한다.",
     threshold: HAND_RANK.FLUSH,
-    reward: 100,
+    reward: 190,
   }),
   madeMission({
     id: "made_full_house_plus",
     name: "풀하우스 헌터",
     description: "쇼다운에서 풀하우스 이상을 완성한다. 포카드(×2)·스트레이트 플러시(×4)는 보너스 배수.",
     threshold: HAND_RANK.FULL_HOUSE,
-    reward: 220,
+    reward: 270,
   }),
 
   // ── Pair 계열: 완성 + 승리까지 필요 (§12) ──
@@ -77,7 +78,7 @@ export const MISSION_POOL: MysteryMissionDef[] = [
     trigger: "hand_result(showdown+win)",
     condition: (ctx) =>
       ctx.wentToShowdown && ctx.wonAnyPot && ctx.bestHandValue?.rank === HAND_RANK.PAIR,
-    reward: 55,
+    reward: 120,
   },
   {
     id: "pair_two_pair_win",
@@ -87,7 +88,7 @@ export const MISSION_POOL: MysteryMissionDef[] = [
     trigger: "hand_result(showdown+win)",
     condition: (ctx) =>
       ctx.wentToShowdown && ctx.wonAnyPot && ctx.bestHandValue?.rank === HAND_RANK.TWO_PAIR,
-    reward: 70,
+    reward: 110,
   },
 
   // ── Counter 계열: 상대 Mission 성공에 반응(§12, 상호작용은 §31 미확정 — 잠정 구현) ──
@@ -98,8 +99,9 @@ export const MISSION_POOL: MysteryMissionDef[] = [
     description: "이번 핸드에 상대가 Mission을 성공하면, 그 성공을 무효화하고 고정 보너스를 얻는다.",
     trigger: "hand_result(opponent_mission_achieved)",
     condition: (ctx) => ctx.opponentsAchievedThisHand.length > 0,
-    // 시뮬레이션 실측 달성률이 ~30%로 풀에서 가장 높아(카드 운과 무관하게 발동) 보상을 낮췄다.
-    reward: 18,
+    // 이 Mission의 진짜 가치는 획득 점수가 아니라 "상대 점수를 지우는 것"이다
+    // (실측 무효화 평균 92점). 달성한 상대 "전원"을 지우는 대신 직접 획득분은 낮게 유지한다.
+    reward: 20,
     onAchieved: (ctx, api) => {
       for (const seat of ctx.opponentsAchievedThisHand) api.nullifyReward(seat);
     },
@@ -108,17 +110,29 @@ export const MISSION_POOL: MysteryMissionDef[] = [
     id: "counter_steal",
     name: "미션 강탈자",
     category: "counter",
-    description: "이번 핸드에 상대가 Mission을 성공하면, 그 보상을 무효화하고 절반을 가져온다.",
+    description:
+      "이번 핸드에 Mission을 성공한 상대 중 가장 점수가 높은 한 명을 무효화하고, 그 25%를 가져온다.",
     trigger: "hand_result(opponent_mission_achieved)",
     condition: (ctx) => ctx.opponentsAchievedThisHand.length > 0,
     reward: 0,
-    // 전액 강탈은 실측 EV가 풀 최상위권이었다. 무효화는 그대로 두고 획득분만 절반으로 줄인다.
+    /**
+     * 미션 브레이커와의 차별화: 브레이커는 "달성한 상대 전원"을 지우는 광역 방해,
+     * 강탈자는 "가장 큰 한 명"만 지우는 대신 그 일부를 직접 가져간다.
+     * (둘 다 전원을 지우면 강탈자가 브레이커의 완전한 상위호환이 되어 선택지가 죽는다.)
+     */
     onAchieved: (ctx, api) => {
+      let topSeat: number | null = null;
+      let topReward = 0;
       for (const seat of ctx.opponentsAchievedThisHand) {
-        const stolen = api.rewardOf(seat);
-        api.nullifyReward(seat);
-        api.grantBonus(Math.round(stolen * 0.5));
+        const value = api.rewardOf(seat);
+        if (value > topReward) {
+          topReward = value;
+          topSeat = seat;
+        }
       }
+      if (topSeat == null) return;
+      api.nullifyReward(topSeat);
+      api.grantBonus(roundToTen(topReward * 0.25));
     },
   },
 
@@ -149,7 +163,7 @@ export const MISSION_POOL: MysteryMissionDef[] = [
       ctx.showdownOpponents.some((seat) =>
         isUnderdogVersus(ctx.myPreflopScore, ctx.opponentPreflopScores[seat] ?? -Infinity),
       ),
-    reward: 55,
+    reward: 60,
   },
 
   // ── Position 계열(§12) ──
@@ -160,7 +174,7 @@ export const MISSION_POOL: MysteryMissionDef[] = [
     description: "버튼(BTN) 포지션에서 팟을 승리한다.",
     trigger: "hand_result(win)",
     condition: (ctx) => ctx.position === "BTN" && ctx.wonAnyPot,
-    reward: 110,
+    reward: 170,
   },
   {
     id: "position_win_blinds",
@@ -169,7 +183,7 @@ export const MISSION_POOL: MysteryMissionDef[] = [
     description: "블라인드(SB/BB) 포지션에서 팟을 승리한다.",
     trigger: "hand_result(win)",
     condition: (ctx) => (ctx.position === "SB" || ctx.position === "BB") && ctx.wonAnyPot,
-    reward: 35,
+    reward: 40,
   },
   {
     id: "position_showdown_win_late",
@@ -183,7 +197,7 @@ export const MISSION_POOL: MysteryMissionDef[] = [
       (ctx.position === "BTN" || ctx.position === "CO" || ctx.position === "HJ") &&
       ctx.wentToShowdown &&
       ctx.wonAnyPot,
-    reward: 110,
+    reward: 220,
   },
 ];
 

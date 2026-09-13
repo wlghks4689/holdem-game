@@ -162,7 +162,15 @@ export type MysteryGameMessage =
       winners: Seat[];
       desc: string;
     }
-  | { t: "mission_result"; seat: Seat; missionId: string; achieved: boolean; reward: number }
+  | {
+      t: "mission_result";
+      seat: Seat;
+      missionId: string;
+      achieved: boolean;
+      reward: number;
+      /** Counter 계열에 의해 무효화되어 잃은 점수(없으면 0) */
+      deniedReward: number;
+    }
   | { t: "bounty_awarded"; seat: Seat; bustedSeat: Seat; reward: number }
   | { t: "player_busted"; seat: Seat }
   | { t: "match_over"; reason: "round_limit" | "last_player_standing"; winners: Seat[] };
@@ -181,7 +189,8 @@ export interface MysteryHoldemConfig {
   missionChangeRounds: number[];
   raiseCap: Record<"preflop" | "flop" | "turn" | "river", number>;
   chipPointDivisor: number;
-  bountyRewardPerBust: number;
+  /** 총 플레이어 수 → 버스트 1건당 Bounty Point (인원이 적을수록 높다) */
+  bountyRewardBySeatCount: Record<number, number>;
   maxSeats: number;
   minSeats: number;
 }

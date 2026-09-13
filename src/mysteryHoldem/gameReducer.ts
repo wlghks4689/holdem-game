@@ -13,7 +13,7 @@ import {
   removeFromPending,
 } from "./betting";
 import { defaultBountyAttributionRule, splitBountyReward } from "./bounty";
-import { MYSTERY_HOLDEM_CONFIG } from "./config";
+import { MYSTERY_HOLDEM_CONFIG, bountyRewardForSeatCount } from "./config";
 import { drawCards } from "./deck";
 import { createInitialPlayers, isRegularMissionChangeRound, nextButtonSeat, seatsEligibleForNextHand, survivorSeatIfLastStanding } from "./gameRules";
 import { drawMissionCandidates } from "./mysteryMissions";
@@ -675,7 +675,14 @@ function finishHandSettlement(
         mission: { ...p.mission, achieved: r.achieved },
       };
     });
-    logs.push({ t: "mission_result", seat: r.seat, missionId, achieved: r.achieved, reward: r.reward });
+    logs.push({
+      t: "mission_result",
+      seat: r.seat,
+      missionId,
+      achieved: r.achieved,
+      reward: r.reward,
+      deniedReward: r.deniedReward,
+    });
   }
 
   // ── Bust 판정 + Bounty(§23, §24) ──
@@ -683,7 +690,10 @@ function finishHandSettlement(
   for (const bustedSeat of justBusted) {
     players = players.map((p) => (p.seat === bustedSeat ? { ...p, busted: true } : p));
     const winners = defaultBountyAttributionRule({ bustedSeat, awards });
-    const shares = splitBountyReward(state.config.bountyRewardPerBust, winners);
+    const shares = splitBountyReward(
+      bountyRewardForSeatCount(state.seatCount, state.config),
+      winners,
+    );
     for (const [seat, share] of shares) {
       players = players.map((p) => (p.seat === seat ? { ...p, bountyPoint: round2(p.bountyPoint + share) } : p));
       logs.push({ t: "bounty_awarded", seat, bustedSeat, reward: share });

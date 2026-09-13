@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { MYSTERY_HOLDEM_CONFIG } from "../src/mysteryHoldem/config";
+import { MYSTERY_HOLDEM_CONFIG, bountyRewardForSeatCount } from "../src/mysteryHoldem/config";
 import { autoCompleteHandSetup, dispatch, mulberry32, totalChipsInPlay } from "./mysteryTestHelpers";
 import { createInitialMysteryGameState, mysteryHoldemReducer } from "../src/mysteryHoldem/gameReducer";
 import type { MysteryGameState } from "../src/mysteryHoldem/types";
@@ -52,7 +52,22 @@ assert.ok(bustLog != null, "player_busted 로그가 있어야 한다");
 const bountyLog = state.logs.find((l) => l.t === "bounty_awarded" && l.bustedSeat === bustedSeat.seat);
 assert.ok(bountyLog != null, "버스트 이벤트에 대한 Bounty 지급 로그가 있어야 한다");
 if (bountyLog && bountyLog.t === "bounty_awarded") {
-  assert.equal(survivorSeat.bountyPoint, MYSTERY_HOLDEM_CONFIG.bountyRewardPerBust);
+  // Bounty는 총 플레이어 수에 따라 달라진다(인원이 적을수록 높다) — 여기서는 3인 테이블.
+  assert.equal(survivorSeat.bountyPoint, bountyRewardForSeatCount(3));
+}
+
+// 인원별 Bounty가 단조 감소해야 한다(적을수록 높게).
+{
+  const values = [3, 4, 5, 6, 7, 8, 9, 10].map((n) => bountyRewardForSeatCount(n));
+  for (let i = 1; i < values.length; i++) {
+    assert.ok(
+      values[i]! <= values[i - 1]!,
+      `인원이 늘수록 Bounty가 커지면 안 됩니다: ${JSON.stringify(values)}`,
+    );
+  }
+  for (const v of values) {
+    assert.equal(v % 10, 0, "Bounty Point는 10단위여야 합니다");
+  }
 }
 
 // 버스트된 플레이어는 다음 핸드에 참여하지 않는다(카드/미션 없음, Betting Turn 제외).

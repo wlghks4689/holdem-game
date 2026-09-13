@@ -34,6 +34,11 @@ export function madeHandRewardMultiplier(achievedRank: number, thresholdRank: nu
   return Math.max(1, achieved / threshold);
 }
 
+/** 모든 Mission Point는 10단위로 떨어지게 정리한다(계수가 곱해진 값 포함) */
+export function roundToTen(n: number): number {
+  return Math.round(n / 10) * 10;
+}
+
 /**
  * 이번 핸드에 실제 지급할 Mission Point.
  * `madeHandThreshold`가 선언된 Mission만 높은 족보 계수가 적용되고, 나머지는 기본 보상 그대로다.
@@ -41,7 +46,7 @@ export function madeHandRewardMultiplier(achievedRank: number, thresholdRank: nu
 export function resolveMissionReward(def: MysteryMissionDef, ctx: MissionEvalContext): number {
   if (def.madeHandThreshold == null || ctx.bestHandValue == null) return def.reward;
   const multiplier = madeHandRewardMultiplier(ctx.bestHandValue.rank, def.madeHandThreshold);
-  return Math.round(def.reward * multiplier);
+  return roundToTen(def.reward * multiplier);
 }
 
 /** UI 안내용 — 기준 족보에서 한 단계씩 올라갈 때의 배수 목록 */

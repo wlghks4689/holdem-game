@@ -7,6 +7,12 @@ export interface MissionResolutionEntry {
   /** 이번 핸드 최종 지급 Mission Point(무효화·가로채기 반영 후) */
   reward: number;
   nullified: boolean;
+  /**
+   * 무효화로 잃은 점수(= 무효화가 없었다면 받았을 금액).
+   * Counter 계열의 실제 가치는 "내가 얻은 점수"가 아니라 "상대에게서 지운 점수"에 있으므로,
+   * 밸런싱 때 이 값을 같이 봐야 한다.
+   */
+  deniedReward: number;
 }
 
 export interface MissionResolutionInput {
@@ -54,6 +60,7 @@ export function resolveMissionsForHand(
   }
 
   const nullified = new Set<Seat>();
+  const deniedAmount = new Map<Seat, number>();
   for (const e of entries) {
     if (!achieved.get(e.seat) || e.mission.def.onAchieved == null) continue;
     const ctx: MissionEvalContext = {
@@ -63,6 +70,7 @@ export function resolveMissionsForHand(
     const api: MissionEffectApi = {
       nullifyReward: (targetSeat) => {
         nullified.add(targetSeat);
+        deniedAmount.set(targetSeat, (deniedAmount.get(targetSeat) ?? 0) + (reward.get(targetSeat) ?? 0));
         reward.set(targetSeat, 0);
       },
       grantBonus: (amount) => {
@@ -78,5 +86,6 @@ export function resolveMissionsForHand(
     achieved: achieved.get(e.seat) ?? false,
     reward: reward.get(e.seat) ?? 0,
     nullified: nullified.has(e.seat),
+    deniedReward: deniedAmount.get(e.seat) ?? 0,
   }));
 }
