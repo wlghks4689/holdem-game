@@ -19,7 +19,7 @@ import { createInitialPlayers, isRegularMissionChangeRound, nextButtonSeat, seat
 import { drawMissionCandidates } from "./mysteryMissions";
 import { preflopScoreForHoleCards } from "./mysteryHandRanking";
 import { resolveMissionsForHand, type MissionResolutionInput } from "./missionResolver";
-import { isActionable, isAllInRunoutSituation, isHandDecidedByFold, isInHandContesting, positionLabelForSeat, sbSeat, bbSeat } from "./positions";
+import { bbSeatFor, isActionable, isAllInRunoutSituation, isHandDecidedByFold, isInHandContesting, positionLabelForSeat, sbSeatFor } from "./positions";
 import { isLegalRaiseTarget } from "./potLimit";
 import { buildPots, totalPotAmount, type PotContributor } from "./pots";
 import { chipPointFromChips, resolveLastPlayerStandingResult, resolveRoundLimitResult } from "./scoring";
@@ -307,8 +307,9 @@ function maybeFinishHandSetup(state: MysteryGameState, rng: () => number): Myste
 
 function beginPreflop(state: MysteryGameState, rng: () => number): MysteryGameState {
   const seatCount = state.seatCount;
-  const sb = sbSeat(state.buttonSeat, seatCount);
-  const bb = bbSeat(state.buttonSeat, seatCount);
+  // 버스트로 생긴 빈 좌석을 건너뛴 실제 참여 좌석 기준으로 블라인드를 배정한다.
+  const sb = sbSeatFor(state.players, state.buttonSeat, seatCount);
+  const bb = bbSeatFor(state.players, state.buttonSeat, seatCount);
 
   let sbAmount = 0;
   let bbAmount = 0;
@@ -350,7 +351,10 @@ function beginPreflop(state: MysteryGameState, rng: () => number): MysteryGameSt
     phase: "preflop",
     players,
     betting,
-    logs: [...state.logs, { t: "blinds_posted", sb, bb, sbAmount, bbAmount, anteAmount }],
+    logs: [
+      ...state.logs,
+      { t: "blinds_posted", sb: sb ?? -1, bb: bb ?? -1, sbAmount, bbAmount, anteAmount },
+    ],
   };
   return settleBettingProgress(next, rng);
 }
@@ -638,7 +642,7 @@ function finishHandSettlement(
       seat,
       round: state.round,
       buttonSeat: state.buttonSeat,
-      position: positionLabelForSeat(seat, state.buttonSeat, state.seatCount),
+      position: positionLabelForSeat(seat, players, state.buttonSeat, state.seatCount),
       board: state.board,
       folded: p.folded,
       wentToShowdown: contestingSeats.includes(seat),

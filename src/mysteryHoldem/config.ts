@@ -19,8 +19,11 @@ export const MYSTERY_HOLDEM_CONFIG: MysteryHoldemConfig = {
   raiseCap: { preflop: 2, flop: 2, turn: 2, river: 3 },
   /** Chip Point = 보유 Chips / chipPointDivisor */
   chipPointDivisor: 100,
-  /** TODO(§31 미확정): Bounty Point 보상량 잠정값 — 밸런스 확정 전 */
-  bountyRewardPerBust: 50,
+  /**
+   * TODO(§31 미확정): Bounty Point 보상량 잠정값 — 밸런스 확정 전.
+   * Mission Point 스케일 상향에 맞춰 함께 조정했다(시뮬레이션 기준 매치당 평균 0.6버스트 기여).
+   */
+  bountyRewardPerBust: 120,
   maxSeats: 10,
   minSeats: 2,
 };

@@ -20,7 +20,7 @@ import { positionLabelForSeat } from "@/mysteryHoldem/positions";
 import { legalActionsForSeat, potLimitMaxRaiseDisplay } from "@/mysteryHoldem/selectors";
 import { computeBestHandForPlayer } from "@/mysteryHoldem/showdown";
 import type { MysteryGameAction, MysteryGameState, PlayerState, Seat } from "@/mysteryHoldem/types";
-import { decideBotAction, pickHoleKeepIndexes, pickMissionId } from "./mysteryBot";
+import { decideBotAction, pickHoleKeepIndexes, pickMissionId } from "@/mysteryHoldem/bot/botPolicy";
 
 const HERO_SEAT: Seat = 0;
 const BOT_DELAY_MS = 650;
@@ -178,12 +178,17 @@ export function MysteryHoldemClient() {
       if (state.phase === "hand_setup") {
         const botHoleSeat = state.awaitingHoleSelection.find((s) => s !== HERO_SEAT);
         if (botHoleSeat != null) {
-          dispatch({ type: "SELECT_HOLE_CARDS", seat: botHoleSeat, keepIndexes: pickHoleKeepIndexes() });
+          const dealt = state.players.find((p) => p.seat === botHoleSeat)?.pendingDeal ?? [];
+          dispatch({
+            type: "SELECT_HOLE_CARDS",
+            seat: botHoleSeat,
+            keepIndexes: pickHoleKeepIndexes(dealt),
+          });
           return;
         }
         const botMissionSeat = state.awaitingMissionSelection.find((s) => s !== HERO_SEAT);
         if (botMissionSeat != null) {
-          const missionId = pickMissionId(state, botMissionSeat, Math.random);
+          const missionId = pickMissionId(state.missionOffers[botMissionSeat] ?? [], botMissionSeat, Math.random);
           if (missionId) dispatch({ type: "SELECT_MISSION", seat: botMissionSeat, missionId });
         }
         return;
@@ -401,7 +406,7 @@ function SeatView({
   isHero: boolean;
   heroFx: HeroMadeFx;
 }) {
-  const pos = positionLabelForSeat(player.seat, state.buttonSeat, state.seatCount);
+  const pos = positionLabelForSeat(player.seat, state.players, state.buttonSeat, state.seatCount);
   const isActing = state.toActSeat === player.seat;
   const showCards = isHero || state.phase === "showdown" || state.phase === "hand_over" || state.phase === "match_over";
 
@@ -468,17 +473,15 @@ function HandSetupPanel({
   needsHole: boolean;
   needsMission: boolean;
   keepPicks: number[];
-  setKeepPicks: (v: number[]) => void;
+  setKeepPicks: React.Dispatch<React.SetStateAction<number[]>>;
   onConfirmHole: (a: number, b: number) => void;
   onConfirmMission: (missionId: string) => void;
 }) {
+  // 함수형 업데이트를 써야 한다. 두 장을 빠르게 연속 클릭하면 두 핸들러가 같은 렌더의
+  // keepPicks(빈 배열)를 읽어 뒤 클릭이 앞 클릭을 덮어쓰고, 한 장만 선택된 채로 남는다.
   const toggle = (idx: number) => {
-    setKeepPicks(
-      keepPicks.includes(idx)
-        ? keepPicks.filter((i) => i !== idx)
-        : keepPicks.length < 2
-          ? [...keepPicks, idx]
-          : keepPicks,
+    setKeepPicks((prev) =>
+      prev.includes(idx) ? prev.filter((i) => i !== idx) : prev.length < 2 ? [...prev, idx] : prev,
     );
   };
 

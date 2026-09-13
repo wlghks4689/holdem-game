@@ -1,3 +1,4 @@
+import { resolveMissionReward } from "./missionRewards";
 import type { MissionEffectApi, MissionEvalContext, PlayerMissionState, Seat } from "./types";
 
 export interface MissionResolutionEntry {
@@ -46,9 +47,10 @@ export function resolveMissionsForHand(
     achieved.set(e.seat, e.mission.def.condition(ctx));
   }
 
+  // 기본 보상 확정 — Made 계열은 실제 달성 족보에 따른 높은 족보 계수가 여기서 반영된다.
   const reward = new Map<Seat, number>();
   for (const e of entries) {
-    if (achieved.get(e.seat)) reward.set(e.seat, e.mission.def.reward);
+    if (achieved.get(e.seat)) reward.set(e.seat, resolveMissionReward(e.mission.def, e.ctx));
   }
 
   const nullified = new Set<Seat>();

@@ -65,8 +65,14 @@ export interface MysteryMissionDef {
   trigger: string;
   /** 순수 판정 함수 — true면 이번 핸드에서 조건 달성 */
   condition: (ctx: MissionEvalContext) => boolean;
-  /** 성공 시 지급되는 Mission Point (Chips 아님). 잠정값 — 밸런스 확정 전. */
+  /** 성공 시 지급되는 기본 Mission Point (Chips 아님). 잠정값 — 밸런스 확정 전. */
   reward: number;
+  /**
+   * Made 계열: "이 족보 이상이면 달성"의 기준 족보(HAND_RANK).
+   * 값이 있으면 실제 달성한 족보에 따라 보상에 높은 족보 계수가 곱해진다
+   * (missionRewards.ts). 데이터로 선언하므로 Mission을 추가해도 resolver 수정이 필요 없다.
+   */
+  madeHandThreshold?: number;
   /** Counter 계열 등 부가 효과(상대 Mission 무효화 등)를 위한 훅 */
   onAchieved?: (ctx: MissionEvalContext, api: MissionEffectApi) => void;
   specialRule?: SpecialRuleId;

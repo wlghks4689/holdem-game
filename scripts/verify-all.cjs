@@ -50,6 +50,16 @@ const checks = [
   },
   { group: "mystery", label: "MysteryHoldem cards", file: "scripts/verify-mystery-cards.ts" },
   { group: "mystery", label: "MysteryHoldem blinds/ante", file: "scripts/verify-mystery-blinds.ts" },
+  {
+    group: "mystery",
+    label: "MysteryHoldem blinds after bust",
+    file: "scripts/verify-mystery-blinds-after-bust.ts",
+  },
+  {
+    group: "mystery",
+    label: "MysteryHoldem mission rewards",
+    file: "scripts/verify-mystery-missionrewards.ts",
+  },
   { group: "mystery", label: "MysteryHoldem missions", file: "scripts/verify-mystery-missions.ts" },
   { group: "mystery", label: "MysteryHoldem pot-limit", file: "scripts/verify-mystery-potlimit.ts" },
   { group: "mystery", label: "MysteryHoldem raise cap", file: "scripts/verify-mystery-raisecap.ts" },

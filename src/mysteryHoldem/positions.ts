@@ -55,25 +55,66 @@ export function firstActionableSeatFrom(
   return order.length > 0 ? order[0]! : null;
 }
 
-export function sbSeat(buttonSeat: Seat, seatCount: number): Seat {
-  return seatCount === 2 ? buttonSeat : (buttonSeat + 1) % seatCount;
+/**
+ * 이번 핸드에 참여 중인 좌석을 버튼(포함)부터 시계방향으로 나열한다.
+ *
+ * 블라인드·포지션은 반드시 이 "실제 참여 좌석 링" 위에서 계산해야 한다. 좌석 번호로
+ * button+1 / button+2를 그대로 쓰면, 플레이어가 버스트돼 빈 좌석이 생겼을 때 블라인드가
+ * 아무도 없는 좌석에 배정돼 포스팅이 누락된다. 또한 10좌석 테이블에 2명만 남으면
+ * 좌석 수가 아니라 "남은 인원"이 2명이므로 헤즈업 규칙을 적용해야 한다.
+ */
+export function inHandSeatsFromButton(
+  players: readonly PlayerState[],
+  buttonSeat: Seat,
+  seatCount: number,
+): Seat[] {
+  const bySeat = new Map(players.map((p) => [p.seat, p] as const));
+  return seatOrderFrom(buttonSeat, seatCount).filter((seat) => bySeat.get(seat)?.inHand === true);
 }
 
-export function bbSeat(buttonSeat: Seat, seatCount: number): Seat {
-  return seatCount === 2 ? (buttonSeat + 1) % seatCount : (buttonSeat + 2) % seatCount;
+/** 스몰 블라인드 좌석. 참여 인원이 2명이면 버튼이 SB를 낸다(헤즈업 규칙) */
+export function sbSeatFor(
+  players: readonly PlayerState[],
+  buttonSeat: Seat,
+  seatCount: number,
+): Seat | null {
+  const ring = inHandSeatsFromButton(players, buttonSeat, seatCount);
+  if (ring.length < 2) return null;
+  return ring.length === 2 ? ring[0]! : ring[1]!;
+}
+
+export function bbSeatFor(
+  players: readonly PlayerState[],
+  buttonSeat: Seat,
+  seatCount: number,
+): Seat | null {
+  const ring = inHandSeatsFromButton(players, buttonSeat, seatCount);
+  if (ring.length < 2) return null;
+  return ring.length === 2 ? ring[1]! : ring[2]!;
 }
 
 /**
- * 프리플랍 첫 액터: 헤즈업(2인)에서는 버튼(=SB)이 먼저 행동하는 표준 규칙과 동일하게,
- * "BB 다음 좌석"이라는 일반식으로 통일한다. N>=3에서는 이 좌석이 UTG가 된다.
+ * 프리플랍 첫 액터: "BB 다음 좌석"이라는 일반식으로 통일한다.
+ * 참여 인원 2명이면 이 식이 자연스럽게 버튼(=SB) 선행동이라는 헤즈업 규칙이 되고,
+ * 3명이면 버튼이 UTG가 되며, 4명 이상이면 BB 왼쪽이 UTG가 된다.
  */
 export function preflopFirstActorSeat(
   players: readonly PlayerState[],
   buttonSeat: Seat,
   seatCount: number,
 ): Seat | null {
-  const bb = bbSeat(buttonSeat, seatCount);
-  return firstActionableSeatFrom(players, (bb + 1) % seatCount, seatCount);
+  const ring = inHandSeatsFromButton(players, buttonSeat, seatCount);
+  if (ring.length === 0) return null;
+  const bb = bbSeatFor(players, buttonSeat, seatCount);
+  if (bb == null) return firstActionableSeatFrom(players, buttonSeat, seatCount);
+  const bySeat = new Map(players.map((p) => [p.seat, p] as const));
+  const bbIdx = ring.indexOf(bb);
+  for (let i = 1; i <= ring.length; i++) {
+    const seat = ring[(bbIdx + i) % ring.length]!;
+    const p = bySeat.get(seat);
+    if (p != null && isActionable(p)) return seat;
+  }
+  return null;
 }
 
 /** 포스트플랍 첫 액터: 버튼 왼쪽(= 다음 좌석)부터 액션 가능한 첫 플레이어 */
@@ -95,26 +136,29 @@ export function nextActionableSeat(
 }
 
 /**
- * 좌석별 표시용 포지션 라벨. BTN/SB/BB는 항상 정확히 표기하고,
- * 그 외 좌석은 버튼으로부터의 거리 기준으로 UTG.. / HJ / CO를 근사 배정한다.
+ * 좌석별 포지션 라벨. 빈(버스트) 좌석을 건너뛴 "실제 참여 좌석 링" 기준으로 계산한다 —
+ * 좌석 번호 거리로 계산하면 버스트가 생긴 뒤 BTN/SB/BB가 어긋나고, 그 결과 Position 계열
+ * Mission 판정까지 틀어진다.
  * (정밀한 6-max/9-max 표준 명칭 표는 §31 범위 밖 — UI·Position Mission 표기용 근사치)
  */
 export function positionLabelForSeat(
   seat: Seat,
+  players: readonly PlayerState[],
   buttonSeat: Seat,
   seatCount: number,
 ): PositionLabel {
-  if (seatCount === 2) {
-    return seat === buttonSeat ? "SB" : "BB";
-  }
-  const distance = (seat - buttonSeat + seatCount) % seatCount;
-  if (distance === 0) return "BTN";
-  if (distance === 1) return "SB";
-  if (distance === 2) return "BB";
-  const distanceFromButtonGoingBack = (buttonSeat - seat + seatCount) % seatCount;
-  if (distanceFromButtonGoingBack === 1 && seatCount >= 5) return "CO";
-  if (distanceFromButtonGoingBack === 2 && seatCount >= 7) return "HJ";
-  if (distance >= 3 && distance <= 4) return "UTG";
+  const ring = inHandSeatsFromButton(players, buttonSeat, seatCount);
+  const idx = ring.indexOf(seat);
+  if (idx < 0) return "MP";
+  const n = ring.length;
+  if (n === 2) return idx === 0 ? "SB" : "BB";
+  if (idx === 0) return "BTN";
+  if (idx === 1) return "SB";
+  if (idx === 2) return "BB";
+  const fromButtonBack = n - 1 - idx;
+  if (fromButtonBack === 0 && n >= 5) return "CO";
+  if (fromButtonBack === 1 && n >= 7) return "HJ";
+  if (idx <= 4) return "UTG";
   return "MP";
 }
 
