@@ -48,6 +48,18 @@ const checks = [
     label: "Room storage",
     file: "scripts/verify-room-storage.cjs",
   },
+  { group: "mystery", label: "MysteryHoldem cards", file: "scripts/verify-mystery-cards.ts" },
+  { group: "mystery", label: "MysteryHoldem blinds/ante", file: "scripts/verify-mystery-blinds.ts" },
+  { group: "mystery", label: "MysteryHoldem missions", file: "scripts/verify-mystery-missions.ts" },
+  { group: "mystery", label: "MysteryHoldem pot-limit", file: "scripts/verify-mystery-potlimit.ts" },
+  { group: "mystery", label: "MysteryHoldem raise cap", file: "scripts/verify-mystery-raisecap.ts" },
+  { group: "mystery", label: "MysteryHoldem turn order", file: "scripts/verify-mystery-turnorder.ts" },
+  { group: "mystery", label: "MysteryHoldem fold (no penalty)", file: "scripts/verify-mystery-fold.ts" },
+  { group: "mystery", label: "MysteryHoldem side pots", file: "scripts/verify-mystery-sidepot.ts" },
+  { group: "mystery", label: "MysteryHoldem bust + bounty", file: "scripts/verify-mystery-bust.ts" },
+  { group: "mystery", label: "MysteryHoldem scoring", file: "scripts/verify-mystery-scoring.ts" },
+  { group: "mystery", label: "MysteryHoldem game end", file: "scripts/verify-mystery-gameend.ts" },
+  { group: "mystery", label: "MysteryHoldem full game loop", file: "scripts/verify-mystery-fullgame.ts" },
 ];
 
 function runChecks(selectedChecks) {
@@ -86,7 +98,7 @@ function checksForGroup(group) {
   const selected = checks.filter((check) => check.group === group);
   if (selected.length === 0) {
     console.error(`Unknown test group: ${group}`);
-    console.error("Available groups: ai, game, online");
+    console.error("Available groups: ai, game, online, mystery");
     process.exitCode = 2;
   }
   return selected;

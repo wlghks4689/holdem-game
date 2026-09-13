@@ -11,7 +11,8 @@
     "test": "node scripts/verify-all.cjs",
     "test:ai": "node scripts/verify-all.cjs ai",
     "test:game": "node scripts/verify-all.cjs game",
-    "test:online": "node scripts/verify-all.cjs online"
+    "test:online": "node scripts/verify-all.cjs online",
+    "test:mystery": "node scripts/verify-all.cjs mystery"
   },
   "dependencies": {
     "@vercel/kv": "^3.0.0",
