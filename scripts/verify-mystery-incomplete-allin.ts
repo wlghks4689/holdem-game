@@ -46,12 +46,18 @@ function setupIncompleteAllIn(seed: number) {
 
   assert.ok(STEP < minIncBefore, "이 시나리오는 올인 증가폭이 최소 레이즈보다 작아야 성립한다");
 
+  const capUsedBefore = state.betting.raisesUsed;
   state = dispatch(state, { type: "ALL_IN", seat: shover }, rng);
   assert.equal(state.betting.currentLevel, levelBefore + STEP, "불완전 올인만큼 레벨이 오른다");
   assert.equal(
     state.betting.minRaiseIncrement,
     minIncBefore,
     "불완전 올인은 최소 레이즈 폭을 낮추지 않아야 한다",
+  );
+  assert.equal(
+    state.betting.raisesUsed,
+    capUsedBefore,
+    "불완전 올인은 자발적 레이즈가 아니므로 Raise Cap을 소모하지 않아야 한다",
   );
 
   // 다음 액터의 최소 레이즈는 여전히 "현재 레벨 + 원래 최소 증가폭" 이상이어야 한다.
@@ -70,6 +76,17 @@ function setupIncompleteAllIn(seed: number) {
     rng,
   );
   assert.strictEqual(tiny, state, "최소 레이즈 미만의 레이즈는 거부되어야 한다");
+
+  // 캡을 소모하지 않았으므로 남은 사람들의 정상 레이즈 기회는 그대로 남아 있어야 한다.
+  {
+    const fullRaise = dispatch(
+      state,
+      { type: "RAISE", seat: next, toAmount: legal.raiseRange!.min },
+      rng,
+    );
+    assert.notStrictEqual(fullRaise, state, "풀 레이즈는 허용되어야 한다");
+    assert.equal(fullRaise.betting.raisesUsed, 1, "캡은 풀 레이즈만 소모한다");
+  }
 
   // ── 이미 행동을 마친 좌석은 재레이즈할 수 없다 ──
   state = dispatch(state, { type: "CALL", seat: next }, rng);

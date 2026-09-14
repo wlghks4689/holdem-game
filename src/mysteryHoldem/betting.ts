@@ -163,6 +163,9 @@ export function removeFromPending(betting: BettingState, seat: Seat): BettingSta
  *   태울 수 있어, 최소 레이즈 규칙(§15)이 막으려던 바로 그 행동이 가능해진다.
  * - 이미 행동을 마친 좌석의 레이즈 권한을 잠근다. 늘어난 금액을 콜하거나 폴드할 기회는
  *   주되(그래서 대기 큐에는 넣는다) 재레이즈는 못 하게 한다.
+ * - Raise Cap도 소모하지 않는다. 스택이 모자라 어쩔 수 없이 나온 액션이지 자발적인
+ *   레이즈가 아니므로, 남은 사람들의 정상적인 레이즈 기회를 빼앗지 않는다.
+ *   (올인한 본인은 더 이상 행동할 수 없으므로 이것이 무한히 반복되지는 않는다.)
  */
 export function applyAggressiveAction(params: {
   betting: BettingState;
@@ -185,7 +188,7 @@ export function applyAggressiveAction(params: {
     ...betting,
     currentLevel: newLevel,
     minRaiseIncrement: isFullRaise && increment > 0 ? increment : betting.minRaiseIncrement,
-    raisesUsed: isOpeningBet ? betting.raisesUsed : betting.raisesUsed + 1,
+    raisesUsed: !isOpeningBet && isFullRaise ? betting.raisesUsed + 1 : betting.raisesUsed,
     lastAggressorSeat: seat,
     pendingActors: order,
     raiseLockedSeats: isFullRaise
