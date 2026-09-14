@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { autoCompleteHandSetup, dispatch, mulberry32, playHandToEnd, startMatch } from "./mysteryTestHelpers";
 import { createInitialMysteryGameState, mysteryHoldemReducer } from "../src/mysteryHoldem/gameReducer";
+import { potLimitMaxRaiseDisplay } from "../src/mysteryHoldem/selectors";
 import type { MysteryGameState } from "../src/mysteryHoldem/types";
 
 // §21-A: 15라운드를 (버스트 없이) 체크/콜만으로 진행하면 라운드 제한 종료로 끝나야 한다.
@@ -32,7 +33,18 @@ import type { MysteryGameState } from "../src/mysteryHoldem/types";
     let state = mysteryHoldemReducer(createInitialMysteryGameState(), { type: "START_MATCH", seatCount: 2 }, rng);
     state = autoCompleteHandSetup(state, rng);
     if (state.phase !== "preflop" || state.toActSeat == null) continue;
-    state = dispatch(state, { type: "ALL_IN", seat: state.toActSeat }, rng);
+    const shoverSeat = state.toActSeat;
+
+    // Pot Limit 게임이라 딥스택 올인은 불법이다. 여기서 검증하려는 것은 종료 조건이므로,
+    // 두 명의 스택을 모두 팟 상한에 맞춰 줄인다. 그러면 올인 한 방과 그 콜로 양쪽 스택이
+    // 전부 걸려, 진 쪽이 버스트되고 Last Player Standing이 성립한다.
+    const potMax = potLimitMaxRaiseDisplay(state, shoverSeat);
+    state = {
+      ...state,
+      players: state.players.map((p) => ({ ...p, chips: potMax - p.streetContribution })),
+    };
+
+    state = dispatch(state, { type: "ALL_IN", seat: shoverSeat }, rng);
     if (state.toActSeat != null) {
       state = dispatch(state, { type: "CALL", seat: state.toActSeat }, rng);
     }

@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { MYSTERY_HOLDEM_CONFIG, bountyRewardForSeatCount } from "../src/mysteryHoldem/config";
 import { autoCompleteHandSetup, dispatch, mulberry32, totalChipsInPlay } from "./mysteryTestHelpers";
 import { createInitialMysteryGameState, mysteryHoldemReducer } from "../src/mysteryHoldem/gameReducer";
+import { potLimitMaxRaiseDisplay } from "../src/mysteryHoldem/selectors";
 import type { MysteryGameState } from "../src/mysteryHoldem/types";
 
 /**
@@ -12,7 +13,6 @@ import type { MysteryGameState } from "../src/mysteryHoldem/types";
 let found: MysteryGameState | null = null;
 for (let seed = 1; seed <= 100 && found == null; seed++) {
   const rng = mulberry32(seed);
-  const chipsBefore = 3 * MYSTERY_HOLDEM_CONFIG.startingChips;
   let state = mysteryHoldemReducer(createInitialMysteryGameState(), { type: "START_MATCH", seatCount: 3 }, rng);
   state = autoCompleteHandSetup(state, rng);
   if (state.phase !== "preflop") continue;
@@ -22,6 +22,19 @@ for (let seed = 1; seed <= 100 && found == null; seed++) {
   if (state.phase !== "preflop" || state.toActSeat == null) continue;
 
   const seatA = state.toActSeat;
+  // Pot Limit 게임이라 스택이 팟 상한보다 깊으면 올인 자체가 불법이다. 이 테스트의 주제는
+  // 버스트·바운티이지 베팅 상한이 아니므로, A의 스택을 상한에 딱 맞춰 줄여 합법 올인 한 방에
+  // 스택 전부가 걸리게 만든다.
+  const potMax = potLimitMaxRaiseDisplay(state, seatA);
+  const aStreet = state.players.find((p) => p.seat === seatA)!.streetContribution;
+  state = {
+    ...state,
+    players: state.players.map((p) => (p.seat === seatA ? { ...p, chips: potMax - aStreet } : p)),
+  };
+  // 스택을 조정한 뒤, 이미 팟에 들어간 몫까지 합쳐 "판 위의 칩 총량"을 기준으로 삼는다.
+  const chipsBefore =
+    totalChipsInPlay(state) + state.players.reduce((sum, p) => sum + p.handContribution, 0);
+
   state = dispatch(state, { type: "ALL_IN", seat: seatA }, rng);
   if (state.toActSeat != null) {
     state = dispatch(state, { type: "CALL", seat: state.toActSeat }, rng);

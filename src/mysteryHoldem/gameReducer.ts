@@ -417,6 +417,7 @@ function applyPlayerAction(
     case "allin": {
       const target = round2(player.streetContribution + player.chips);
       if (target <= state.betting.currentLevel + 1e-9) {
+        // 콜조차 스택으로 못 채우는 올인 콜. 레이즈가 아니므로 Pot Limit과 무관하게 항상 합법이다.
         const players = payChips(state.players, seat, player.chips);
         const betting = removeFromPending(state.betting, seat);
         return settleBettingProgress(
@@ -426,6 +427,11 @@ function applyPlayerAction(
       }
       const isOpening = canOpenBet(state.betting);
       if (!isOpening && !canRaise(state.betting)) return state; // Raise Cap 도달(§14)
+      // 올인은 별도 액션이 아니라 "스택 전액을 건 레이즈"다. Pot Limit 게임이므로 스택이
+      // 상한보다 깊으면 올인 자체가 불법이고, 상한까지만 레이즈할 수 있다. bet/raise와
+      // 똑같은 범위 검증을 거쳐야 팟 오버 올인이 새어 나가지 않는다.
+      const range = legalRaiseRange(seat, state.betting, state.players, potBeforeAction);
+      if (!isLegalRaiseTarget(target, range)) return state;
       return applyAggressive(state, seat, target, isOpening, rng);
     }
     case "fold": {

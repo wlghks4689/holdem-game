@@ -35,6 +35,16 @@ assert.equal(state.phase, "turn", "전원 체크 시 다음 스트리트로 진�
 assert.equal(state.toActSeat, 1);
 
 // ── All-in 스킵: 3명(0,1,2)이 남은 상태에서 한 명이 올인하면 이후 액션 순서에서 제외되어야 한다.
+// Pot Limit 게임이므로 딥스택 올인은 애초에 불법이다(스택 > 팟 상한). 이 테스트의 주제는
+// 턴 순서이지 베팅 상한이 아니므로, 남은 3명의 스택을 팟(프리플랍 3명 x 200 + Ante 200 = 800)
+// 이내로 맞춰 올인이 합법이 되게 한 뒤 순서를 확인한다. 세 명 모두 같은 스택이라 콜이 이어지면
+// 전원 올인이 되어 자동 런아웃까지 검증할 수 있다.
+const shortStack = 600;
+state = {
+  ...state,
+  players: state.players.map((p) => ([0, 1, 2].includes(p.seat) ? { ...p, chips: shortStack } : p)),
+};
+
 state = dispatch(state, { type: "ALL_IN", seat: 1 }, rng);
 assert.equal(state.players.find((p) => p.seat === 1)!.allIn, true);
 assert.equal(state.toActSeat, 2, "올인한 좌석은 건너뛰고 다음 액션 가능 좌석으로 넘어가야 한다");

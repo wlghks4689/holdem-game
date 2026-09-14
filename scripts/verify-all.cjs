@@ -62,6 +62,11 @@ const checks = [
   },
   { group: "mystery", label: "MysteryHoldem missions", file: "scripts/verify-mystery-missions.ts" },
   { group: "mystery", label: "MysteryHoldem pot-limit", file: "scripts/verify-mystery-potlimit.ts" },
+  {
+    group: "mystery",
+    label: "MysteryHoldem all-in pot limit",
+    file: "scripts/verify-mystery-allin-potlimit.ts",
+  },
   { group: "mystery", label: "MysteryHoldem raise cap", file: "scripts/verify-mystery-raisecap.ts" },
   { group: "mystery", label: "MysteryHoldem turn order", file: "scripts/verify-mystery-turnorder.ts" },
   { group: "mystery", label: "MysteryHoldem fold (no penalty)", file: "scripts/verify-mystery-fold.ts" },
