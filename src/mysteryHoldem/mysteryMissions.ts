@@ -9,8 +9,8 @@ import type { MissionEvalContext, MysteryMissionDef, Seat } from "./types";
  * 보상(reward/rewardFor)·교체 규칙(replacementRule)·부가 효과(onAchieved)를 들고 있는
  * 데이터 중심 설계다(§30).
  *
- * 현재 상태: **미션형 8장 + 발동형/지정형 3장 교체 완료**. 남은 것은 Forced Split(발동형)과
- * True Sight / Four Card(강화형)이며, Four Card는 아직 레거시 정의를 쓴다.
+ * 기획서의 14장 중 Forced Exchange(§19)를 제외한 **13장이 모두 새 정의**다.
+ * 미션형 8 / 발동형 3 / 강화형 2.
  */
 
 /**
@@ -235,16 +235,43 @@ export const MISSION_POOL: MysteryMissionDef[] = [
     replacementRule: "on_success",
   },
 
-  // ─────────────── 아직 교체 전인 레거시 정의(다음 단계에서 새 카드로 대체) ───────────────
   {
-    id: "extra_hand_omaha",
-    name: "FOUR CARD",
-    category: "extraHand",
+    id: "forced_split",
+    name: "FORCED SPLIT",
+    category: "trigger",
     description:
-      "핸드 선택 후 추가 홀카드 2장을 받아 4장을 보유합니다. 쇼다운에서는 홀카드 정확히 2장 + 커뮤니티 3장으로 조합합니다.",
-    trigger: "hand_result(showdown+win)",
-    condition: (ctx) => ctx.extraHandActive && ctx.wentToShowdown && ctx.wonAnyPot,
-    reward: 20,
+      "쇼다운에 참가한 팟의 족보가 전부 플러시 이하라면 그 팟을 강제 스플릿합니다. 참가자 중 풀하우스 이상이 있으면 적용되지 않고, 이 카드를 가진 사람이 둘 이상이면 서로 상쇄되어 보유자들은 팟을 가져가지 못합니다.",
+    trigger: "pot_resolution(showdown)",
+    potRule: "forced_split",
+    // 판정은 showdown.ts의 팟 단계에서 끝난다. 여기서는 "실제로 결과가 바뀌었는가"만 읽는다.
+    condition: (ctx) => ctx.potRuleTriggered,
+    // 추가 점수는 없다(§14). 보상은 팟 결과를 바꾸는 것 자체다.
+    reward: 0,
+    replacementRule: "on_trigger",
+  },
+  {
+    id: "true_sight",
+    name: "TRUE SIGHT",
+    category: "enhancement",
+    description:
+      "플랍에 진입하면 팟에 남아 있는 상대들의 Mystery Card가 나에게만 공개됩니다. 상대는 공개 사실조차 알 수 없습니다.",
+    trigger: "street(flop)",
+    // 폴드하면 볼 것도 없다. 플랍을 봤다면 그 핸드에 1회 지급한다(§17).
+    condition: (ctx) => !ctx.folded && ctx.boardRevealed >= 3,
+    // 핵심 보상은 점수가 아니라 정보이므로 점수는 낮게 유지한다.
+    reward: 30,
+    replacementRule: "on_pot_win",
+  },
+  {
+    id: "four_card",
+    name: "FOUR CARD",
+    category: "enhancement",
+    description:
+      "핸드 선택 후 추가 홀카드 2장을 받아 4장을 보유합니다. 쇼다운에서는 홀카드 정확히 2장 + 커뮤니티 3장으로만 조합하며, 상대에게는 언제나 카드 뒷면 2장으로만 보입니다.",
+    trigger: "hand_setup(extra_deal)",
+    // 규칙 변경 자체가 보상이다 — 별도 Mission Point는 없다(§18).
+    condition: (ctx) => ctx.extraHandActive,
+    reward: 0,
     specialRule: "extra_hand_four_card",
     replacementRule: "on_pot_win",
   },

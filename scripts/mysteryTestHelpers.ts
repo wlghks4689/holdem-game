@@ -120,6 +120,7 @@ export function makeMissionCtx(overrides: Partial<MissionEvalContext> = {}): Mis
     opponentsAchievedThisHand: [],
     opponentMissionAchievers: [],
     targetSeat: null,
+    potRuleTriggered: false,
     extraHandActive: false,
     ...overrides,
   };

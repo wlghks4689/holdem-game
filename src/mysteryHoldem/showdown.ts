@@ -1,5 +1,5 @@
 import type { Card } from "@/holdem/cards";
-import { compareHandValue, type HandValue } from "@/holdem/pokerEval";
+import { HAND_RANK, compareHandValue, type HandValue } from "@/holdem/pokerEval";
 import { MYSTERY_HOLDEM_CONFIG } from "./config";
 import { bestHandStandard } from "./handEval";
 import { seatOrderFrom } from "./positions";
@@ -35,6 +35,70 @@ export interface PotAward {
   winners: Seat[];
   /** 좌석별 실수령 칩(승자만 포함) */
   amounts: Map<Seat, number>;
+  /**
+   * 이 팟에서 Forced Split이 **실제로 결과를 바꿨는가**(§14).
+   * 카드를 들고만 있고 승자가 그대로였다면 false이며, 그때는 카드를 교체하지 않는다.
+   */
+  forcedSplit: boolean;
+}
+
+/** Forced Split 보유 여부 — 팟 판정 단계에서만 쓰는 좁은 질의 */
+function hasForcedSplit(p: PlayerState | undefined): boolean {
+  return p?.mission?.def.potRule === "forced_split";
+}
+
+/** 표준 포커 랭킹으로 이 좌석들의 승자를 고른다 */
+function rankingWinners(seats: readonly Seat[], handFor: (seat: Seat) => HandValue): Seat[] {
+  let best: HandValue | null = null;
+  let winners: Seat[] = [];
+  for (const seat of seats) {
+    const v = handFor(seat);
+    if (best == null || compareHandValue(v, best) > 0) {
+      best = v;
+      winners = [seat];
+    } else if (compareHandValue(v, best) === 0) {
+      winners.push(seat);
+    }
+  }
+  return winners;
+}
+
+/**
+ * 이 팟의 승자를 정한다. Forced Split은 핸드 전체가 아니라 **팟별로** 판정한다(§14) —
+ * 메인 팟은 강제 스플릿이지만 사이드 팟에는 풀하우스가 있어 정상 승부가 되는 상황이 가능하다.
+ *
+ * 규칙 순서:
+ *   1. 보유자가 없으면 표준 랭킹.
+ *   2. 이 팟에 풀하우스 이상이 한 명이라도 있으면 적용하지 않는다(High-End 예외).
+ *   3. 보유자가 2명 이상이면 서로 상쇄되어 **보유자들은 팟을 가져가지 못하고** 나머지가 나눈다.
+ *   4. 보유자가 1명이면 이 팟의 참가자 전원이 강제 스플릿한다.
+ *
+ * 3에서 참가자가 전부 보유자라 남는 사람이 없으면 상쇄를 적용할 대상이 사라지므로 표준
+ * 랭킹으로 되돌린다 — 아무도 팟을 못 가져가면 칩이 사라져 보존이 깨진다.
+ */
+function resolvePotWinners(
+  eligibleSeats: readonly Seat[],
+  handFor: (seat: Seat) => HandValue,
+  bySeat: ReadonlyMap<Seat, PlayerState>,
+): { winners: Seat[]; forcedSplit: boolean } {
+  const normal = rankingWinners(eligibleSeats, handFor);
+  const holders = eligibleSeats.filter((s) => hasForcedSplit(bySeat.get(s)));
+  if (holders.length === 0) return { winners: normal, forcedSplit: false };
+
+  const highEndPresent = eligibleSeats.some((s) => handFor(s).rank >= HAND_RANK.FULL_HOUSE);
+  if (highEndPresent) return { winners: normal, forcedSplit: false };
+
+  let winners: Seat[];
+  if (holders.length >= 2) {
+    const others = eligibleSeats.filter((s) => !holders.includes(s));
+    winners = others.length > 0 ? others : normal;
+  } else {
+    winners = [...eligibleSeats];
+  }
+
+  // "카드를 들고 있었다"가 아니라 "결과가 달라졌다"가 발동 기준이다(§14 교체 규칙).
+  const changed = winners.length !== normal.length || winners.some((s) => !normal.includes(s));
+  return { winners, forcedSplit: changed };
 }
 
 /**
@@ -62,21 +126,11 @@ export function awardPots(
   return pots.map((pot) => {
     const amounts = new Map<Seat, number>();
     if (pot.eligibleSeats.length === 0) {
-      return { pot, winners: [], amounts };
+      return { pot, winners: [], amounts, forcedSplit: false };
     }
-    let best: HandValue | null = null;
-    let winners: Seat[] = [];
-    for (const seat of pot.eligibleSeats) {
-      const v = handFor(seat);
-      if (best == null || compareHandValue(v, best) > 0) {
-        best = v;
-        winners = [seat];
-      } else if (compareHandValue(v, best) === 0) {
-        winners.push(seat);
-      }
-    }
+    const { winners, forcedSplit } = resolvePotWinners(pot.eligibleSeats, handFor, bySeat);
     distributeAmount(pot.amount, winners, buttonSeat, seatCount, amounts);
-    return { pot, winners, amounts };
+    return { pot, winners, amounts, forcedSplit };
   });
 }
 
@@ -84,7 +138,8 @@ export function awardPots(
 export function awardAllPotsToSingleWinner(pots: readonly Pot[], winnerSeat: Seat): PotAward[] {
   return pots.map((pot) => {
     const amounts = new Map<Seat, number>([[winnerSeat, pot.amount]]);
-    return { pot, winners: [winnerSeat], amounts };
+    // 폴드로 끝난 핸드에는 쇼다운이 없으므로 Forced Split도 발동하지 않는다(§14).
+    return { pot, winners: [winnerSeat], amounts, forcedSplit: false };
   });
 }
 

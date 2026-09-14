@@ -1,6 +1,6 @@
 import type { Card } from "@/holdem/cards";
 import type { HandValue } from "@/holdem/pokerEval";
-import type { CardReplacementRule, CardTargetRule } from "./mysteryCard";
+import type { CardPotRule, CardReplacementRule, CardTargetRule } from "./mysteryCard";
 
 /**
  * MysteryHoldem은 기존 헤즈업 전용 `PlayerIndex`(0|1)를 사용하지 않는다.
@@ -82,6 +82,11 @@ export interface MissionEvalContext {
   opponentMissionAchievers: Seat[];
   /** 이 카드가 이번 핸드에 지정한 상대 좌석(§22). 지정이 없거나 지정 전이면 null */
   targetSeat: Seat | null;
+  /**
+   * 팟 판정 훅(Forced Split)이 이번 핸드에 **실제로 결과를 바꿨는가**(§14).
+   * 카드를 들고만 있고 승자가 그대로였다면 false다.
+   */
+  potRuleTriggered: boolean;
   extraHandActive: boolean;
 }
 
@@ -122,6 +127,13 @@ export interface MysteryMissionDef {
   resolutionTier?: number;
   /** 상대 지정 규칙(§22). 선언하면 플랍에서 자신의 첫 액션 전에 대상을 골라야 한다. */
   targetRule?: CardTargetRule;
+  /**
+   * 팟 승자 판정 단계 자체를 바꾸는 카드(§14, §30).
+   *
+   * 조건/보상 훅으로는 표현할 수 없다 — 이건 "누가 이겼는가"를 다시 정의하는 규칙이라
+   * showdown.ts의 팟 판정이 직접 읽는다. 그래서 별도 Hook id로 선언한다.
+   */
+  potRule?: CardPotRule;
   /** 카드 교체 조건(§3). 선언이 없으면 "성공 시 교체"로 본다. */
   replacementRule?: CardReplacementRule;
   /**

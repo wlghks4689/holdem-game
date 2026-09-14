@@ -167,7 +167,8 @@ function startNextHand(state: MysteryGameState, rng: () => number): MysteryGameS
     handContribution: 0,
     anteContribution: 0,
     // 지정은 한 핸드 동안만 유효하다(§22) — 카드를 유지하더라도 대상은 매 핸드 새로 고른다.
-    mission: p.mission == null ? null : { ...p.mission, targetSeat: null },
+    mission:
+      p.mission == null ? null : { ...p.mission, targetSeat: null },
   }));
 
   // 3장씩 딜링(§7)
@@ -747,6 +748,12 @@ function finishHandSettlement(
     });
   }
 
+  // Forced Split이 실제로 팟 결과를 바꾼 좌석(§14, §20 Phase 1). 카드 판정보다 먼저
+  // 확정되므로 컨텍스트에 그대로 넣어 준다 — 조건 판정이 팟 단계를 다시 흉내 낼 필요가 없다.
+  const potRuleTriggeredSeats = new Set<Seat>(
+    awards.filter((a) => a.forcedSplit).flatMap((a) => a.pot.eligibleSeats),
+  );
+
   // ── Bust / Bounty 귀속 선계산(§20 Phase 2·4) ──
   // Bounty Hunter가 "내게 Bounty가 귀속되었는가"를 조건으로 삼으므로, 실제 지급보다 먼저
   // 귀속만 계산해 Mission 판정 컨텍스트에 넣어야 한다. 지급은 판정이 끝난 뒤에 한다.
@@ -823,6 +830,7 @@ function finishHandSettlement(
       opponentsAchievedThisHand: [],
       opponentMissionAchievers: [],
       targetSeat: p.mission.targetSeat,
+      potRuleTriggered: potRuleTriggeredSeats.has(seat),
       extraHandActive: p.mission.def.specialRule === "extra_hand_four_card",
     };
     missionInputs.push({ seat, mission: p.mission, ctx });
@@ -839,9 +847,10 @@ function finishHandSettlement(
       outcome: {
         achieved: r.achieved,
         wonAnyPot: input.ctx.wonAnyPot,
-        // 발동형의 "실제로 결과를 바꿨는가"는 해당 카드들이 구현될 때 별도 신호로 바뀐다.
-        // 현재 레거시 발동형은 조건 달성 = 효과 발동이라 achieved를 그대로 쓴다.
-        triggered: r.achieved,
+        // 발동형의 "실제로 결과를 바꿨는가". 팟 판정 훅(Forced Split)은 승자가 바뀐
+        // 경우에만 참이고, 나머지 발동형은 조건 달성이 곧 발동이다.
+        triggered:
+          input.mission.def.potRule != null ? input.ctx.potRuleTriggered : r.achieved,
       },
       isRegularChangeRound: false,
     });

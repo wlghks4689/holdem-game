@@ -34,6 +34,12 @@ export type CardTargetRule =
   /** 플랍에서 자신의 첫 액션 전에, 팟에 남아 있는 상대 1명을 지정 */
   | "opponent_in_pot_at_flop";
 
+/**
+ * 팟 승자 판정 단계를 바꾸는 훅 id(§14).
+ * condition/reward로는 표현할 수 없는, "누가 이겼는가"를 다시 정의하는 규칙이다.
+ */
+export type CardPotRule = "forced_split";
+
 /** 한 핸드에서 카드가 만들어낸 결과 — 교체 판정(§20 Phase 6)의 입력이 된다. */
 export interface CardHandOutcome {
   /** 미션형 조건을 달성했는가 */

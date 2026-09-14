@@ -1,3 +1,4 @@
+import { CARD_CATEGORY_LABEL, cardCategoryFromLegacy } from "./mysteryCard";
 import { canCall, canCheck, canOpenBet, canRaise, facingForSeat, legalRaiseRange } from "./betting";
 import { currentTotalPot } from "./gameReducer";
 import { calculatePotLimitMaxRaise, isLegalRaiseTarget } from "./potLimit";
@@ -85,4 +86,32 @@ export function potLimitMaxRaiseDisplay(state: MysteryGameState, seat: Seat): nu
     currentLevel: state.betting.currentLevel,
     actorContributedThisStreet: player.streetContribution,
   });
+}
+
+/**
+ * True Sight(§17): 이 좌석에게만 공개되는 상대들의 Mystery Card.
+ *
+ * 엔진 상태(MysteryGameState)에는 원래 전원의 카드가 들어 있다 — 서버 권위 상태이고, 무엇을
+ * 보여줄지는 표시 계층이 정한다. 그래서 True Sight는 "정보를 새로 만드는" 기능이 아니라
+ * **이 필터를 통과시키는** 기능이다. 다른 좌석에서 이 함수를 호출하면 언제나 빈 배열이므로
+ * 상대 화면에는 아무 변화도 생기지 않는다.
+ *
+ * 공개 시점은 플랍 진입 이후이며, 대상은 그 시점에 팟에 남아 있는(폴드하지 않은) 상대다.
+ */
+export function trueSightRevealedCards(
+  state: MysteryGameState,
+  seat: Seat,
+): { seat: Seat; name: string; cardName: string; category: string }[] {
+  const viewer = state.players.find((p) => p.seat === seat);
+  if (viewer?.mission?.def.id !== "true_sight") return [];
+  if (viewer.folded || state.boardRevealed < 3) return [];
+
+  return state.players
+    .filter((p) => p.seat !== seat && p.inHand && !p.folded && p.mission != null)
+    .map((p) => ({
+      seat: p.seat,
+      name: p.name,
+      cardName: p.mission!.def.name,
+      category: CARD_CATEGORY_LABEL[cardCategoryFromLegacy(p.mission!.def.category)],
+    }));
 }

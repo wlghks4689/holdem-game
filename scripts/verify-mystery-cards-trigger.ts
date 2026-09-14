@@ -26,7 +26,7 @@ const BREAKER = findMissionDef("card_breaker")!;
 const PARASITE = findMissionDef("parasite")!;
 const FLUSH_MAKER = findMissionDef("maker_flush")!; // 180
 const SET_MINER = findMissionDef("maker_set")!; // 90
-const FOUR_CARD = findMissionDef("extra_hand_omaha")!; // 강화형
+const FOUR_CARD = findMissionDef("four_card")!; // 강화형
 
 const hv = (rank: number) => ({ rank, kickers: [10, 9, 8, 7, 6] });
 

@@ -29,6 +29,7 @@ import { scoreBreakdownForAll } from "@/mysteryHoldem/scoring";
 import {
   displayPotExcludingStreetBets,
   legalActionsForSeat,
+  trueSightRevealedCards,
   potLimitMaxRaiseDisplay,
 } from "@/mysteryHoldem/selectors";
 import { computeBestHandForPlayer, showdownHoleCardsForPlayer } from "@/mysteryHoldem/showdown";
@@ -701,6 +702,32 @@ function ScoreboardDrawer({ state }: { state: MysteryGameState }) {
 }
 
 /**
+ * True Sight(§17)로 드러난 상대 카드. 보유자 본인 화면에만 나타난다.
+ *
+ * 셀렉터가 좌석을 보고 필터링하므로, 이 컴포넌트를 어디에 두든 다른 좌석에는 빈 배열이
+ * 돌아온다 — 상대 UI에는 공개 사실조차 드러나지 않는다.
+ */
+function TrueSightPanel({ state }: { state: MysteryGameState }) {
+  const revealed = trueSightRevealedCards(state, HERO_SEAT);
+  if (revealed.length === 0) return null;
+
+  return (
+    <div className="mb-3 rounded-xl border border-sky-700/50 bg-sky-950/20 px-3 py-2">
+      <p className="text-[10px] font-bold tracking-wide text-sky-400">TRUE SIGHT · 나에게만 보입니다</p>
+      <ul className="mt-1 flex flex-col gap-0.5">
+        {revealed.map((r) => (
+          <li key={r.seat} className="text-[11px] text-zinc-300">
+            <span className="text-zinc-500">{r.name} · </span>
+            <span className="text-zinc-500">[{r.category}] </span>
+            <span className="font-semibold text-sky-200">{r.cardName}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+/**
  * 지정형 카드(Mission Breaker / Parasite)의 플랍 대상 선택 패널(§22).
  *
  * 규칙상 "플랍에서 자신의 첫 액션 전"에 골라야 하므로, 고르기 전까지는 엔진이 액션을
@@ -756,6 +783,8 @@ function cardRewardLabel(def: MysteryMissionDef): string {
   if (def.bountyMultiplier != null) return `Bounty Point ×${def.bountyMultiplier}`;
   if (def.id === "maker_high_end") return "풀하우스 300 / 포카드 600 / SF 1,200 Mission Point";
   if (def.id === "blind_defender") return "시작 인원 × 10 Mission Point";
+  // Parasite는 대상의 점수를 그대로 복제하므로 고정값이 없다 — 0점 카드로 보이면 안 된다.
+  if (def.id === "parasite") return "대상의 미션 점수를 복제 (최소 100)";
   if (def.reward <= 0) {
     return def.replacementRule === "on_pot_win" ? "승리 시 Mystery Card 변경" : "효과 발동 시 Mystery Card 변경";
   }
@@ -999,6 +1028,8 @@ function HeroPanel({
         {hero.mission ? <MysteryCardChip mission={hero.mission} /> : null}
       </div>
 
+      <TrueSightPanel state={state} />
+
       {!isMyTurn ? (
         <p className="text-center text-xs text-zinc-500">
           {state.toActSeat == null ? "정산 중..." : `Seat ${state.toActSeat} 차례를 기다리는 중...`}
@@ -1200,9 +1231,10 @@ function describeLog(l: MysteryGameState["logs"][number]): string {
       // 무효화된 카드는 achieved가 true인 채로 보상만 0이 된다 — "성공 +0pt"로 보이면 안 되므로
       // 지워진 점수를 먼저 확인한다.
       if (l.deniedReward > 0) return `Seat ${l.seat} Mystery Card 무효화 (-${l.deniedReward}pt)${target}`;
-      return l.achieved
-        ? `Seat ${l.seat} Mystery Card 성공! +${l.reward}pt${target}`
-        : `Seat ${l.seat} Mystery Card 실패${target}`;
+      if (!l.achieved) return `Seat ${l.seat} Mystery Card 실패${target}`;
+      // Forced Split / Four Card처럼 점수가 없는 카드는 "+0pt"가 아니라 발동 사실만 알린다.
+      const gain = l.reward > 0 ? ` +${l.reward}pt` : "";
+      return `Seat ${l.seat} Mystery Card 발동${gain}${target}`;
     }
     case "bounty_awarded":
       return `Seat ${l.seat} Bounty +${fmt(l.reward)}pt (버스트: Seat ${l.bustedSeat})`;
