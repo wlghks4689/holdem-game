@@ -2288,3 +2288,34 @@ body {
     animation: holdem-made-hand-label-glow-subtle 0.55s ease-out 1 both !important;
   }
 }
+
+/* ── MysteryHoldem: 좌석 앞 베팅 칩 → 팟 수집 연출 ──
+   스트리트가 끝나 각 좌석의 베팅이 팟으로 합쳐지는 순간 재생한다.
+   0% 키프레임에 left/top을 적지 않아야 좌석마다 다른 시작 위치(인라인 style)가
+   그대로 출발점이 된다 — 좌석별 keyframes를 따로 만들 필요가 없다. */
+@keyframes mystery-chip-collect {
+  0% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+  70% {
+    opacity: 1;
+  }
+  100% {
+    left: 50%;
+    top: 50%;
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.58);
+  }
+}
+
+.mystery-chip-collect {
+  animation: mystery-chip-collect 560ms cubic-bezier(0.55, 0, 0.35, 1) both;
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mystery-chip-collect {
+    animation-duration: 240ms;
+  }
+}
