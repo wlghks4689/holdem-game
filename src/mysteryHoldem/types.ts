@@ -143,6 +143,11 @@ export interface BettingState {
   lastAggressorSeat: Seat | null;
   /** 아직 액션해야 하는 좌석 큐(베팅/레이즈 발생 시 초기화) */
   pendingActors: Seat[];
+  /**
+   * 불완전 올인(풀 레이즈 폭에 못 미치는 올인) 이후, 이미 행동을 마쳐 재레이즈할 수 없는 좌석.
+   * 추가된 금액을 콜하거나 폴드할 수는 있지만 레이즈는 못 한다. 풀 레이즈가 나오면 비워진다.
+   */
+  raiseLockedSeats: Seat[];
 }
 
 export type MysteryGameMessage =

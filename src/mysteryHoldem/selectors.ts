@@ -45,7 +45,7 @@ export function legalActionsForSeat(state: MysteryGameState, seat: Seat): LegalA
   }
   const potBeforeAction = currentTotalPot(state);
   const openBet = canOpenBet(state.betting);
-  const raiseOk = canRaise(state.betting);
+  const raiseOk = canRaise(state.betting, seat);
   const range = legalRaiseRange(seat, state.betting, state.players, potBeforeAction);
 
   // 올인은 별도 액션이 아니라 "스택 전액을 건 레이즈"다. 따라서 Pot Limit 상한을 넘는

@@ -23,6 +23,15 @@ for (const seatCount of [2, 3, 4, 6]) {
       startingTotal,
       `핸드 ${state.round} 종료 후에도 칩 총량이 보존되어야 한다(레이크 없음)`,
     );
+    // 모든 투입과 팟 분배가 베팅 단위(100)로만 이루어지므로 스택도 항상 100 단위여야 한다.
+    // 여기가 깨지면 50칩짜리 스택이 생겨 최소 레이즈·Raise Cap 계산의 전제가 무너진다.
+    for (const p of state.players) {
+      assert.equal(
+        p.chips % MYSTERY_HOLDEM_CONFIG.betStepUnit,
+        0,
+        `핸드 ${state.round}: 좌석 ${p.seat}의 스택 ${p.chips}이 베팅 단위를 벗어났다`,
+      );
+    }
     if (!state.matchEnded) {
       state = dispatch(state, { type: "START_NEXT_HAND" }, rng);
     }

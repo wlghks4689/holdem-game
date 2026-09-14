@@ -72,6 +72,7 @@ function emptyBetting(): BettingState {
     minRaiseIncrement: 0,
     lastAggressorSeat: null,
     pendingActors: [],
+    raiseLockedSeats: [],
   };
 }
 
@@ -409,7 +410,7 @@ function applyPlayerAction(
       return applyAggressive(state, seat, amount, true, rng);
     }
     case "raise": {
-      if (!canRaise(state.betting) || amount == null) return state;
+      if (!canRaise(state.betting, seat) || amount == null) return state;
       const range = legalRaiseRange(seat, state.betting, state.players, potBeforeAction);
       if (!isLegalRaiseTarget(amount, range)) return state;
       return applyAggressive(state, seat, amount, false, rng);
@@ -426,7 +427,7 @@ function applyPlayerAction(
         );
       }
       const isOpening = canOpenBet(state.betting);
-      if (!isOpening && !canRaise(state.betting)) return state; // Raise Cap 도달(§14)
+      if (!isOpening && !canRaise(state.betting, seat)) return state; // Raise Cap 도달 또는 재레이즈 잠김(§14)
       // 올인은 별도 액션이 아니라 "스택 전액을 건 레이즈"다. Pot Limit 게임이므로 스택이
       // 상한보다 깊으면 올인 자체가 불법이고, 상한까지만 레이즈할 수 있다. bet/raise와
       // 똑같은 범위 검증을 거쳐야 팟 오버 올인이 새어 나가지 않는다.

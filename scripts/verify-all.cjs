@@ -68,6 +68,11 @@ const checks = [
     file: "scripts/verify-mystery-allin-potlimit.ts",
   },
   { group: "mystery", label: "MysteryHoldem raise cap", file: "scripts/verify-mystery-raisecap.ts" },
+  {
+    group: "mystery",
+    label: "MysteryHoldem incomplete all-in",
+    file: "scripts/verify-mystery-incomplete-allin.ts",
+  },
   { group: "mystery", label: "MysteryHoldem turn order", file: "scripts/verify-mystery-turnorder.ts" },
   { group: "mystery", label: "MysteryHoldem fold (no penalty)", file: "scripts/verify-mystery-fold.ts" },
   { group: "mystery", label: "MysteryHoldem side pots", file: "scripts/verify-mystery-sidepot.ts" },

@@ -1,5 +1,6 @@
 import type { Card } from "@/holdem/cards";
 import { compareHandValue, type HandValue } from "@/holdem/pokerEval";
+import { MYSTERY_HOLDEM_CONFIG } from "./config";
 import { bestHandStandard } from "./handEval";
 import { seatOrderFrom } from "./positions";
 import { specialRuleFor } from "./specialRules";
@@ -22,9 +23,8 @@ export interface PotAward {
 }
 
 /**
- * 팟별 승자 판정 + 배분(§24). 동률 시 1칩 단위 잔여 칩은 버튼 다음 좌석부터
- * 가까운 순서로 승자들에게 한 칩씩 순환 배분한다(홀칩 처리 관례 — §31 범위 밖 세부 규칙,
- * 필요 시 교체 가능하도록 별도 함수로 분리했다).
+ * 팟별 승자 판정 + 배분(§24). 동률 시 남는 몫은 베팅 단위(100칩) 덩어리 그대로
+ * 포지션이 불리한 승자에게 넘긴다 — distributeAmount 참고.
  */
 export function awardPots(
   pots: readonly Pot[],
@@ -73,24 +73,46 @@ export function awardAllPotsToSingleWinner(pots: readonly Pot[], winnerSeat: Sea
   });
 }
 
+/**
+ * 팟을 승자들에게 나눈다. 나누는 단위는 항상 베팅 단위(betStepUnit = 100칩)다.
+ *
+ * 1칩 단위로 쪼개면 정확한 chop이 되는 대신 50칩 같은 단위 밖 스택이 생기고, 그러면
+ * "모든 베팅은 100 단위"라는 전제가 깨진다. 최소 레이즈·Raise Cap 계산(§15)이 그 전제 위에
+ * 서 있으므로, 정확한 분배보다 단위 유지를 우선한다.
+ *
+ * 그래서 나누어떨어지지 않고 남는 100칩 덩어리는 쪼개지 않고, 포지션이 불리한 승자부터
+ * (버튼 다음 좌석 = 포스트플랍에서 먼저 행동하는 자리) 한 덩어리씩 더 준다.
+ */
 function distributeAmount(
   amount: number,
   winners: readonly Seat[],
   buttonSeat: Seat,
   seatCount: number,
   out: Map<Seat, number>,
+  step: number = MYSTERY_HOLDEM_CONFIG.betStepUnit,
 ): void {
   if (winners.length === 0) return;
-  const shareBase = Math.floor(amount / winners.length);
-  const remainderChips = Math.round(amount - shareBase * winners.length);
-  for (const w of winners) out.set(w, (out.get(w) ?? 0) + shareBase);
-  if (remainderChips <= 0) return;
-  const order = seatOrderFrom((buttonSeat + 1) % seatCount, seatCount).filter((s) =>
+  // 포지션이 불리한 순서 = 버튼 다음 좌석부터
+  const ordered = seatOrderFrom((buttonSeat + 1) % seatCount, seatCount).filter((s) =>
     winners.includes(s),
   );
-  for (let i = 0; i < remainderChips; i++) {
-    const seat = order[i % order.length]!;
-    out.set(seat, (out.get(seat) ?? 0) + 1);
+  const receivers = ordered.length > 0 ? ordered : [...winners];
+
+  const units = Math.floor(amount / step);
+  const baseUnits = Math.floor(units / receivers.length);
+  let extraUnits = units - baseUnits * receivers.length;
+  // 100 미만 잔돈은 모든 투입이 100 단위인 정상 플레이에서는 생기지 않는다. 그래도 생긴다면
+  // 쪼개지 않고 가장 불리한 포지션에게 몰아줘, 합계가 팟과 정확히 일치하도록 한다.
+  const dust = Math.round((amount - units * step) * 100) / 100;
+
+  for (const seat of receivers) {
+    const extra = extraUnits > 0 ? step : 0;
+    if (extra > 0) extraUnits--;
+    out.set(seat, (out.get(seat) ?? 0) + baseUnits * step + extra);
+  }
+  if (dust > 1e-9) {
+    const seat = receivers[0]!;
+    out.set(seat, (out.get(seat) ?? 0) + dust);
   }
 }
 

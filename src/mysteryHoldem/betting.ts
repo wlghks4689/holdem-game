@@ -38,6 +38,7 @@ export function initStreetBetting(params: {
     minRaiseIncrement,
     lastAggressorSeat: null,
     pendingActors,
+    raiseLockedSeats: [],
   };
 }
 
@@ -60,9 +61,16 @@ export function canOpenBet(betting: BettingState): boolean {
   return betting.currentLevel <= 1e-9;
 }
 
-/** currentLevel>0일 때의 레이즈 — Raise Cap 이내여야 함 */
-export function canRaise(betting: BettingState): boolean {
-  return betting.currentLevel > 1e-9 && betting.raisesUsed < betting.raiseCap;
+/**
+ * currentLevel>0일 때의 레이즈 — Raise Cap 이내여야 하고, 불완전 올인 때문에
+ * 재레이즈가 잠긴 좌석이 아니어야 한다.
+ */
+export function canRaise(betting: BettingState, seat: Seat): boolean {
+  return (
+    betting.currentLevel > 1e-9 &&
+    betting.raisesUsed < betting.raiseCap &&
+    !betting.raiseLockedSeats.includes(seat)
+  );
 }
 
 export function legalRaiseRange(
@@ -73,7 +81,7 @@ export function legalRaiseRange(
 ): { min: number; max: number } | null {
   const p = players.find((x) => x.seat === seat);
   if (p == null) return null;
-  if (betting.currentLevel > 1e-9 && !canRaise(betting)) return null;
+  if (betting.currentLevel > 1e-9 && !canRaise(betting, seat)) return null;
   return raiseRangeForActor({
     potBeforeAction,
     currentLevel: betting.currentLevel,
@@ -144,8 +152,17 @@ export function removeFromPending(betting: BettingState, seat: Seat): BettingSta
 }
 
 /**
- * 베트/레이즈 발생 시: 레이즈 카운트를 올리고(오픈 베팅은 제외), 레벨·최소 증가폭을 갱신하고,
+ * 베트/레이즈 발생 시: 레이즈 카운트를 올리고(오픈 베팅은 제외), 레벨을 갱신하고,
  * 행동자 본인을 제외한 나머지 액션 가능 좌석 전원을 다시 대기 큐에 넣는다.
+ *
+ * 이때 "풀 레이즈"와 "불완전 올인"을 구분해야 한다. 숏스택이 최소 레이즈 폭에 못 미치는
+ * 금액으로 올인하는 경우(예: 레벨 200, 최소 증가폭 200인데 250까지만 가능)는 불완전 올인이며,
+ * 표준 규칙상 이것은 베팅을 다시 열지 않는다.
+ *
+ * - 최소 증가폭을 낮추지 않는다. 낮추면 다음 사람이 아주 작은 레이즈로 Raise Cap을
+ *   태울 수 있어, 최소 레이즈 규칙(§15)이 막으려던 바로 그 행동이 가능해진다.
+ * - 이미 행동을 마친 좌석의 레이즈 권한을 잠근다. 늘어난 금액을 콜하거나 폴드할 기회는
+ *   주되(그래서 대기 큐에는 넣는다) 재레이즈는 못 하게 한다.
  */
 export function applyAggressiveAction(params: {
   betting: BettingState;
@@ -157,16 +174,23 @@ export function applyAggressiveAction(params: {
 }): BettingState {
   const { betting, seat, newLevel, players, seatCount, isOpeningBet } = params;
   const increment = round2(newLevel - betting.currentLevel);
+  const isFullRaise = isOpeningBet || increment >= betting.minRaiseIncrement - 1e-9;
   const order = orderedActionableSeats(players, (seat + 1) % seatCount, seatCount).filter(
     (s) => s !== seat,
   );
+  // 직전 대기 큐에 없던 좌석 = 이번 스트리트에서 이미 행동을 마친 좌석
+  const alreadyActed = order.filter((s) => !betting.pendingActors.includes(s));
+
   return {
     ...betting,
     currentLevel: newLevel,
-    minRaiseIncrement: increment > 0 ? increment : betting.minRaiseIncrement,
+    minRaiseIncrement: isFullRaise && increment > 0 ? increment : betting.minRaiseIncrement,
     raisesUsed: isOpeningBet ? betting.raisesUsed : betting.raisesUsed + 1,
     lastAggressorSeat: seat,
     pendingActors: order,
+    raiseLockedSeats: isFullRaise
+      ? []
+      : [...new Set([...betting.raiseLockedSeats, ...alreadyActed])],
   };
 }
 
