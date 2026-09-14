@@ -16,7 +16,7 @@ import { handValueDisplayPatternKorean, madeHandFxKind, madeHandFxTier } from "@
 import type { MadeHandFxKind } from "@/holdem/pokerEval";
 import { snapRaiseRangeToStep } from "@/mysteryHoldem/betting";
 import { DEFAULT_PROTOTYPE_SEAT_COUNT, MYSTERY_HOLDEM_CONFIG } from "@/mysteryHoldem/config";
-import { createInitialMysteryGameState, mysteryHoldemReducer } from "@/mysteryHoldem/gameReducer";
+import { createInitialMysteryGameState, currentTotalPot, mysteryHoldemReducer } from "@/mysteryHoldem/gameReducer";
 import { positionLabelForSeat } from "@/mysteryHoldem/positions";
 import { scoreBreakdownForAll } from "@/mysteryHoldem/scoring";
 import {
@@ -102,35 +102,73 @@ interface ChipCollectBatch {
   bets: { seat: Seat; amount: number }[];
 }
 
+interface BetChipState {
+  /** 지금 팟으로 날아가는 중인 칩 */
+  flying: ChipCollectBatch | null;
+  /** 좌석 앞에 칩을 그려도 되는지 — 핸드가 끝난 뒤에는 모두 팟으로 갔다 */
+  showSeatChips: boolean;
+  /** 홀카드를 공개해도 되는지 — 칩이 팟에 다 모인 뒤에만 true */
+  revealCards: boolean;
+}
+
+function isRevealPhase(phase: MysteryGameState["phase"]): boolean {
+  return phase === "showdown" || phase === "hand_over" || phase === "match_over";
+}
+
 /**
- * 스트리트가 끝나 좌석 앞 베팅이 한꺼번에 사라지는 순간을 잡아, 사라진 칩을 잠깐 더
- * 들고 있으면서 팟으로 모이는 연출을 재생한다. 엔진은 스트리트 종료와 동시에
- * streetContribution을 0으로 만들기 때문에 직전 값을 스냅샷으로 붙잡아야 한다.
+ * 좌석 앞 베팅 칩을 언제 팟으로 모을지 결정한다. 회수 시점은 두 가지다.
+ *
+ * 1. 스트리트 전환 — 엔진이 streetContribution을 0으로 만들므로, 직전 값을 스냅샷으로
+ *    붙잡아 두고 연출이 끝나면 버린다.
+ * 2. 핸드 종료(쇼다운·폴드 승리) — 엔진의 resetStreetContributions는 스트리트 전환에서만
+ *    돌기 때문에 마지막 스트리트 베팅이 그대로 남는다. 그대로 두면 공개된 홀카드 위에
+ *    칩이 겹치므로 여기서 직접 회수하고, 그동안 카드 공개를 미룬다.
+ *
+ * 2번은 반드시 렌더 중에 판정해야 한다. useEffect로 미루면 쇼다운 첫 프레임에 카드와 칩이
+ * 함께 보였다가 사라지고 다시 나타나는 깜빡임이 생긴다. 시간이 필요한 것은 "연출이 끝났는가"
+ * 하나뿐이므로 그것만 상태로 둔다.
  */
-function useBetChipCollect(state: MysteryGameState): ChipCollectBatch | null {
-  const [batch, setBatch] = React.useState<ChipCollectBatch | null>(null);
+function useBetChipCollect(state: MysteryGameState): BetChipState {
+  const revealing = isRevealPhase(state.phase);
+  const liveBets = state.players
+    .filter((p) => p.streetContribution > 1e-9)
+    .map((p) => ({ seat: p.seat, amount: p.streetContribution }));
+
+  const [collectedRound, setCollectedRound] = React.useState<number | null>(null);
+  const endCollecting = revealing && liveBets.length > 0 && collectedRound !== state.round;
+
+  React.useEffect(() => {
+    if (!endCollecting) return;
+    const timer = setTimeout(() => setCollectedRound(state.round), CHIP_COLLECT_MS);
+    return () => clearTimeout(timer);
+  }, [endCollecting, state.round]);
+
+  const [streetFlying, setStreetFlying] = React.useState<ChipCollectBatch | null>(null);
   const prevBetsRef = React.useRef<{ seat: Seat; amount: number }[]>([]);
   const idRef = React.useRef(0);
 
   React.useEffect(() => {
-    const bets = state.players
-      .filter((p) => p.streetContribution > 1e-9)
-      .map((p) => ({ seat: p.seat, amount: p.streetContribution }));
     const prev = prevBetsRef.current;
-    prevBetsRef.current = bets;
-    if (prev.length > 0 && bets.length === 0) {
-      idRef.current += 1;
-      setBatch({ id: idRef.current, bets: prev });
-    }
+    prevBetsRef.current = liveBets;
+    if (revealing || prev.length === 0 || liveBets.length > 0) return;
+    idRef.current += 1;
+    setStreetFlying({ id: idRef.current, bets: prev });
+    // liveBets는 매 렌더 새 배열이라 의존성에 넣을 수 없다. 상태가 바뀔 때만 판정하면 된다.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state]);
 
   React.useEffect(() => {
-    if (batch == null) return;
-    const timer = setTimeout(() => setBatch(null), CHIP_COLLECT_MS);
+    if (streetFlying == null) return;
+    const timer = setTimeout(() => setStreetFlying(null), CHIP_COLLECT_MS);
     return () => clearTimeout(timer);
-  }, [batch]);
+  }, [streetFlying]);
 
-  return batch;
+  return {
+    // 핸드 종료 회수가 스트리트 전환 회수보다 우선한다(동시에 일어나지 않는다).
+    flying: endCollecting ? { id: -state.round, bets: liveBets } : streetFlying,
+    showSeatChips: !revealing,
+    revealCards: revealing && !endCollecting,
+  };
 }
 
 /** 기존 홀덤(§25 공용 모듈)의 메이드 연출 설정을 그대로 공유한다 */
@@ -230,7 +268,7 @@ function HeroCardsWithMadeFx({
     );
   }
   return (
-    <div key={fx.replayKey} className={["holdem-hole-fx-bounds", fx.outerFxClass].join(" ")}>
+    <div key={fx.replayKey} className={["mystery-hole-fx-bounds", fx.outerFxClass].join(" ")}>
       {fx.showBurst && fx.cycleAuraClass ? (
         <span className={`holdem-preview-cycle-aura ${fx.cycleAuraClass}`} aria-hidden />
       ) : null}
@@ -298,7 +336,7 @@ export function MysteryHoldemClient() {
   // hero가 아직 없을 수 있는 상태 그대로 무조건 호출한다.
   const hero = state.players.find((p) => p.seat === HERO_SEAT);
   const heroFx = useHeroMadeHandFx(state, hero);
-  const chipCollect = useBetChipCollect(state);
+  const chips = useBetChipCollect(state);
 
   if (state.phase === "lobby" || hero == null) {
     return <LobbyScreen seatCount={seatCount} onSeatCount={setSeatCount} onStart={() => dispatch({ type: "START_MATCH", seatCount })} />;
@@ -306,10 +344,11 @@ export function MysteryHoldemClient() {
 
   const legal = legalActionsForSeat(state, HERO_SEAT);
   const potMax = potLimitMaxRaiseDisplay(state, HERO_SEAT);
-  // 수집 연출이 도는 동안에는 아직 칩이 날아가는 중이므로, 그만큼을 팟에서 빼 둔다.
-  // 칩이 도착(연출 종료)하는 순간 팟 숫자가 올라간다.
-  const collectingTotal = chipCollect?.bets.reduce((sum, b) => sum + b.amount, 0) ?? 0;
-  const pot = displayPotExcludingStreetBets(state) - collectingTotal;
+  // 좌석 앞 칩은 아직 팟이 아니므로 표시용 팟에서 뺀다. 핸드가 끝난 뒤에는 전액이 팟이며,
+  // 날아가는 중인 칩은 도착(연출 종료) 시점에 팟 숫자로 더해진다.
+  const flyingTotal = chips.flying?.bets.reduce((sum, b) => sum + b.amount, 0) ?? 0;
+  const potBase = chips.showSeatChips ? displayPotExcludingStreetBets(state) : currentTotalPot(state);
+  const pot = potBase - flyingTotal;
   const heroNeedsHoleSelection = state.awaitingHoleSelection.includes(HERO_SEAT);
   const heroNeedsMission = state.awaitingMissionSelection.includes(HERO_SEAT);
 
@@ -324,7 +363,7 @@ export function MysteryHoldemClient() {
           커뮤니티 카드가 서로 겹친다. 세로에서는 테이블 자체를 세로로 세우고 좌석 타원도
           가로로 좁게 / 세로로 길게 바꾼다.
         */}
-        <div className="relative mx-auto aspect-[16/10] w-full max-w-3xl rounded-[999px] border-4 border-emerald-900/60 bg-gradient-to-b from-emerald-800/40 to-emerald-950/60 shadow-2xl [--bet-rx:31] [--bet-ry:25] [--seat-rx:43] [--seat-ry:37] portrait:aspect-[3/4] portrait:[--bet-rx:30] portrait:[--bet-ry:31] portrait:[--seat-rx:39] portrait:[--seat-ry:41]">
+        <div className="relative mx-auto aspect-[16/10] w-full max-w-3xl rounded-[999px] border-4 border-emerald-900/60 bg-gradient-to-b from-emerald-800/40 to-emerald-950/60 shadow-2xl [--bet-rx:31] [--bet-ry:25] [--seat-rx:43] [--seat-ry:37] portrait:aspect-[3/4] portrait:[--bet-rx:23] portrait:[--bet-ry:31] portrait:[--seat-rx:39] portrait:[--seat-ry:41]">
           <div className="absolute inset-[10%] rounded-[999px] border border-emerald-700/40 bg-emerald-900/30" />
 
           {/* 커뮤니티 카드 + 팟 */}
@@ -363,25 +402,27 @@ export function MysteryHoldemClient() {
                 style={seatStyle(idx, state.seatCount)}
                 isHero={p.seat === HERO_SEAT}
                 heroFx={p.seat === HERO_SEAT ? heroFx : NO_MADE_FX}
+                revealCards={chips.revealCards}
               />
             );
           })}
 
           {/* 좌석 앞에 놓인 이번 스트리트 베팅 칩 */}
-          {state.players
-            .filter((p) => p.streetContribution > 1e-9 && !p.busted)
-            .map((p) => (
-              <BetChipStack
-                key={`bet-${p.seat}`}
-                amount={p.streetContribution}
-                style={betChipStyle((p.seat - HERO_SEAT + state.seatCount) % state.seatCount, state.seatCount)}
-              />
-            ))}
+          {chips.showSeatChips &&
+            state.players
+              .filter((p) => p.streetContribution > 1e-9 && !p.busted)
+              .map((p) => (
+                <BetChipStack
+                  key={`bet-${p.seat}`}
+                  amount={p.streetContribution}
+                  style={betChipStyle((p.seat - HERO_SEAT + state.seatCount) % state.seatCount, state.seatCount)}
+                />
+              ))}
 
-          {/* 스트리트가 끝나 팟으로 빨려 들어가는 중인 칩 */}
-          {chipCollect?.bets.map((b) => (
+          {/* 팟으로 빨려 들어가는 중인 칩 */}
+          {chips.flying?.bets.map((b) => (
             <BetChipStack
-              key={`collect-${chipCollect.id}-${b.seat}`}
+              key={`collect-${chips.flying!.id}-${b.seat}`}
               amount={b.amount}
               style={betChipStyle((b.seat - HERO_SEAT + state.seatCount) % state.seatCount, state.seatCount)}
               collecting
@@ -593,27 +634,30 @@ function SeatView({
   style,
   isHero,
   heroFx,
+  revealCards,
 }: {
   player: PlayerState;
   state: MysteryGameState;
   style: React.CSSProperties;
   isHero: boolean;
   heroFx: HeroMadeFx;
+  /** 카드를 공개할 시점인지 — 쇼다운이어도 칩 회수 연출이 끝나기 전에는 false */
+  revealCards: boolean;
 }) {
   const pos = positionLabelForSeat(player.seat, state.players, state.buttonSeat, state.seatCount);
   const isActing = state.toActSeat === player.seat;
-  // 히어로의 홀카드는 하단 HeroPanel에 이미 표시되고, 상대 카드는 뒷면이어도 보드 카드와
-  // 자리가 겹치므로(테이블 상단 좌석이 커뮤니티 카드 영역과 인접) 플레이 중에는 좌석 위에
-  // 카드를 그리지 않는다. 쇼다운/핸드 종료 시에만 기존 좌석 위치에 실제 카드를 공개한다.
-  const isRevealPhase =
-    state.phase === "showdown" || state.phase === "hand_over" || state.phase === "match_over";
 
   return (
     <div
       className="absolute flex -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-1"
       style={style}
     >
-      {isRevealPhase && player.holeCards.length > 0 && !player.folded ? (
+      {/*
+        히어로의 홀카드는 하단 HeroPanel에 이미 표시되고, 상대 카드는 뒷면이어도 보드 카드와
+        자리가 겹치므로 플레이 중에는 좌석 위에 카드를 그리지 않는다. 쇼다운/핸드 종료 시에만
+        기존 좌석 위치에 실제 카드를 공개한다.
+      */}
+      {revealCards && player.holeCards.length > 0 && !player.folded ? (
         // 세로 화면에서는 공개 카드를 축소해 좁은 테이블 폭 안에 머물게 한다.
         <div className="flex origin-bottom gap-0.5 portrait:scale-[0.72]">
           {isHero ? (

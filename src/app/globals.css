@@ -2319,3 +2319,30 @@ body {
     animation-duration: 240ms;
   }
 }
+
+/* ── MysteryHoldem: 메이드 연출 범위 ──
+   holdem-hole-fx-bounds는 기존 홀덤 하단 패널 폭에 맞춘 비대칭 클립(좌우 -96px,
+   위 -10px)이라, 좁은 좌석이나 이 게임 패널에서는 위로 번지는 후광이 직선으로
+   싹둑 잘려 보인다.
+
+   여기서는 카드 박스에서 사방 --fx-spread 만큼만 연출 범위를 주고(padding), 그 경계를
+   딱 잘라내는 대신 마스크로 부드럽게 지운다. 가로·세로 그라데이션을 교집합으로 합성해
+   "모서리가 각지지 않은 사각형"이 된다. 페이드 구간을 padding과 같은 길이로 잡아야
+   카드 자체는 흐려지지 않고 바깥 후광만 사라진다.
+
+   padding과 같은 크기의 음수 margin으로 레이아웃이 차지하는 공간은 되돌려준다.
+   메이드가 떴다 꺼졌다 할 때 카드 위치가 흔들리면 안 되기 때문이다. */
+.mystery-hole-fx-bounds {
+  --fx-spread: 0.55rem;
+  padding: var(--fx-spread);
+  margin: calc(var(--fx-spread) * -1);
+  -webkit-mask-image:
+    linear-gradient(to right, transparent, #000 var(--fx-spread), #000 calc(100% - var(--fx-spread)), transparent),
+    linear-gradient(to bottom, transparent, #000 var(--fx-spread), #000 calc(100% - var(--fx-spread)), transparent);
+  mask-image:
+    linear-gradient(to right, transparent, #000 var(--fx-spread), #000 calc(100% - var(--fx-spread)), transparent),
+    linear-gradient(to bottom, transparent, #000 var(--fx-spread), #000 calc(100% - var(--fx-spread)), transparent);
+  -webkit-mask-composite: source-in;
+  mask-composite: intersect;
+}
+
