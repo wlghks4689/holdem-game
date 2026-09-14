@@ -1,7 +1,7 @@
 import { HAND_RANK } from "../src/holdem/pokerEval";
 import { MYSTERY_HOLDEM_CONFIG, bountyRewardForSeatCount } from "../src/mysteryHoldem/config";
-import { HAND_RANK_WEIGHT, madeHandRewardMultiplier, roundToTen } from "../src/mysteryHoldem/missionRewards";
-import { MISSION_POOL } from "../src/mysteryHoldem/mysteryMissions";
+import { HIGH_END_REWARD_BY_HAND_RANK, MISSION_POOL } from "../src/mysteryHoldem/mysteryMissions";
+import { CARD_CATEGORY_LABEL, cardCategoryFromLegacy } from "../src/mysteryHoldem/mysteryCard";
 
 /**
  * 현재 확정된 Mission/Bounty 점수 구성표를 소스에서 직접 출력한다.
@@ -37,29 +37,25 @@ for (let n = MYSTERY_HOLDEM_CONFIG.minSeats; n <= MYSTERY_HOLDEM_CONFIG.maxSeats
 }
 console.log("  * 해당 팟 승자가 여럿이면 균등 분배");
 
-console.log("\n=== 족보 가중치 (높은 족보 계수 산출용) ===");
-for (const rank of LADDER) {
-  console.log(`  ${RANK_NAMES[rank]!.padEnd(18)} weight ${HAND_RANK_WEIGHT[rank]}`);
-}
-
-console.log("\n=== Mission별 기본 점수 ===");
-console.log(`  ${"Mission".padEnd(20)} ${"분류".padEnd(10)} ${"기본점수".padStart(8)}   조건`);
+console.log("\n=== Mystery Card 풀 ===");
+console.log(`  ${"Card".padEnd(20)} ${"분류".padEnd(8)} ${"점수".padStart(6)}   조건`);
 for (const m of MISSION_POOL) {
-  // 보상이 onAchieved에서 동적으로 계산되는 Mission(강탈 등)은 고정값이 없으므로 설명을 따른다.
-  const reward = m.reward === 0 && m.onAchieved != null ? "가변" : String(m.reward);
-  console.log(`  ${m.name.padEnd(20)} ${m.category.padEnd(10)} ${reward.padStart(8)}   ${m.description}`);
+  // 보상이 고정값이 아닌 카드(High-End Maker, Blind Defender, 강탈 등)는 "가변"으로 표기한다.
+  const reward = m.rewardFor != null || (m.reward === 0 && m.onAchieved != null) ? "가변" : String(m.reward);
+  const label = CARD_CATEGORY_LABEL[cardCategoryFromLegacy(m.category)];
+  console.log(`  ${m.name.padEnd(20)} ${label.padEnd(8)} ${reward.padStart(6)}   ${m.description}`);
 }
 
-console.log("\n=== Made 계열: 달성 족보별 실제 지급액 ===");
-const madeMissions = MISSION_POOL.filter((m) => m.madeHandThreshold != null);
-const header = ["Mission".padEnd(16), ...LADDER.map((r) => RANK_NAMES[r]!.padStart(9))].join(" ");
-console.log(`  ${header}`);
-for (const m of madeMissions) {
-  const cells = LADDER.map((rank) => {
-    if (rank < m.madeHandThreshold!) return "—".padStart(9);
-    const mult = madeHandRewardMultiplier(rank, m.madeHandThreshold!);
-    return String(roundToTen(m.reward * mult)).padStart(9);
-  });
-  console.log(`  ${m.name.padEnd(16)} ${cells.join(" ")}`);
+console.log("\n=== High-End Maker 보상표(족보별 명시값) ===");
+for (const rank of LADDER) {
+  const reward = HIGH_END_REWARD_BY_HAND_RANK[rank];
+  if (reward == null) continue;
+  console.log(`  ${RANK_NAMES[rank]!.padEnd(18)} ${String(reward).padStart(6)}점`);
 }
-console.log("\n  (— 는 해당 족보로는 조건 미달)\n");
+console.log("  * 로열 플러시는 스트레이트 플러시의 최상위이므로 같은 구간이다");
+
+console.log("\n=== Blind Defender: 시작 인원별 보상 ===");
+for (let n = MYSTERY_HOLDEM_CONFIG.minSeats; n <= MYSTERY_HOLDEM_CONFIG.maxSeats; n++) {
+  console.log(`  ${String(n).padStart(2)}인   ${String(n * 10).padStart(4)}점`);
+}
+console.log("  * 중간 버스트로 생존자가 줄어도 시작 인원 기준값을 유지한다\n");

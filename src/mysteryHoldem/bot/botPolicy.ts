@@ -132,22 +132,23 @@ function missionBias_(player: PlayerState, state: MysteryGameState): {
   const def = player.mission?.def;
   if (def == null) return { aggression: 0, callMargin: 0 };
 
-  // Made 계열: 쇼다운까지 가야 달성 가능 → 조금 더 끈질기게 따라간다
-  if (def.madeHandThreshold != null) {
+  // Maker / High-End 계열: 쇼다운까지 가야 달성 가능 → 조금 더 끈질기게 따라간다
+  if (def.id.startsWith("maker_")) {
     return { aggression: 0, callMargin: 0.03 };
   }
-  // Position 계열: 해당 포지션에서 팟을 이겨야 하므로 그 핸드에 공격성을 올린다
-  if (def.category === "position") {
+  // Blind Defender: 블라인드 포지션에 있는 핸드에서만 공격성을 올린다
+  if (def.id === "blind_defender") {
     const label = positionLabelForSeat(player.seat, state.players, state.buttonSeat, state.seatCount);
-    const targeted =
-      (def.id === "position_win_button" && label === "BTN") ||
-      (def.id === "position_win_blinds" && (label === "SB" || label === "BB")) ||
-      (def.id === "position_showdown_win_late" && (label === "CO" || label === "HJ"));
+    const targeted = label === "SB" || label === "BB";
     return targeted ? { aggression: 0.08, callMargin: 0.02 } : { aggression: 0, callMargin: 0 };
   }
-  // Underdog 계열: 약한 핸드로 쇼다운 승리를 노리므로 콜 의향을 소폭 높인다
-  if (def.category === "underdog") {
+  // Underdog: 약한 핸드로 쇼다운 승리를 노리므로 콜 의향을 소폭 높인다
+  if (def.id === "underdog") {
     return { aggression: 0, callMargin: 0.025 };
+  }
+  // A High Like a Boss: 메이드 없이 이겨야 하므로 블러프 쪽으로 기운다
+  if (def.id === "high_card_boss") {
+    return { aggression: 0.06, callMargin: 0 };
   }
   return { aggression: 0, callMargin: 0 };
 }

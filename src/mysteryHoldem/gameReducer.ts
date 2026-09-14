@@ -19,6 +19,7 @@ import { createInitialPlayers, isRegularMissionChangeRound, nextButtonSeat, seat
 import { drawMissionCandidates } from "./mysteryMissions";
 import { preflopScoreForHoleCards } from "./mysteryHandRanking";
 import { resolveMissionsForHand, type MissionResolutionInput } from "./missionResolver";
+import { shouldReplaceCard } from "./mysteryCard";
 import { bbSeatFor, isActionable, isAllInRunoutSituation, isHandDecidedByFold, isInHandContesting, positionLabelForSeat, sbSeatFor } from "./positions";
 import { isLegalRaiseTarget } from "./potLimit";
 import { buildPots, totalPotAmount, type PotContributor } from "./pots";
@@ -179,7 +180,7 @@ function startNextHand(state: MysteryGameState, rng: () => number): MysteryGameS
   const awaitingMissionSelection: Seat[] = [];
   for (const seat of eligible) {
     const p = players.find((x) => x.seat === seat)!;
-    const needsOffer = regularChangeRound || p.mission == null || p.mission.achieved;
+    const needsOffer = regularChangeRound || p.mission == null || p.mission.shouldReplace;
     if (needsOffer) {
       missionOffers[seat] = drawMissionCandidates(rng, 3);
       awaitingMissionSelection.push(seat);
@@ -256,7 +257,9 @@ function selectMission(
   if (def == null) return state;
 
   const players = state.players.map((p) =>
-    p.seat === seat ? { ...p, mission: { def, assignedRound: state.round, achieved: false } } : p,
+    p.seat === seat
+      ? { ...p, mission: { def, assignedRound: state.round, achieved: false, shouldReplace: false } }
+      : p,
   );
   const missionOffers = { ...state.missionOffers };
   delete missionOffers[seat];
@@ -642,7 +645,24 @@ function finishHandSettlement(
     });
   }
 
-  // ── Mission 판정(§10, §12) ──
+  // ── Bust / Bounty 귀속 선계산(§20 Phase 2·4) ──
+  // Bounty Hunter가 "내게 Bounty가 귀속되었는가"를 조건으로 삼으므로, 실제 지급보다 먼저
+  // 귀속만 계산해 Mission 판정 컨텍스트에 넣어야 한다. 지급은 판정이 끝난 뒤에 한다.
+  const justBusted = players.filter((p) => p.inHand && !p.busted && p.chips <= 1e-9).map((p) => p.seat);
+  const baseBountyBySeat = new Map<Seat, number>();
+  const bountyEvents: { bustedSeat: Seat; shares: [Seat, number][] }[] = [];
+  for (const bustedSeat of justBusted) {
+    const winners = defaultBountyAttributionRule({ bustedSeat, awards });
+    const shares = [
+      ...splitBountyReward(bountyRewardForSeatCount(state.seatCount, state.config), winners),
+    ];
+    bountyEvents.push({ bustedSeat, shares });
+    for (const [seat, share] of shares) {
+      baseBountyBySeat.set(seat, round2((baseBountyBySeat.get(seat) ?? 0) + share));
+    }
+  }
+
+  // ── Mystery Card 판정(§20 Phase 3) ──
   const contestingSeats = wasShowdown ? players.filter((p) => p.inHand && !p.folded).map((p) => p.seat) : [];
   const handSeats = players.filter((p) => p.inHand).map((p) => p.seat);
 
@@ -652,8 +672,18 @@ function finishHandSettlement(
     const p = players.find((x) => x.seat === seat)!;
     preflopScoreBySeat.set(seat, preflopScoreForHoleCards(p.holeCards));
   }
-  for (const seat of contestingSeats) {
-    bestHandBySeat.set(seat, computeBestHandForPlayer(players.find((p) => p.seat === seat)!, state.board));
+  // 폴드 승리로 끝난 핸드에서도 남은 플레이어의 족보는 필요하다 — A High Like a Boss가
+  // "그 시점까지 열린 보드 + 내 홀카드" 기준으로 하이카드 승리를 인정하기 때문이다(§15).
+  const evaluableSeats = wasShowdown
+    ? contestingSeats
+    : state.boardRevealed >= 3
+      ? players.filter((p) => p.inHand && !p.folded).map((p) => p.seat)
+      : [];
+  for (const seat of evaluableSeats) {
+    bestHandBySeat.set(
+      seat,
+      computeBestHandForPlayer(players.find((p) => p.seat === seat)!, state.board.slice(0, state.boardRevealed)),
+    );
   }
 
   const missionInputs: MissionResolutionInput[] = [];
@@ -667,11 +697,18 @@ function finishHandSettlement(
       buttonSeat: state.buttonSeat,
       position: positionLabelForSeat(seat, players, state.buttonSeat, state.seatCount),
       board: state.board,
+      boardRevealed: state.boardRevealed,
+      // 좌석 배열 길이는 버스트해도 줄지 않으므로 그대로 "시작 인원"이다.
+      initialSeatCount: state.seatCount,
       folded: p.folded,
       wentToShowdown: contestingSeats.includes(seat),
       wonAnyPot: wonPotAmount > 1e-9,
       wonPotAmount,
+      wonPots: awards
+        .filter((a) => a.winners.includes(seat))
+        .map((a) => ({ amount: a.pot.amount, showdownSeats: [...a.pot.eligibleSeats] })),
       bestHandValue: bestHandBySeat.get(seat) ?? null,
+      bountyShare: baseBountyBySeat.get(seat) ?? 0,
       showdownOpponents: contestingSeats.filter((s) => s !== seat),
       opponentBestHandValues: Object.fromEntries(
         [...bestHandBySeat.entries()].filter(([s]) => s !== seat),
@@ -689,13 +726,26 @@ function finishHandSettlement(
   const missionResults = resolveMissionsForHand(missionInputs);
   for (let idx = 0; idx < missionResults.length; idx++) {
     const r = missionResults[idx]!;
-    const missionId = missionInputs[idx]!.mission.def.id;
+    const input = missionInputs[idx]!;
+    const missionId = input.mission.def.id;
+    // 카드별 교체 조건(§3). 정규 변경 라운드는 다음 핸드 시작 시점에 따로 보므로 여기서는 false.
+    const shouldReplace = shouldReplaceCard({
+      rule: input.mission.def.replacementRule ?? "on_success",
+      outcome: {
+        achieved: r.achieved,
+        wonAnyPot: input.ctx.wonAnyPot,
+        // 발동형의 "실제로 결과를 바꿨는가"는 해당 카드들이 구현될 때 별도 신호로 바뀐다.
+        // 현재 레거시 발동형은 조건 달성 = 효과 발동이라 achieved를 그대로 쓴다.
+        triggered: r.achieved,
+      },
+      isRegularChangeRound: false,
+    });
     players = players.map((p) => {
       if (p.seat !== r.seat || p.mission == null) return p;
       return {
         ...p,
         missionPoint: round2(p.missionPoint + r.reward),
-        mission: { ...p.mission, achieved: r.achieved },
+        mission: { ...p.mission, achieved: r.achieved, shouldReplace },
       };
     });
     logs.push({
@@ -708,18 +758,22 @@ function finishHandSettlement(
     });
   }
 
-  // ── Bust 판정 + Bounty(§23, §24) ──
-  const justBusted = players.filter((p) => p.inHand && !p.busted && p.chips <= 1e-9).map((p) => p.seat);
-  for (const bustedSeat of justBusted) {
+  // ── Bust 확정 + Bounty 지급(§20 Phase 4) ──
+  // 귀속은 위에서 이미 계산했다. 여기서는 Bounty Hunter 배수를 얹어 실제로 지급한다.
+  // "기존 Bounty + 3배"가 아니라 최종 Bounty Reward 자체가 ×3이다(§16).
+  const bountyMultiplierBySeat = new Map<Seat, number>();
+  for (const r of missionResults) {
+    const def = players.find((p) => p.seat === r.seat)?.mission?.def;
+    if (r.achieved && def?.bountyMultiplier != null) {
+      bountyMultiplierBySeat.set(r.seat, def.bountyMultiplier);
+    }
+  }
+  for (const { bustedSeat, shares } of bountyEvents) {
     players = players.map((p) => (p.seat === bustedSeat ? { ...p, busted: true } : p));
-    const winners = defaultBountyAttributionRule({ bustedSeat, awards });
-    const shares = splitBountyReward(
-      bountyRewardForSeatCount(state.seatCount, state.config),
-      winners,
-    );
     for (const [seat, share] of shares) {
-      players = players.map((p) => (p.seat === seat ? { ...p, bountyPoint: round2(p.bountyPoint + share) } : p));
-      logs.push({ t: "bounty_awarded", seat, bustedSeat, reward: share });
+      const reward = round2(share * (bountyMultiplierBySeat.get(seat) ?? 1));
+      players = players.map((p) => (p.seat === seat ? { ...p, bountyPoint: round2(p.bountyPoint + reward) } : p));
+      logs.push({ t: "bounty_awarded", seat, bustedSeat, reward });
     }
     logs.push({ t: "player_busted", seat: bustedSeat });
   }

@@ -43,10 +43,9 @@ function chenBaseScore(highRank: number): number {
   return highRank / 2;
 }
 
-/** opponentScore가 myScore보다 유의미하게 높으면 내가 Underdog였다고 판정 */
-export function isUnderdogVersus(myScore: number, opponentScore: number): boolean {
-  return opponentScore > myScore + 1e-9;
-}
+// isUnderdogVersus는 제거했다. 예전 Underdog Mission은 "나보다 강한 상대가 한 명이라도
+// 있으면 성공"이었지만, 새 Underdog 카드는 "그 팟 참가자 중 (공동) 최하위"를 요구한다(§13).
+// 그 판정은 상대 한 명과의 1:1 비교로 표현되지 않으므로 카드 정의 쪽에서 직접 계산한다.
 
 /**
  * 홀카드가 2장을 초과하는 경우(Extra Hand Mission 등)에는 가능한 2장 조합 중

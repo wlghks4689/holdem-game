@@ -76,6 +76,11 @@ export function shouldReplaceCard(params: {
  */
 export function cardCategoryFromLegacy(legacy: string): MysteryCardCategory {
   switch (legacy) {
+    // 새 어휘를 이미 선언한 카드는 그대로 통과시킨다.
+    case "mission":
+    case "enhancement":
+    case "trigger":
+      return legacy;
     case "counter":
       return "trigger";
     case "extraHand":

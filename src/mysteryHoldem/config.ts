@@ -7,7 +7,12 @@ import type { MysteryHoldemConfig } from "./types";
  * 잠정값(TODO, §31 미확정 영역)은 각 필드 주석에 명시했다.
  */
 export const MYSTERY_HOLDEM_CONFIG: MysteryHoldemConfig = {
-  startingChips: 30_000,
+  /**
+   * 시작 스택. 40,000 = 200BB로, 플레이 깊이를 확보하면서 Chip Point 기준값을 400으로 맞춘다.
+   * chipPointDivisor를 함께 올리지 않으므로 Chip Point 비중이 커지고, 상대적으로 Mission
+   * Point의 영향력과 Last Player Standing(조기 버스트) 빈도가 줄어드는 점을 감안한 값이다.
+   */
+  startingChips: 40_000,
   smallBlind: 100,
   bigBlind: 200,
   /** Big Blind Ante 방식: BB 좌석이 해당 핸드의 Ante를 추가로 지불 */

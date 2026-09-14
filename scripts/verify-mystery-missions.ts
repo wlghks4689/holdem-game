@@ -2,8 +2,15 @@ import assert from "node:assert/strict";
 import { MYSTERY_HOLDEM_CONFIG } from "../src/mysteryHoldem/config";
 import { MISSION_POOL } from "../src/mysteryHoldem/mysteryMissions";
 import { resolveMissionsForHand } from "../src/mysteryHoldem/missionResolver";
-import type { MissionEvalContext, PlayerMissionState } from "../src/mysteryHoldem/types";
-import { autoCompleteHandSetup, dispatch, mulberry32, startMatch } from "./mysteryTestHelpers";
+import { HAND_RANK } from "../src/holdem/pokerEval";
+import {
+  autoCompleteHandSetup,
+  dispatch,
+  makeMissionCtx,
+  missionStateOf,
+  mulberry32,
+  startMatch,
+} from "./mysteryTestHelpers";
 
 // Round 1/4/7/10/13에 Mission 선택 절차가 발생하고, 후보 3개 중 하나만 선택 가능하다.
 assert.deepEqual(MYSTERY_HOLDEM_CONFIG.missionChangeRounds, [1, 4, 7, 10, 13]);
@@ -52,7 +59,8 @@ assert.deepEqual(MYSTERY_HOLDEM_CONFIG.missionChangeRounds, [1, 4, 7, 10, 13]);
   assert.equal(state.phase, "hand_over");
 
   const before = new Map(state.players.map((p) => [p.seat, p.mission] as const));
-  const achievedSeats = state.players.filter((p) => p.mission?.achieved).map((p) => p.seat);
+  // 교체 대상은 "성공"이 아니라 카드별 교체 조건(shouldReplace)으로 결정된다.
+  const achievedSeats = state.players.filter((p) => p.mission?.shouldReplace).map((p) => p.seat);
 
   state = dispatch(state, { type: "START_NEXT_HAND" }, rng);
   assert.equal(state.round, 2);
@@ -75,26 +83,14 @@ assert.deepEqual(MYSTERY_HOLDEM_CONFIG.missionChangeRounds, [1, 4, 7, 10, 13]);
 
 // Mission 성공 시 정규 변경 라운드가 아니어도 다음 핸드 전에 새 Mission을 받는다.
 {
-  const def = MISSION_POOL.find((m) => m.id === "made_trips_plus")!;
-  const mission: PlayerMissionState = { def, assignedRound: 2, achieved: false };
-  const ctx: MissionEvalContext = {
-    seat: 0,
+  const def = MISSION_POOL.find((m) => m.id === "maker_set")!;
+  const mission = missionStateOf(def, 2);
+  const ctx = makeMissionCtx({
     round: 2,
-    buttonSeat: 0,
-    position: "BTN",
-    board: [],
-    folded: false,
-    wentToShowdown: true,
-    wonAnyPot: false,
-    wonPotAmount: 0,
-    bestHandValue: { rank: 4, kickers: [10, 9, 8] }, // 트립스 이상
+    bestHandValue: { rank: HAND_RANK.TRIPS, kickers: [10, 9, 8] },
     showdownOpponents: [1],
-    opponentBestHandValues: {},
     myPreflopScore: 5,
-    opponentPreflopScores: {},
-    opponentsAchievedThisHand: [],
-    extraHandActive: false,
-  };
+  });
   const results = resolveMissionsForHand([{ seat: 0, mission, ctx }]);
   assert.equal(results[0]!.achieved, true);
   assert.equal(results[0]!.reward, def.reward);

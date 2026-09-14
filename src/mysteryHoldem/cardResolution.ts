@@ -46,8 +46,11 @@ export function resolveCardRewardsForHand(
   // ── Step A: 자기 결과에만 의존하는 카드부터 판정 ──
   // counter 계열은 "상대가 성공했는가"를 봐야 하므로 뒤로 미룬다.
   const achieved = new Map<Seat, boolean>();
+  const dependsOnOpponents = (e: CardResolutionInput) =>
+    e.mission.def.dependsOnOpponents === true || e.mission.def.category === "counter";
+
   for (const e of entries) {
-    if (e.mission.def.category === "counter") continue;
+    if (dependsOnOpponents(e)) continue;
     achieved.set(e.seat, e.mission.def.condition(e.ctx));
   }
   const selfAchievedSeats = [...achieved.entries()].filter(([, ok]) => ok).map(([seat]) => seat);
@@ -58,7 +61,7 @@ export function resolveCardRewardsForHand(
   });
 
   for (const e of entries) {
-    if (e.mission.def.category !== "counter") continue;
+    if (!dependsOnOpponents(e)) continue;
     achieved.set(e.seat, e.mission.def.condition(ctxWithOpponents(e)));
   }
 

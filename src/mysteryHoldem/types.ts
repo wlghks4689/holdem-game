@@ -1,5 +1,6 @@
 import type { Card } from "@/holdem/cards";
 import type { HandValue } from "@/holdem/pokerEval";
+import type { CardReplacementRule } from "./mysteryCard";
 
 /**
  * MysteryHoldem은 기존 헤즈업 전용 `PlayerIndex`(0|1)를 사용하지 않는다.
@@ -22,13 +23,23 @@ export type MysteryStreet =
 /** 라운드(=핸드) 종료 없이 자동으로 다음 스트리트까지 진행되는 올인 런아웃 표시용 */
 export type RunoutInfo = { active: boolean; startedAtStreet: MysteryStreet } | null;
 
+/**
+ * 카드 분류. `mission`/`enhancement`/`trigger`가 새 Mystery Card 어휘이고,
+ * 나머지는 아직 새 정의로 교체되지 않은 레거시 Mission의 분류다(단계적으로 사라진다).
+ */
 export type MissionCategory =
-  | "made"
-  | "pair"
+  | "mission"
+  | "enhancement"
+  | "trigger"
   | "counter"
-  | "extraHand"
-  | "underdog"
-  | "position";
+  | "extraHand";
+
+/** 한 좌석이 획득한 팟 하나 — Underdog처럼 "팟별 참가자"로 판정하는 카드가 쓴다 */
+export interface WonPotInfo {
+  amount: number;
+  /** 이 팟을 실제로 다툰 좌석(팟 자격이 있고 폴드하지 않은 쇼다운 참가자) */
+  showdownSeats: Seat[];
+}
 
 /** Mission 조건 판정에 필요한 한 핸드 종료 시점의 상황 정보 */
 export interface MissionEvalContext {
@@ -37,11 +48,23 @@ export interface MissionEvalContext {
   buttonSeat: Seat;
   position: PositionLabel;
   board: Card[];
+  /** 팟이 끝난 시점까지 실제로 공개된 커뮤니티 카드 수(폴드 승리면 5장 미만일 수 있다) */
+  boardRevealed: number;
+  /** 매치 시작 인원. 중간에 버스트가 나와도 줄지 않는다(Blind Defender 보상 기준) */
+  initialSeatCount: number;
   folded: boolean;
   wentToShowdown: boolean;
   wonAnyPot: boolean;
   wonPotAmount: number;
+  /** 이 좌석이 가져간 팟 목록 — 메인/사이드 팟을 개별 판정하는 카드가 쓴다 */
+  wonPots: WonPotInfo[];
+  /**
+   * 이번 핸드의 최종 족보. 쇼다운뿐 아니라 폴드 승리에서도(보드가 한 장이라도 열렸다면)
+   * 채워진다 — A High Like a Boss가 폴드 승리도 인정하기 때문이다.
+   */
   bestHandValue: HandValue | null;
+  /** 이번 핸드에 이 좌석으로 귀속된 기본 Bounty Point(Bounty Hunter 배수 적용 전) */
+  bountyShare: number;
   /** 이번 핸드에서 실제로 쇼다운을 겨룬 상대 좌석 */
   showdownOpponents: Seat[];
   opponentBestHandValues: Partial<Record<Seat, HandValue>>;
@@ -65,14 +88,25 @@ export interface MysteryMissionDef {
   trigger: string;
   /** 순수 판정 함수 — true면 이번 핸드에서 조건 달성 */
   condition: (ctx: MissionEvalContext) => boolean;
-  /** 성공 시 지급되는 기본 Mission Point (Chips 아님). 잠정값 — 밸런스 확정 전. */
-  reward: number;
   /**
-   * Made 계열: "이 족보 이상이면 달성"의 기준 족보(HAND_RANK).
-   * 값이 있으면 실제 달성한 족보에 따라 보상에 높은 족보 계수가 곱해진다
-   * (missionRewards.ts). 데이터로 선언하므로 Mission을 추가해도 resolver 수정이 필요 없다.
+   * 성공 시 지급되는 Mission Point (Chips 아님). 달성 내용에 따라 금액이 달라지는
+   * 카드(High-End Maker, Blind Defender)는 `rewardFor`로 계산하고 이 값은 대표값으로 둔다.
    */
-  madeHandThreshold?: number;
+  reward: number;
+  /** 고정 보상이 아닌 카드의 실제 지급액. 없으면 `reward`를 그대로 쓴다. */
+  rewardFor?: (ctx: MissionEvalContext) => number;
+  /**
+   * 상대의 달성 결과에 의존하는 카드(Mission Breaker / Parasite).
+   * true면 자기 완결형 카드들을 먼저 판정한 뒤 2차 패스에서 평가한다(§21 Step A/C).
+   */
+  dependsOnOpponents?: boolean;
+  /** 카드 교체 조건(§3). 선언이 없으면 "성공 시 교체"로 본다. */
+  replacementRule?: CardReplacementRule;
+  /**
+   * 이 카드가 Bounty Point에 적용하는 배수(Bounty Hunter = 3).
+   * Mission Point가 아니라 Bounty Point 쪽을 바꾸므로 reducer의 Bounty 단계에서 쓴다.
+   */
+  bountyMultiplier?: number;
   /** Counter 계열 등 부가 효과(상대 Mission 무효화 등)를 위한 훅 */
   onAchieved?: (ctx: MissionEvalContext, api: MissionEffectApi) => void;
   specialRule?: SpecialRuleId;
@@ -91,8 +125,16 @@ export interface MissionEffectApi {
 export interface PlayerMissionState {
   def: MysteryMissionDef;
   assignedRound: number;
-  /** 이번 배정 사이클에서 이미 조건을 달성해 교체 대기 중인지 */
+  /** 이번 배정 사이클에서 조건을 달성했는지 */
   achieved: boolean;
+  /**
+   * 다음 핸드에 카드를 교체해야 하는지(§3, §20 Phase 6).
+   *
+   * 예전에는 "성공했으면 교체"라는 전역 규칙이라 achieved 하나로 충분했지만, 이제 카드마다
+   * 교체 조건이 다르다(강화형은 팟 승리 시, 발동형은 실제 발동 시). 그래서 "성공했는가"와
+   * "교체 대상인가"를 분리한다 — 예: Four Card는 성공 없이 팟만 이겨도 교체된다.
+   */
+  shouldReplace: boolean;
 }
 
 export type PositionLabel =

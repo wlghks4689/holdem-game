@@ -6,6 +6,7 @@ import {
   shouldReplaceCard,
 } from "../src/mysteryHoldem/mysteryCard";
 import type { MissionEvalContext, MysteryMissionDef, Seat } from "../src/mysteryHoldem/types";
+import { makeMissionCtx, missionStateOf } from "./mysteryTestHelpers";
 
 /**
  * Mystery Card 판정 순서(§20~§21) 골격 검증.
@@ -13,31 +14,14 @@ import type { MissionEvalContext, MysteryMissionDef, Seat } from "../src/mystery
  */
 
 function ctxFor(seat: Seat): MissionEvalContext {
-  return {
-    seat,
-    round: 1,
-    buttonSeat: 0,
-    position: "BTN",
-    board: [],
-    folded: false,
-    wentToShowdown: true,
-    wonAnyPot: false,
-    wonPotAmount: 0,
-    bestHandValue: null,
-    showdownOpponents: [],
-    opponentBestHandValues: {},
-    myPreflopScore: 0,
-    opponentPreflopScores: {},
-    opponentsAchievedThisHand: [],
-    extraHandActive: false,
-  };
+  return makeMissionCtx({ seat, wentToShowdown: true });
 }
 
 function missionCard(id: string, reward: number): MysteryMissionDef {
   return {
     id,
     name: id,
-    category: "made",
+    category: "mission",
     description: "",
     trigger: "",
     condition: () => true,
@@ -50,7 +34,8 @@ function breakerCard(id: string): MysteryMissionDef {
   return {
     id,
     name: id,
-    category: "counter",
+    category: "trigger",
+    dependsOnOpponents: true,
     description: "",
     trigger: "",
     condition: (ctx) => ctx.opponentsAchievedThisHand.length > 0,
@@ -66,7 +51,8 @@ function parasiteCard(id: string): MysteryMissionDef {
   return {
     id,
     name: id,
-    category: "counter",
+    category: "trigger",
+    dependsOnOpponents: true,
     description: "",
     trigger: "",
     condition: (ctx) => ctx.opponentsAchievedThisHand.length > 0,
@@ -89,7 +75,7 @@ function parasiteCard(id: string): MysteryMissionDef {
 }
 
 function entry(seat: Seat, def: MysteryMissionDef): CardResolutionInput {
-  return { seat, mission: { def, assignedRound: 1, achieved: false }, ctx: ctxFor(seat) };
+  return { seat, mission: missionStateOf(def), ctx: ctxFor(seat) };
 }
 
 // ── 좌석 순서를 바꿔도 결과가 같아야 한다 ──
@@ -141,7 +127,8 @@ function entry(seat: Seat, def: MysteryMissionDef): CardResolutionInput {
   const selfNullify: MysteryMissionDef = {
     id: "self_nullify",
     name: "self",
-    category: "counter",
+    category: "trigger",
+    dependsOnOpponents: true,
     description: "",
     trigger: "",
     condition: () => true,

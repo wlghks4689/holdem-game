@@ -1,5 +1,11 @@
 import { createInitialMysteryGameState, mysteryHoldemReducer } from "../src/mysteryHoldem/gameReducer";
-import type { MysteryGameAction, MysteryGameState } from "../src/mysteryHoldem/types";
+import type {
+  MissionEvalContext,
+  MysteryGameAction,
+  MysteryGameState,
+  MysteryMissionDef,
+  PlayerMissionState,
+} from "../src/mysteryHoldem/types";
 
 /** 결정적 시드 PRNG(mulberry32) — 풀 게임 스모크 테스트용 */
 export function mulberry32(seed: number): () => number {
@@ -70,4 +76,41 @@ export function playHandToEnd(state: MysteryGameState, rng: () => number): Myste
 
 export function totalChipsInPlay(state: MysteryGameState): number {
   return state.players.reduce((sum, p) => sum + p.chips, 0);
+}
+
+/**
+ * 테스트용 MissionEvalContext 팩토리.
+ *
+ * 컨텍스트에 필드가 하나 추가될 때마다 모든 테스트 파일의 리터럴을 고치지 않도록,
+ * "아무 일도 없었던 핸드"를 기본값으로 두고 관심 있는 필드만 덮어쓰게 한다.
+ */
+export function makeMissionCtx(overrides: Partial<MissionEvalContext> = {}): MissionEvalContext {
+  return {
+    seat: 0,
+    round: 1,
+    buttonSeat: 0,
+    position: "BTN",
+    board: [],
+    boardRevealed: 5,
+    initialSeatCount: 4,
+    folded: false,
+    wentToShowdown: true,
+    wonAnyPot: false,
+    wonPotAmount: 0,
+    wonPots: [],
+    bestHandValue: null,
+    bountyShare: 0,
+    showdownOpponents: [],
+    opponentBestHandValues: {},
+    myPreflopScore: 0,
+    opponentPreflopScores: {},
+    opponentsAchievedThisHand: [],
+    extraHandActive: false,
+    ...overrides,
+  };
+}
+
+/** 테스트용 PlayerMissionState 팩토리 */
+export function missionStateOf(def: MysteryMissionDef, assignedRound = 1): PlayerMissionState {
+  return { def, assignedRound, achieved: false, shouldReplace: false };
 }

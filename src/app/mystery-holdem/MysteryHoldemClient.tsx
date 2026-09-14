@@ -17,6 +17,7 @@ import type { MadeHandFxKind } from "@/holdem/pokerEval";
 import { snapRaiseRangeToStep } from "@/mysteryHoldem/betting";
 import { DEFAULT_PROTOTYPE_SEAT_COUNT, MYSTERY_HOLDEM_CONFIG } from "@/mysteryHoldem/config";
 import { createInitialMysteryGameState, currentTotalPot, mysteryHoldemReducer } from "@/mysteryHoldem/gameReducer";
+import { CARD_CATEGORY_LABEL, cardCategoryFromLegacy } from "@/mysteryHoldem/mysteryCard";
 import { positionLabelForSeat } from "@/mysteryHoldem/positions";
 import { scoreBreakdownForAll } from "@/mysteryHoldem/scoring";
 import {
@@ -25,7 +26,13 @@ import {
   potLimitMaxRaiseDisplay,
 } from "@/mysteryHoldem/selectors";
 import { computeBestHandForPlayer, showdownHoleCardsForPlayer } from "@/mysteryHoldem/showdown";
-import type { MysteryGameAction, MysteryGameState, PlayerState, Seat } from "@/mysteryHoldem/types";
+import type {
+  MysteryGameAction,
+  MysteryGameState,
+  MysteryMissionDef,
+  PlayerState,
+  Seat,
+} from "@/mysteryHoldem/types";
 import { decideBotAction, pickHoleKeepIndexes, pickMissionId } from "@/mysteryHoldem/bot/botPolicy";
 
 const HERO_SEAT: Seat = 0;
@@ -612,9 +619,11 @@ function ScoreboardDrawer({ state }: { state: MysteryGameState }) {
         <span className="font-semibold text-zinc-100">점수표</span>
         {leader ? (
           <span className="whitespace-nowrap text-zinc-300">
+            1위
+            <span className="text-zinc-500"> · </span>
             {leader.player.name}
             {leader.player.seat === HERO_SEAT ? " (you)" : ""}
-            <span className="text-zinc-500"> · 1위 · </span>
+            <span className="text-zinc-500"> · </span>
             <span className="font-bold tabular-nums text-amber-300">{fmt(leader.score.totalPoint)}PT</span>
           </span>
         ) : null}
@@ -666,6 +675,22 @@ function ScoreboardDrawer({ state }: { state: MysteryGameState }) {
 }
 
 /**
+ * 카드 하단에 한 줄로 붙는 보상/효과 문구(§23).
+ *
+ * 점수가 없는 카드에 "+0 Mission Point"를 띄우면 쓸모없는 카드처럼 보인다. 그런 카드의
+ * 보상은 점수가 아니라 효과 자체이므로 효과 중심 문구로 바꾼다.
+ */
+function cardRewardLabel(def: MysteryMissionDef): string {
+  if (def.bountyMultiplier != null) return `Bounty Point ×${def.bountyMultiplier}`;
+  if (def.id === "maker_high_end") return "풀하우스 300 / 포카드 600 / SF 1,200 Mission Point";
+  if (def.id === "blind_defender") return "시작 인원 × 10 Mission Point";
+  if (def.reward <= 0) {
+    return def.replacementRule === "on_pot_win" ? "승리 시 Mystery Card 변경" : "효과 발동 시 Mystery Card 변경";
+  }
+  return `+${def.reward} Mission Point`;
+}
+
+/**
  * 내 Mystery Card 칩. 클릭하면 고정되고 마우스를 올리면 잠깐 뜨는 설명 팝오버를 단다.
  * 상대에게는 어차피 보이지 않는 정보이므로 본인 패널에서만 쓴다.
  */
@@ -695,11 +720,13 @@ function MysteryCardChip({ mission }: { mission: NonNullable<PlayerState["missio
           pinned ? "" : "hidden peer-hover:block peer-focus-visible:block",
         ].join(" ")}
       >
-        <p className="text-[10px] font-bold uppercase tracking-wide text-fuchsia-400">{def.category}</p>
+        <p className="text-[10px] font-bold tracking-wide text-fuchsia-400">
+          [{CARD_CATEGORY_LABEL[cardCategoryFromLegacy(def.category)]}]
+        </p>
         <p className="mt-0.5 text-sm font-bold text-zinc-50">{def.name}</p>
         <p className="mt-1.5 text-xs leading-relaxed text-zinc-300">{def.description}</p>
         {/* def.trigger는 기획 문서용 내부 문자열이라 노출하지 않는다 */}
-        <p className="mt-2 text-[11px] font-semibold text-amber-300">+{def.reward} Mission Point</p>
+        <p className="mt-2 text-[11px] font-semibold text-amber-300">{cardRewardLabel(def)}</p>
       </div>
     </div>
   );
@@ -846,7 +873,7 @@ function HandSetupPanel({
 
       {needsMission ? (
         <div>
-          <p className="mb-2 text-sm font-semibold text-zinc-200">Mystery Mission을 선택하세요(비공개)</p>
+          <p className="mb-2 text-sm font-semibold text-zinc-200">Mystery Card를 선택하세요(비공개)</p>
           <div className="grid gap-2 sm:grid-cols-3">
             {(state.missionOffers[hero.seat] ?? []).map((m) => (
               <button
@@ -855,12 +882,12 @@ function HandSetupPanel({
                 onClick={() => onConfirmMission(m.id)}
                 className="flex flex-col gap-1 rounded-xl border border-zinc-700 bg-zinc-950/50 p-3 text-left transition hover:border-fuchsia-500/70 hover:bg-fuchsia-950/20"
               >
-                <span className="text-[10px] font-bold uppercase tracking-wide text-fuchsia-400">
-                  {m.category}
+                <span className="text-[10px] font-bold tracking-wide text-fuchsia-400">
+                  [{CARD_CATEGORY_LABEL[cardCategoryFromLegacy(m.category)]}]
                 </span>
                 <span className="text-sm font-semibold text-zinc-100">{m.name}</span>
                 <span className="text-xs leading-snug text-zinc-400">{m.description}</span>
-                <span className="mt-1 text-[11px] font-semibold text-amber-300">+{m.reward} Mission Point</span>
+                <span className="mt-1 text-[11px] font-semibold text-amber-300">{cardRewardLabel(m)}</span>
               </button>
             ))}
           </div>
