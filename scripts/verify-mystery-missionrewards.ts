@@ -1,13 +1,12 @@
 import assert from "node:assert/strict";
 import { HAND_RANK } from "../src/holdem/pokerEval";
-import { resolveMissionReward, roundToTen } from "../src/mysteryHoldem/missionRewards";
-import { resolveMissionsForHand } from "../src/mysteryHoldem/missionResolver";
+import { resolveMissionReward } from "../src/mysteryHoldem/missionRewards";
 import {
   HIGH_END_REWARD_BY_HAND_RANK,
   MISSION_POOL,
   findMissionDef,
 } from "../src/mysteryHoldem/mysteryMissions";
-import { makeMissionCtx, missionStateOf } from "./mysteryTestHelpers";
+import { makeMissionCtx } from "./mysteryTestHelpers";
 
 /**
  * Mystery Card 보상 계산 검증.
@@ -70,63 +69,7 @@ const ctxWith = (rank: number, extra = {}) =>
   assert.equal(resolveMissionReward(set, ctxWith(HAND_RANK.QUADS)), set.reward);
 }
 
-// ── 미션 강탈자: 가장 점수가 높은 상대 1명만 무효화하고 그 25%를 가져간다 ──
-{
-  const stealer = findMissionDef("counter_steal")!;
-  const bigVictim = findMissionDef("maker_flush")!; // 180
-  const smallVictim = findMissionDef("maker_set")!; // 90
-  const results = resolveMissionsForHand([
-    { seat: 0, mission: missionStateOf(bigVictim, 3), ctx: ctxWith(HAND_RANK.FLUSH, { seat: 0 }) },
-    { seat: 1, mission: missionStateOf(smallVictim, 3), ctx: ctxWith(HAND_RANK.TRIPS, { seat: 1 }) },
-    {
-      seat: 2,
-      mission: missionStateOf(stealer, 3),
-      ctx: ctxWith(HAND_RANK.HIGH_CARD, { seat: 2, wentToShowdown: false }),
-    },
-  ]);
-  const big = results.find((r) => r.seat === 0)!;
-  const small = results.find((r) => r.seat === 1)!;
-  const stealerResult = results.find((r) => r.seat === 2)!;
-
-  assert.equal(big.achieved, true);
-  assert.equal(big.reward, 0, "가장 큰 상대만 무효화되어야 한다");
-  assert.equal(big.nullified, true);
-  assert.equal(big.deniedReward, bigVictim.reward, "지운 점수가 기록되어야 한다");
-
-  assert.equal(small.nullified, false, "작은 쪽은 그대로 남아야 한다");
-  assert.equal(small.reward, smallVictim.reward);
-
-  assert.equal(
-    stealerResult.reward,
-    roundToTen(bigVictim.reward * 0.25),
-    "강탈자는 최대 피해자 점수의 25%를 가져간다",
-  );
-}
-
-// ── 미션 브레이커: 달성한 상대 "전원"을 무효화하는 광역 방해(강탈자와 역할이 다르다) ──
-{
-  const breaker = findMissionDef("counter_block_bonus")!;
-  const results = resolveMissionsForHand([
-    {
-      seat: 0,
-      mission: missionStateOf(findMissionDef("maker_flush")!, 3),
-      ctx: ctxWith(HAND_RANK.FLUSH, { seat: 0 }),
-    },
-    {
-      seat: 1,
-      mission: missionStateOf(findMissionDef("maker_set")!, 3),
-      ctx: ctxWith(HAND_RANK.TRIPS, { seat: 1 }),
-    },
-    {
-      seat: 2,
-      mission: missionStateOf(breaker, 3),
-      ctx: ctxWith(HAND_RANK.HIGH_CARD, { seat: 2, wentToShowdown: false }),
-    },
-  ]);
-  assert.equal(results.find((r) => r.seat === 0)!.reward, 0);
-  assert.equal(results.find((r) => r.seat === 1)!.reward, 0, "브레이커는 전원을 무효화한다");
-  assert.equal(results.find((r) => r.seat === 2)!.reward, breaker.reward);
-}
+// (Mission Breaker / Parasite의 상호작용은 verify-mystery-cards-trigger.ts에서 검증한다.)
 
 // ── 모든 카드의 점수는 10단위로 떨어져야 한다(rewardFor로 계산되는 값 포함) ──
 for (const m of MISSION_POOL) {

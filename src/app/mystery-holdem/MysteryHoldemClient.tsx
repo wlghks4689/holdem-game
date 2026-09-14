@@ -16,7 +16,13 @@ import { handValueDisplayPatternKorean, madeHandFxKind, madeHandFxTier } from "@
 import type { MadeHandFxKind } from "@/holdem/pokerEval";
 import { snapRaiseRangeToStep } from "@/mysteryHoldem/betting";
 import { DEFAULT_PROTOTYPE_SEAT_COUNT, MYSTERY_HOLDEM_CONFIG } from "@/mysteryHoldem/config";
-import { createInitialMysteryGameState, currentTotalPot, mysteryHoldemReducer } from "@/mysteryHoldem/gameReducer";
+import {
+  cardTargetCandidates,
+  createInitialMysteryGameState,
+  currentTotalPot,
+  mysteryHoldemReducer,
+  pickCardTargetForSeat,
+} from "@/mysteryHoldem/gameReducer";
 import { CARD_CATEGORY_LABEL, cardCategoryFromLegacy } from "@/mysteryHoldem/mysteryCard";
 import { positionLabelForSeat } from "@/mysteryHoldem/positions";
 import { scoreBreakdownForAll } from "@/mysteryHoldem/scoring";
@@ -316,6 +322,13 @@ export function MysteryHoldemClient() {
         }
         return;
       }
+      // 플랍 대상 지정(§22). 지정을 마치기 전에는 그 좌석이 액션할 수 없으므로 베팅보다 먼저 처리한다.
+      const botTargetSeat = state.awaitingCardTarget.find((s) => s !== HERO_SEAT);
+      if (botTargetSeat != null) {
+        const targetSeat = pickCardTargetForSeat(state, botTargetSeat, Math.random);
+        if (targetSeat != null) dispatch({ type: "SELECT_CARD_TARGET", seat: botTargetSeat, targetSeat });
+        return;
+      }
       if (state.toActSeat != null && state.toActSeat !== HERO_SEAT) {
         dispatch(decideBotAction(state, state.toActSeat, Math.random));
       }
@@ -347,6 +360,7 @@ export function MysteryHoldemClient() {
   const pot = potBase - flyingTotal;
   const heroNeedsHoleSelection = state.awaitingHoleSelection.includes(HERO_SEAT);
   const heroNeedsMission = state.awaitingMissionSelection.includes(HERO_SEAT);
+  const heroNeedsCardTarget = state.awaitingCardTarget.includes(HERO_SEAT);
 
   return (
     <div className="min-h-dvh bg-gradient-to-b from-zinc-900 via-zinc-900 to-zinc-950 text-zinc-50">
@@ -422,7 +436,19 @@ export function MysteryHoldemClient() {
           />
         ) : null}
 
-        {["preflop", "flop", "turn", "river"].includes(state.phase) && !heroNeedsHoleSelection && !heroNeedsMission ? (
+        {heroNeedsCardTarget ? (
+          <CardTargetPanel
+            state={state}
+            onPick={(targetSeat) =>
+              dispatch({ type: "SELECT_CARD_TARGET", seat: HERO_SEAT, targetSeat })
+            }
+          />
+        ) : null}
+
+        {["preflop", "flop", "turn", "river"].includes(state.phase) &&
+        !heroNeedsHoleSelection &&
+        !heroNeedsMission &&
+        !heroNeedsCardTarget ? (
           <HeroPanel
             hero={hero}
             heroFx={heroFx}
@@ -671,6 +697,52 @@ function ScoreboardDrawer({ state }: { state: MysteryGameState }) {
         </p>
       </div>
     </details>
+  );
+}
+
+/**
+ * 지정형 카드(Mission Breaker / Parasite)의 플랍 대상 선택 패널(§22).
+ *
+ * 규칙상 "플랍에서 자신의 첫 액션 전"에 골라야 하므로, 고르기 전까지는 엔진이 액션을
+ * 거부한다. 그래서 이 패널이 떠 있는 동안에는 베팅 UI를 아예 감춰 막다른 길을 만들지 않는다.
+ * 선택 내용은 본인에게만 보이고, 핸드가 끝난 뒤 결과 로그에서 공개된다.
+ */
+function CardTargetPanel({
+  state,
+  onPick,
+}: {
+  state: MysteryGameState;
+  onPick: (targetSeat: Seat) => void;
+}) {
+  const hero = state.players.find((p) => p.seat === HERO_SEAT);
+  const def = hero?.mission?.def;
+  const candidates = cardTargetCandidates(state, HERO_SEAT);
+
+  return (
+    <div className="rounded-2xl border border-fuchsia-700/60 bg-fuchsia-950/20 p-4">
+      <p className="text-sm font-semibold text-zinc-100">
+        {def?.name ?? "Mystery Card"} — 대상을 지정하세요
+      </p>
+      <p className="mt-1 text-xs text-zinc-400">
+        팟에 남아 있는 상대 한 명을 고릅니다. 지정은 이번 핸드 동안 고정되며 상대에게는 보이지 않습니다.
+      </p>
+      <div className="mt-3 flex flex-wrap gap-2">
+        {candidates.map((seat) => {
+          const p = state.players.find((x) => x.seat === seat)!;
+          return (
+            <button
+              key={seat}
+              type="button"
+              onClick={() => onPick(seat)}
+              className="rounded-xl border border-zinc-700 bg-zinc-950/50 px-4 py-2 text-left transition hover:border-fuchsia-500/70 hover:bg-fuchsia-900/30"
+            >
+              <span className="block text-sm font-semibold text-zinc-100">{p.name}</span>
+              <span className="block text-[11px] tabular-nums text-zinc-500">{fmt(p.chips)}</span>
+            </button>
+          );
+        })}
+      </div>
+    </div>
   );
 }
 
@@ -1122,7 +1194,16 @@ function describeLog(l: MysteryGameState["logs"][number]): string {
       // "Pot #1 / #2"는 사이드 팟이 왜 생겼는지 모르는 사람에게 의미가 전달되지 않는다.
       return `${l.potIndex === 0 ? "메인 팟" : `사이드 팟 ${l.potIndex}`} ${fmt(l.potAmount)} → ${l.desc}`;
     case "mission_result":
-      return l.achieved ? `Seat ${l.seat} Mission 성공! +${l.reward}pt` : `Seat ${l.seat} Mission 실패`;
+    {
+      // 지정형 카드는 핸드가 끝난 뒤에 대상을 공개한다(§22).
+      const target = l.targetSeat != null ? ` (지정: Seat ${l.targetSeat})` : "";
+      // 무효화된 카드는 achieved가 true인 채로 보상만 0이 된다 — "성공 +0pt"로 보이면 안 되므로
+      // 지워진 점수를 먼저 확인한다.
+      if (l.deniedReward > 0) return `Seat ${l.seat} Mystery Card 무효화 (-${l.deniedReward}pt)${target}`;
+      return l.achieved
+        ? `Seat ${l.seat} Mystery Card 성공! +${l.reward}pt${target}`
+        : `Seat ${l.seat} Mystery Card 실패${target}`;
+    }
     case "bounty_awarded":
       return `Seat ${l.seat} Bounty +${fmt(l.reward)}pt (버스트: Seat ${l.bustedSeat})`;
     case "player_busted":

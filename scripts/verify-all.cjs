@@ -71,6 +71,11 @@ const checks = [
     label: "MysteryHoldem mission cards",
     file: "scripts/verify-mystery-cards-mission.ts",
   },
+  {
+    group: "mystery",
+    label: "MysteryHoldem trigger/target cards",
+    file: "scripts/verify-mystery-cards-trigger.ts",
+  },
   { group: "mystery", label: "MysteryHoldem four card", file: "scripts/verify-mystery-fourcard.ts" },
   { group: "mystery", label: "MysteryHoldem pot-limit", file: "scripts/verify-mystery-potlimit.ts" },
   {

@@ -1,6 +1,5 @@
 import { shuffle } from "@/holdem/cards";
 import { HAND_RANK } from "@/holdem/pokerEval";
-import { roundToTen } from "./missionRewards";
 import type { MissionEvalContext, MysteryMissionDef, Seat } from "./types";
 
 /**
@@ -10,10 +9,15 @@ import type { MissionEvalContext, MysteryMissionDef, Seat } from "./types";
  * 보상(reward/rewardFor)·교체 규칙(replacementRule)·부가 효과(onAchieved)를 들고 있는
  * 데이터 중심 설계다(§30).
  *
- * 현재 상태: **미션형 8장이 새 정의로 교체 완료**. 발동형(Cooler Insurance / Mission
- * Breaker / Forced Split)과 강화형(True Sight / Four Card), 그리고 대상 지정이 필요한
- * Parasite는 아직 레거시 정의가 남아 있고 다음 단계에서 교체한다.
+ * 현재 상태: **미션형 8장 + 발동형/지정형 3장 교체 완료**. 남은 것은 Forced Split(발동형)과
+ * True Sight / Four Card(강화형)이며, Four Card는 아직 레거시 정의를 쓴다.
  */
+
+/**
+ * Parasite 복제 하한(§11). 대상의 점수를 그대로 가져오되, 90점짜리 미션을 복제해도
+ * "지정하고 쇼다운까지 간" 비용을 밑돌지 않도록 바닥을 둔다.
+ */
+export const PARASITE_MIN_REWARD = 100;
 
 /**
  * High-End Maker 보상표(§9). 기존 HAND_RANK_WEIGHT 기반의 "숨은 배수" 계산을 없애고
@@ -160,45 +164,78 @@ export const MISSION_POOL: MysteryMissionDef[] = [
     replacementRule: "on_success",
   },
 
-  // ─────────────── 아직 교체 전인 레거시 정의(다음 단계에서 새 카드로 대체) ───────────────
+  // ─────────────── 발동형 / 지정형(§5, §10, §11) ───────────────
   {
-    id: "counter_block_bonus",
-    name: "미션 브레이커",
-    category: "counter",
-    description: "이번 핸드에 상대가 Mission을 성공하면, 그 성공을 무효화하고 고정 보너스를 얻는다.",
-    trigger: "hand_result(opponent_mission_achieved)",
-    dependsOnOpponents: true,
-    condition: (ctx) => ctx.opponentsAchievedThisHand.length > 0,
-    reward: 20,
-    onAchieved: (ctx, api) => {
-      for (const seat of ctx.opponentsAchievedThisHand) api.nullifyReward(seat);
+    id: "cooler_insurance",
+    name: "COOLER INSURANCE",
+    category: "trigger",
+    description:
+      "트립스 이상을 들고 쇼다운에서 더 높은 등급의 족보에게 패배하면 보상을 받습니다. 같은 등급 안에서의 강약 차이(A 플러시 vs K 플러시 등)는 인정하지 않습니다.",
+    trigger: "hand_result(showdown+lose_to_higher_rank)",
+    condition: (ctx) => {
+      if (!ctx.wentToShowdown || ctx.wonAnyPot) return false;
+      const mine = ctx.bestHandValue;
+      // 스택까지 잃는 상황을 보상하는 카드이므로, 애초에 "쿨러"라 부를 만한 강한 패에서만 발동한다.
+      if (mine == null || mine.rank < HAND_RANK.TRIPS) return false;
+      // 판정은 족보 "등급"만 본다 — 킥커나 같은 등급 내 서열 차이는 쿨러가 아니다(§5).
+      return ctx.showdownOpponents.some(
+        (seat) => (ctx.opponentBestHandValues[seat]?.rank ?? -1) > mine.rank,
+      );
     },
+    reward: 400,
+    replacementRule: "on_trigger",
   },
   {
-    id: "counter_steal",
-    name: "미션 강탈자",
-    category: "counter",
+    id: "card_breaker",
+    name: "MISSION BREAKER",
+    category: "trigger",
     description:
-      "이번 핸드에 Mission을 성공한 상대 중 가장 점수가 높은 한 명을 무효화하고, 그 25%를 가져온다.",
-    trigger: "hand_result(opponent_mission_achieved)",
+      "플랍에서 상대 한 명을 지정합니다. 둘 다 쇼다운까지 가고 그 상대가 미션형 카드를 성공하면, 그 점수를 무효화하고 보상을 받습니다. 강화형·발동형 효과는 막지 못합니다.",
+    trigger: "hand_result(target_mission_achieved)",
+    targetRule: "opponent_in_pot_at_flop",
     dependsOnOpponents: true,
-    condition: (ctx) => ctx.opponentsAchievedThisHand.length > 0,
+    // Parasite(티어 1)의 성공까지 확정된 뒤에 판정해야 "Parasite를 Break한다"가 성립한다(§11).
+    resolutionTier: 2,
+    condition: (ctx) =>
+      ctx.targetSeat != null &&
+      ctx.wentToShowdown &&
+      ctx.showdownOpponents.includes(ctx.targetSeat) &&
+      ctx.opponentMissionAchievers.includes(ctx.targetSeat),
+    reward: 150,
+    onAchieved: (ctx, api) => {
+      // 지정한 한 명만 지운다. 그 상대가 Parasite였더라도, Parasite가 바라보던 원본 미션은
+      // 건드리지 않는다 — 스냅샷 기반이라 자동으로 그렇게 된다(§11).
+      if (ctx.targetSeat != null) api.nullifyReward(ctx.targetSeat);
+    },
+    replacementRule: "on_trigger",
+  },
+  {
+    id: "parasite",
+    name: "PARASITE",
+    category: "mission",
+    description:
+      "플랍에서 상대 한 명을 지정합니다. 둘 다 쇼다운까지 가고 그 상대가 미션형 카드를 성공하면, 그 점수를 그대로 복제합니다(최소 100점).",
+    trigger: "hand_result(target_mission_achieved)",
+    targetRule: "opponent_in_pot_at_flop",
+    dependsOnOpponents: true,
+    resolutionTier: 1,
+    condition: (ctx) =>
+      ctx.targetSeat != null &&
+      ctx.wentToShowdown &&
+      ctx.showdownOpponents.includes(ctx.targetSeat) &&
+      ctx.opponentMissionAchievers.includes(ctx.targetSeat),
+    // 복제액은 대상에 따라 달라지므로 onAchieved에서 지급한다. 여기 0은 "고정 보상 없음"이다.
     reward: 0,
     onAchieved: (ctx, api) => {
-      let topSeat: number | null = null;
-      let topReward = 0;
-      for (const seat of ctx.opponentsAchievedThisHand) {
-        const value = api.rewardOf(seat);
-        if (value > topReward) {
-          topReward = value;
-          topSeat = seat;
-        }
-      }
-      if (topSeat == null) return;
-      api.nullifyReward(topSeat);
-      api.grantBonus(roundToTen(topReward * 0.25));
+      if (ctx.targetSeat == null) return;
+      // rewardOf는 언제나 무효화 전 스냅샷을 읽는다. Breaker가 대상을 먼저 지웠더라도
+      // Parasite가 보는 값은 "원래 받았을 점수"다(§11).
+      api.grantBonus(Math.max(PARASITE_MIN_REWARD, api.rewardOf(ctx.targetSeat)));
     },
+    replacementRule: "on_success",
   },
+
+  // ─────────────── 아직 교체 전인 레거시 정의(다음 단계에서 새 카드로 대체) ───────────────
   {
     id: "extra_hand_omaha",
     name: "FOUR CARD",

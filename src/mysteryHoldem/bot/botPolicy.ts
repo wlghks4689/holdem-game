@@ -204,10 +204,14 @@ export function pickMissionId(
 ): string {
   if (candidates.length === 0) return "";
   const profile = profileForSeat(seat);
+  // 공격적인 봇은 팟을 이겨야 달성되는 카드를 선호한다.
   if (profile.aggression > 0.7) {
-    const positional = candidates.find((c) => c.category === "position");
-    if (positional) return positional.id;
+    const winOriented = candidates.find((c) => c.id === "blind_defender" || c.id === "high_card_boss");
+    if (winOriented) return winOriented.id;
   }
   const idx = Math.min(candidates.length - 1, Math.floor(rng() * candidates.length));
   return candidates[idx]!.id;
 }
+
+// 지정형 카드의 대상 선택은 gameReducer의 autoAssignPendingCardTargets가 담당한다.
+// 봇·시뮬레이션·테스트 하네스가 모두 같은 함수를 쓰도록 한곳에 두었다.

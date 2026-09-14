@@ -1,5 +1,18 @@
 import { resolveMissionReward } from "./missionRewards";
-import type { MissionEffectApi, MissionEvalContext, PlayerMissionState, Seat } from "./types";
+import { cardCategoryFromLegacy } from "./mysteryCard";
+import type {
+  MissionEffectApi,
+  MissionEvalContext,
+  MysteryMissionDef,
+  PlayerMissionState,
+  Seat,
+} from "./types";
+
+/** 판정 티어(§21). 명시가 없으면 상대 의존 여부로 0/1을 고른다. */
+function tierOf(def: MysteryMissionDef): number {
+  if (def.resolutionTier != null) return def.resolutionTier;
+  return def.dependsOnOpponents === true || def.category === "counter" ? 1 : 0;
+}
 
 /**
  * Mystery Card 보상 판정 파이프라인(§20 Phase 2~3, §21).
@@ -45,25 +58,44 @@ export function resolveCardRewardsForHand(
 ): CardResolutionEntry[] {
   // ── Step A: 자기 결과에만 의존하는 카드부터 판정 ──
   // counter 계열은 "상대가 성공했는가"를 봐야 하므로 뒤로 미룬다.
+  // 티어 순서대로 확정한다. 각 티어는 "자기보다 낮은 티어에서 이미 확정된 결과"만 본다.
+  // 이렇게 해야 §11의 A=Breaker→B, B=Parasite→C 연쇄가 좌석 번호와 무관하게 같은 답을 낸다.
   const achieved = new Map<Seat, boolean>();
-  const dependsOnOpponents = (e: CardResolutionInput) =>
-    e.mission.def.dependsOnOpponents === true || e.mission.def.category === "counter";
+  const confirmedAchievers: Seat[] = [];
+  const isMissionCard = (e: CardResolutionInput) =>
+    cardCategoryFromLegacy(e.mission.def.category) === "mission";
 
-  for (const e of entries) {
-    if (dependsOnOpponents(e)) continue;
-    achieved.set(e.seat, e.mission.def.condition(e.ctx));
-  }
-  const selfAchievedSeats = [...achieved.entries()].filter(([, ok]) => ok).map(([seat]) => seat);
-
-  const ctxWithOpponents = (e: CardResolutionInput): MissionEvalContext => ({
+  const ctxFor = (e: CardResolutionInput): MissionEvalContext => ({
     ...e.ctx,
-    opponentsAchievedThisHand: selfAchievedSeats.filter((s) => s !== e.seat),
+    opponentsAchievedThisHand: confirmedAchievers.filter((s) => s !== e.seat),
+    opponentMissionAchievers: confirmedAchievers.filter(
+      (s) => s !== e.seat && entries.some((x) => x.seat === s && isMissionCard(x)),
+    ),
+    targetSeat: e.mission.targetSeat,
   });
 
-  for (const e of entries) {
-    if (!dependsOnOpponents(e)) continue;
-    achieved.set(e.seat, e.mission.def.condition(ctxWithOpponents(e)));
+  // 판정에 쓴 컨텍스트를 좌석별로 얼려 둔다. Step C의 부가 효과는 "자기 조건이 참이라고
+  // 판단했을 때 본 세계"와 똑같은 것을 봐야 한다 — 나중 티어가 확정되면서 목록이 늘어난 뒤의
+  // 컨텍스트를 읽으면, 조건은 A만 보고 통과했는데 효과는 A와 B를 건드리는 불일치가 생긴다.
+  const frozenCtx = new Map<Seat, MissionEvalContext>();
+
+  const tiers = [...new Set(entries.map((e) => tierOf(e.mission.def)))].sort((a, b) => a - b);
+  for (const tier of tiers) {
+    const inTier = entries.filter((e) => tierOf(e.mission.def) === tier);
+    // 같은 티어끼리는 서로의 결과를 보지 않는다 — 먼저 전부 판정한 뒤 한 번에 공개한다.
+    const results = inTier.map((e) => {
+      const ctx = ctxFor(e);
+      frozenCtx.set(e.seat, ctx);
+      return [e.seat, e.mission.def.condition(ctx)] as const;
+    });
+    for (const [seat, ok] of results) {
+      achieved.set(seat, ok);
+      if (ok) confirmedAchievers.push(seat);
+    }
   }
+
+  const ctxWithOpponents = (e: CardResolutionInput): MissionEvalContext =>
+    frozenCtx.get(e.seat) ?? ctxFor(e);
 
   // ── Step B: 원래 보상 스냅샷(불변) ──
   const originalReward = new Map<Seat, number>();

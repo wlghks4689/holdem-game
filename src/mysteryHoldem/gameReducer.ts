@@ -55,6 +55,7 @@ export function createInitialMysteryGameState(): MysteryGameState {
     awaitingHoleSelection: [],
     awaitingMissionSelection: [],
     missionOffers: {},
+    awaitingCardTarget: [],
     runout: null,
     logs: [],
     lastActionNote: "",
@@ -89,6 +90,8 @@ export function mysteryHoldemReducer(
       return selectHoleCards(state, action.seat, action.keepIndexes, rng);
     case "SELECT_MISSION":
       return selectMission(state, action.seat, action.missionId, rng);
+    case "SELECT_CARD_TARGET":
+      return selectCardTarget(state, action.seat, action.targetSeat);
     case "CHECK":
       return applyPlayerAction(state, action.seat, "check", rng);
     case "CALL":
@@ -163,6 +166,8 @@ function startNextHand(state: MysteryGameState, rng: () => number): MysteryGameS
     streetContribution: 0,
     handContribution: 0,
     anteContribution: 0,
+    // 지정은 한 핸드 동안만 유효하다(§22) — 카드를 유지하더라도 대상은 매 핸드 새로 고른다.
+    mission: p.mission == null ? null : { ...p.mission, targetSeat: null },
   }));
 
   // 3장씩 딜링(§7)
@@ -202,6 +207,8 @@ function startNextHand(state: MysteryGameState, rng: () => number): MysteryGameS
     awaitingHoleSelection: [...eligible],
     awaitingMissionSelection,
     missionOffers,
+    // 지정은 플랍에서 한다. 새 핸드가 시작되면 지난 핸드의 지정 상태를 반드시 비운다.
+    awaitingCardTarget: [],
     runout: null,
     logs: [...state.logs, { t: "round_start", round, buttonSeat }],
     lastActionNote: "",
@@ -258,7 +265,16 @@ function selectMission(
 
   const players = state.players.map((p) =>
     p.seat === seat
-      ? { ...p, mission: { def, assignedRound: state.round, achieved: false, shouldReplace: false } }
+      ? {
+          ...p,
+          mission: {
+            def,
+            assignedRound: state.round,
+            achieved: false,
+            shouldReplace: false,
+            targetSeat: null,
+          },
+        }
       : p,
   );
   const missionOffers = { ...state.missionOffers };
@@ -276,6 +292,79 @@ function selectMission(
   return maybeFinishHandSetup(next, rng);
 }
 
+// ───────────────────────── 플랍: Mystery Card 대상 지정(§22) ─────────────────────────
+
+/**
+ * 지금 그 좌석이 지정할 수 있는 상대 목록.
+ * "현재 팟에 참여 중인 상대" = 이번 핸드에 남아 있고 폴드하지 않은 다른 좌석이며, 자기 자신은 제외한다.
+ */
+export function cardTargetCandidates(state: MysteryGameState, seat: Seat): Seat[] {
+  return state.players
+    .filter((p) => p.seat !== seat && p.inHand && !p.folded)
+    .map((p) => p.seat);
+}
+
+function selectCardTarget(state: MysteryGameState, seat: Seat, targetSeat: Seat): MysteryGameState {
+  if (!state.awaitingCardTarget.includes(seat)) return state;
+  if (!cardTargetCandidates(state, seat).includes(targetSeat)) return state;
+
+  return {
+    ...state,
+    players: state.players.map((p) =>
+      p.seat === seat && p.mission != null ? { ...p, mission: { ...p.mission, targetSeat } } : p,
+    ),
+    awaitingCardTarget: state.awaitingCardTarget.filter((s) => s !== seat),
+  };
+}
+
+/**
+ * 대기 중인 지정을 자동으로 채운다 — 봇 좌석, 시뮬레이션, 테스트 하네스가 공용으로 쓴다.
+ * `seats`를 주면 그 좌석들만 처리한다(사람 플레이어는 UI로 직접 고르므로 제외해야 한다).
+ *
+ * 선택 전략은 균등 무작위다. 봇은 상대의 Mystery Card를 볼 수 없으므로(그건 True Sight의
+ * 영역이다) "누가 미션을 성공할 것 같은가"를 추론할 근거가 없고, 칩 스택 같은 대리 지표로
+ * 고르면 정보 우위 없는 편향만 생긴다.
+ */
+export function pickCardTargetForSeat(
+  state: MysteryGameState,
+  seat: Seat,
+  rng: () => number,
+): Seat | null {
+  const candidates = cardTargetCandidates(state, seat);
+  if (candidates.length === 0) return null;
+  return candidates[Math.min(candidates.length - 1, Math.floor(rng() * candidates.length))]!;
+}
+
+export function autoAssignPendingCardTargets(
+  state: MysteryGameState,
+  rng: () => number,
+  seats?: readonly Seat[],
+): MysteryGameState {
+  let s = state;
+  for (const seat of [...s.awaitingCardTarget]) {
+    if (seats != null && !seats.includes(seat)) continue;
+    const target = pickCardTargetForSeat(s, seat, rng);
+    if (target == null) continue;
+    s = selectCardTarget(s, seat, target);
+  }
+  return s;
+}
+
+/**
+ * 플랍이 열린 직후, 지정이 필요한 좌석을 모은다(§22).
+ *
+ * 올인 런아웃으로 플랍~리버가 한 번에 열리는 핸드에는 "플랍에서의 첫 액션"이라는 시점 자체가
+ * 없으므로 지정 기회도 없다. 그 경우 targetSeat은 null로 남고 지정형 카드는 실패한다.
+ */
+function assignCardTargetsAtFlop(state: MysteryGameState): MysteryGameState {
+  const awaiting = state.players
+    .filter((p) => p.inHand && !p.folded && p.mission?.def.targetRule === "opponent_in_pot_at_flop")
+    // 지정할 상대가 아무도 없으면(있을 수 없지만) 대기시키지 않는다 — 액션이 영영 막힌다.
+    .filter((p) => cardTargetCandidates(state, p.seat).length > 0)
+    .map((p) => p.seat);
+  return awaiting.length === 0 ? state : { ...state, awaitingCardTarget: awaiting };
+}
+
 /**
  * Extra Hand Mission(§12) 훅: 기본 2장 선택이 끝나고 해당 specialRule을 가진 Mission이
  * 이미 배정돼 있다면 추가 카드를 즉시 지급한다. 카드 선택/Mission 선택 중 어느 쪽이 먼저
@@ -287,6 +376,13 @@ function selectMission(
 function maybeApplyExtraHandDeal(state: MysteryGameState, seat: Seat, rng: () => number): MysteryGameState {
   const player = state.players.find((p) => p.seat === seat);
   if (player == null || player.holeCards.length !== 2) return state;
+  // 이번 핸드의 카드가 아직 확정되지 않았으면 추가 딜을 하지 않는다.
+  //
+  // 교체 대기 중인 좌석은 "지난 핸드의 Four Card"를 아직 들고 있다. 그 상태에서 홀카드
+  // 선택이 먼저 들어오면 옛 카드를 보고 2장을 더 줘 버리고, 곧이어 다른 카드를 고르면
+  // "홀 4장인데 Four Card가 아닌" 플레이어가 된다 — 홀 2장 제한 없이 4장을 자유 조합하는
+  // 심각한 우위다(실측 4장 보유 핸드의 28%). 선택이 끝난 뒤 SELECT_MISSION 쪽 호출에서 준다.
+  if (state.awaitingMissionSelection.includes(seat)) return state;
   const rule = specialRuleForMission(player);
   if (rule == null || rule.extraDealCount <= 0) return state;
 
@@ -390,6 +486,8 @@ function applyPlayerAction(
 ): MysteryGameState {
   if (!isBettingPhase(state.phase)) return state;
   if (state.toActSeat !== seat) return state;
+  // 대상 지정이 남아 있으면 그 좌석은 아직 액션할 수 없다(§22).
+  if (state.awaitingCardTarget.includes(seat)) return state;
   const player = state.players.find((p) => p.seat === seat);
   if (player == null || !isActionable(player)) return state;
 
@@ -541,7 +639,11 @@ function advanceToNextStreetOrShowdown(state: MysteryGameState, rng: () => numbe
     currentLevel: 0,
     minRaiseIncrement: dealt.config.bigBlind,
   });
-  return settleBettingProgress({ ...dealt, players, betting }, rng);
+  let next: MysteryGameState = { ...dealt, players, betting };
+  // 지정은 플랍에서 한 번뿐이다. 베팅을 진행시키기 전에 대기 목록을 세워야
+  // "첫 액션 전에 고른다"는 규칙이 실제로 강제된다(§22).
+  if (street === "flop") next = assignCardTargetsAtFlop(next);
+  return settleBettingProgress(next, rng);
 }
 
 function runOutRemainingStreets(state: MysteryGameState, rng: () => number): MysteryGameState {
@@ -717,7 +819,10 @@ function finishHandSettlement(
       opponentPreflopScores: Object.fromEntries(
         [...preflopScoreBySeat.entries()].filter(([s]) => s !== seat),
       ) as MissionEvalContext["opponentPreflopScores"],
+      // 아래 두 값은 cardResolution이 티어별로 다시 채운다(§21) — 여기서는 빈 값이 기본이다.
       opponentsAchievedThisHand: [],
+      opponentMissionAchievers: [],
+      targetSeat: p.mission.targetSeat,
       extraHandActive: p.mission.def.specialRule === "extra_hand_four_card",
     };
     missionInputs.push({ seat, mission: p.mission, ctx });
@@ -755,6 +860,8 @@ function finishHandSettlement(
       achieved: r.achieved,
       reward: r.reward,
       deniedReward: r.deniedReward,
+      // 핸드가 끝났으므로 지정 대상을 공개한다(§22).
+      ...(input.mission.targetSeat != null ? { targetSeat: input.mission.targetSeat } : {}),
     });
   }
 

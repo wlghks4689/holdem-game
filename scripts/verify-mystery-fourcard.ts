@@ -22,7 +22,7 @@ function withFourCards(hole: Card[], withRule: boolean): PlayerState {
     seat: 0, name: "P", chips: 0, pendingDeal: [], discarded: [], holeCards: hole,
     inHand: true, folded: false, allIn: false, busted: false,
     streetContribution: 0, handContribution: 0, anteContribution: 0,
-    mission: withRule ? { def: def!, assignedRound: 1, achieved: false, shouldReplace: false } : null,
+    mission: withRule ? { def: def!, assignedRound: 1, achieved: false, shouldReplace: false, targetSeat: null } : null,
     missionPoint: 0, bountyPoint: 0, chipPoint: 0, totalPoint: 0,
   };
 }
@@ -121,6 +121,46 @@ function withFourCards(hole: Card[], withRule: boolean): PlayerState {
     const shown = showdownHoleCardsForPlayer(p, state.board.slice(0, state.boardRevealed));
     assert.ok(shown.length <= 2, `좌석 ${p.seat}의 공개 카드가 ${shown.length}장 — 2장을 넘으면 안 된다`);
   }
+}
+
+// ── 회귀: "홀 4장인데 Four Card가 아닌" 플레이어가 생기면 안 된다 ──
+//
+// 과거 버그: Four Card를 교체하는 라운드에 홀카드 선택이 카드 선택보다 먼저 들어오면,
+// reducer가 아직 남아 있던 지난 핸드의 Four Card를 보고 2장을 더 줬다. 그 뒤 다른 카드를
+// 고르면 specialRule이 사라져 "홀 4장을 아무 제한 없이 자유 조합"하는 플레이어가 됐다
+// (실측: 4장 보유 핸드의 28%). 홀 3장을 쓴 스트레이트가 성립하는 등 승부가 통째로 뒤틀린다.
+{
+  let fourCardHands = 0;
+  for (let seed = 1; seed <= 40; seed++) {
+    const rng = mulberry32(seed);
+    let state = startMatch(8, rng);
+    for (let round = 0; round < 15 && !state.matchEnded; round++) {
+      state = autoCompleteHandSetup(state, rng);
+      let guard = 0;
+      while (state.phase !== "hand_over" && state.phase !== "match_over" && state.toActSeat != null && guard++ < 300) {
+        const seat = state.toActSeat;
+        const p = state.players.find((x) => x.seat === seat)!;
+        const facing = state.betting.currentLevel - p.streetContribution;
+        state = facing > 1e-9
+          ? dispatch(state, { type: "CALL", seat }, rng)
+          : dispatch(state, { type: "CHECK", seat }, rng);
+      }
+      for (const p of state.players) {
+        if (p.holeCards.length <= 2) continue;
+        fourCardHands++;
+        assert.equal(
+          p.mission?.def.specialRule,
+          "extra_hand_four_card",
+          `좌석 ${p.seat}이 홀카드 ${p.holeCards.length}장을 가졌는데 카드가 ${p.mission?.def.id}다`,
+        );
+        assert.equal(p.holeCards.length, 4);
+      }
+      if (state.phase === "hand_over" && !state.matchEnded) {
+        state = dispatch(state, { type: "START_NEXT_HAND" }, rng);
+      }
+    }
+  }
+  assert.ok(fourCardHands > 50, `Four Card 보유 표본이 너무 적다(${fourCardHands}) — 검증이 무의미하다`);
 }
 
 console.log("OK: mystery four card (홀 2장 + 보드 3장 강제)");

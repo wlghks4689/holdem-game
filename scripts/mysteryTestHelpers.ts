@@ -1,4 +1,8 @@
-import { createInitialMysteryGameState, mysteryHoldemReducer } from "../src/mysteryHoldem/gameReducer";
+import {
+  autoAssignPendingCardTargets,
+  createInitialMysteryGameState,
+  mysteryHoldemReducer,
+} from "../src/mysteryHoldem/gameReducer";
 import type {
   MissionEvalContext,
   MysteryGameAction,
@@ -19,12 +23,21 @@ export function mulberry32(seed: number): () => number {
   };
 }
 
+/**
+ * 테스트용 dispatch.
+ *
+ * 플랍에서 지정형 카드(Mission Breaker / Parasite) 보유자는 대상을 고르기 전까지 액션이
+ * 막힌다(§22). 실게임에서는 UI와 봇이 그 선택을 채우므로, 대상 지정 자체가 주제가 아닌
+ * 테스트들이 무한 루프에 빠지지 않도록 여기서 자동으로 채운다. 지정 로직을 검증하는
+ * 테스트는 mysteryHoldemReducer를 직접 호출해 이 자동 처리를 우회한다.
+ */
 export function dispatch(
   state: MysteryGameState,
   action: MysteryGameAction,
   rng: () => number,
 ): MysteryGameState {
-  return mysteryHoldemReducer(state, action, rng);
+  const next = mysteryHoldemReducer(state, action, rng);
+  return next.awaitingCardTarget.length > 0 ? autoAssignPendingCardTargets(next, rng) : next;
 }
 
 export function startMatch(seatCount: number, rng: () => number, names?: string[]): MysteryGameState {
@@ -105,12 +118,18 @@ export function makeMissionCtx(overrides: Partial<MissionEvalContext> = {}): Mis
     myPreflopScore: 0,
     opponentPreflopScores: {},
     opponentsAchievedThisHand: [],
+    opponentMissionAchievers: [],
+    targetSeat: null,
     extraHandActive: false,
     ...overrides,
   };
 }
 
 /** 테스트용 PlayerMissionState 팩토리 */
-export function missionStateOf(def: MysteryMissionDef, assignedRound = 1): PlayerMissionState {
-  return { def, assignedRound, achieved: false, shouldReplace: false };
+export function missionStateOf(
+  def: MysteryMissionDef,
+  assignedRound = 1,
+  targetSeat: number | null = null,
+): PlayerMissionState {
+  return { def, assignedRound, achieved: false, shouldReplace: false, targetSeat };
 }

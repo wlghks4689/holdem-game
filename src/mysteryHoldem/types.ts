@@ -1,6 +1,6 @@
 import type { Card } from "@/holdem/cards";
 import type { HandValue } from "@/holdem/pokerEval";
-import type { CardReplacementRule } from "./mysteryCard";
+import type { CardReplacementRule, CardTargetRule } from "./mysteryCard";
 
 /**
  * MysteryHoldem은 기존 헤즈업 전용 `PlayerIndex`(0|1)를 사용하지 않는다.
@@ -71,8 +71,17 @@ export interface MissionEvalContext {
   /** Underdog 판정용 — 이 플레이어의 최종 홀카드 프리플랍 랭크 점수 */
   myPreflopScore: number;
   opponentPreflopScores: Partial<Record<Seat, number>>;
-  /** 이번 핸드에서 Mission을 달성한 상대 좌석 목록 (Counter 계열용, 1차 패스 결과) */
+  /** 이번 핸드에서 카드 조건을 달성한 상대 좌석 목록 (앞선 판정 티어의 결과) */
   opponentsAchievedThisHand: Seat[];
+  /**
+   * 그중 **미션형** 카드를 달성한 상대만 추린 목록.
+   *
+   * Mission Breaker와 Parasite는 미션형 카드 결과에만 반응한다(§10, §11) — 강화형/발동형의
+   * 효과 자체는 건드리지 않는다. 그래서 "달성한 상대 전원"과 구분해서 들고 다닌다.
+   */
+  opponentMissionAchievers: Seat[];
+  /** 이 카드가 이번 핸드에 지정한 상대 좌석(§22). 지정이 없거나 지정 전이면 null */
+  targetSeat: Seat | null;
   extraHandActive: boolean;
 }
 
@@ -97,9 +106,22 @@ export interface MysteryMissionDef {
   rewardFor?: (ctx: MissionEvalContext) => number;
   /**
    * 상대의 달성 결과에 의존하는 카드(Mission Breaker / Parasite).
-   * true면 자기 완결형 카드들을 먼저 판정한 뒤 2차 패스에서 평가한다(§21 Step A/C).
+   * true면 자기 완결형 카드들을 먼저 판정한 뒤 나중 티어에서 평가한다(§21 Step A/C).
    */
   dependsOnOpponents?: boolean;
+  /**
+   * 판정 티어(§21). 낮은 티어가 먼저 확정되고, 각 티어는 **자기보다 낮은 티어의 결과만** 본다.
+   *
+   *   0 = 자기 결과만 보는 카드(미션형 대부분)
+   *   1 = 상대의 미션 달성에 반응하는 카드(Parasite)
+   *   2 = 그 반응까지 포함해 무효화하는 카드(Mission Breaker)
+   *
+   * §11 예시(A=Breaker→B, B=Parasite→C, C=Straight Maker)가 성립하려면 Breaker가
+   * Parasite보다 뒤에 판정되어야 한다. 티어를 명시하지 않으면 dependsOnOpponents 여부로 0/1.
+   */
+  resolutionTier?: number;
+  /** 상대 지정 규칙(§22). 선언하면 플랍에서 자신의 첫 액션 전에 대상을 골라야 한다. */
+  targetRule?: CardTargetRule;
   /** 카드 교체 조건(§3). 선언이 없으면 "성공 시 교체"로 본다. */
   replacementRule?: CardReplacementRule;
   /**
@@ -135,6 +157,11 @@ export interface PlayerMissionState {
    * "교체 대상인가"를 분리한다 — 예: Four Card는 성공 없이 팟만 이겨도 교체된다.
    */
   shouldReplace: boolean;
+  /**
+   * 이번 핸드에 지정한 상대 좌석(§22). 지정이 필요 없는 카드이거나 아직 고르기 전이면 null.
+   * 본인에게만 보이고, 핸드가 끝난 뒤 결과 로그에서 공개된다.
+   */
+  targetSeat: Seat | null;
 }
 
 export type PositionLabel =
@@ -225,6 +252,8 @@ export type MysteryGameMessage =
       reward: number;
       /** Counter 계열에 의해 무효화되어 잃은 점수(없으면 0) */
       deniedReward: number;
+      /** 지정형 카드가 고른 대상 — 핸드가 끝났으므로 이제 공개해도 된다(§22) */
+      targetSeat?: Seat;
     }
   | { t: "bounty_awarded"; seat: Seat; bustedSeat: Seat; reward: number }
   | { t: "player_busted"; seat: Seat }
@@ -271,6 +300,11 @@ export interface MysteryGameState {
   /** hand_setup: Mission 후보를 아직 선택하지 않은 좌석 */
   awaitingMissionSelection: Seat[];
   missionOffers: Partial<Record<Seat, MysteryMissionDef[]>>;
+  /**
+   * 플랍에서 상대를 지정해야 하는 좌석(§22). 지정을 마치기 전에는 그 좌석의 베팅 액션이
+   * 거부된다 — "자신의 첫 액션 전에" 고른다는 규칙을 상태로 강제한다.
+   */
+  awaitingCardTarget: Seat[];
   runout: RunoutInfo;
   logs: MysteryGameMessage[];
   lastActionNote: string;
@@ -283,6 +317,7 @@ export type MysteryGameAction =
   | { type: "START_MATCH"; seatCount: number; names?: string[] }
   | { type: "SELECT_HOLE_CARDS"; seat: Seat; keepIndexes: [number, number] }
   | { type: "SELECT_MISSION"; seat: Seat; missionId: string }
+  | { type: "SELECT_CARD_TARGET"; seat: Seat; targetSeat: Seat }
   | { type: "CHECK"; seat: Seat }
   | { type: "CALL"; seat: Seat }
   | { type: "BET"; seat: Seat; amount: number }
