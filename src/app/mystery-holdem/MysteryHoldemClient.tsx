@@ -370,15 +370,7 @@ export function MysteryHoldemClient() {
                 </div>
               ))}
             </div>
-            <div
-              // 팟이 바뀔 때마다 재마운트해 칩이 도착하는 타이밍에 맞춰 한 번 튕긴다.
-              key={`pot-${pot}`}
-              className="rounded-full bg-black/50 px-4 py-1 text-sm font-semibold text-amber-300 shadow"
-              style={{ animation: "holdem-pot-bump 0.36s ease-out 1" }}
-            >
-              Pot {fmt(pot)}
-              {state.pots.length > 1 ? ` (Side x${state.pots.length - 1})` : ""}
-            </div>
+            <PotBanners state={state} mainPot={pot} />
           </div>
 
           {state.players.map((p) => {
@@ -529,6 +521,47 @@ function TopBar({ state }: { state: MysteryGameState }) {
         <span aria-hidden>←</span> 홈
       </Link>
       <ScoreboardDrawer state={state} />
+    </div>
+  );
+}
+
+/**
+ * 팟 배너. 사이드 팟이 생기면 "(Side x1)" 같은 축약 표기 대신 배너를 따로 쌓아
+ * 메인 팟과 사이드 팟을 눈으로 구분할 수 있게 한다.
+ *
+ * 베팅이 진행 중인 동안에는 좌석 앞 칩이 아직 팟이 아니므로 사이드 팟 분할도 확정되지
+ * 않는다. 그래서 정산으로 팟이 확정된 뒤(= state.pots가 채워진 뒤)에만 나눠서 보여준다.
+ */
+function PotBanners({ state, mainPot }: { state: MysteryGameState; mainPot: number }) {
+  const settled = state.pots.length > 1 ? state.pots : null;
+
+  if (settled == null) {
+    return (
+      <div
+        // 팟이 바뀔 때마다 재마운트해 칩이 도착하는 타이밍에 맞춰 한 번 튕긴다.
+        key={`pot-${mainPot}`}
+        className="rounded-full bg-black/50 px-4 py-1 text-sm font-semibold text-amber-300 shadow"
+        style={{ animation: "holdem-pot-bump 0.36s ease-out 1" }}
+      >
+        Pot {fmt(mainPot)}
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col items-center gap-1">
+      {settled.map((p, i) => (
+        <div
+          key={i}
+          className={
+            i === 0
+              ? "rounded-full bg-black/50 px-4 py-1 text-sm font-semibold text-amber-300 shadow"
+              : "rounded-full bg-black/45 px-3 py-0.5 text-xs font-semibold text-sky-300 shadow"
+          }
+        >
+          {i === 0 ? `Main Pot ${fmt(p.amount)}` : `Side Pot ${settled.length > 2 ? i : ""} ${fmt(p.amount)}`}
+        </div>
+      ))}
     </div>
   );
 }
@@ -1059,7 +1092,8 @@ function describeLog(l: MysteryGameState["logs"][number]): string {
     case "fold_win":
       return `Seat ${l.winner} 폴드 승리 (Pot ${fmt(l.pot)})`;
     case "showdown":
-      return `Pot #${l.potIndex + 1} (${fmt(l.potAmount)}) → ${l.desc}`;
+      // "Pot #1 / #2"는 사이드 팟이 왜 생겼는지 모르는 사람에게 의미가 전달되지 않는다.
+      return `${l.potIndex === 0 ? "메인 팟" : `사이드 팟 ${l.potIndex}`} ${fmt(l.potAmount)} → ${l.desc}`;
     case "mission_result":
       return l.achieved ? `Seat ${l.seat} Mission 성공! +${l.reward}pt` : `Seat ${l.seat} Mission 실패`;
     case "bounty_awarded":

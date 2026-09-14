@@ -161,6 +161,7 @@ function startNextHand(state: MysteryGameState, rng: () => number): MysteryGameS
     discarded: [],
     streetContribution: 0,
     handContribution: 0,
+    anteContribution: 0,
   }));
 
   // 3장씩 딜링(§7)
@@ -332,7 +333,16 @@ function beginPreflop(state: MysteryGameState, rng: () => number): MysteryGameSt
       bbAmount = blindPart;
       anteAmount = antePart;
       const chips = round2(p.chips - pay);
-      return { ...p, chips, streetContribution: blindPart, handContribution: pay, allIn: chips <= 1e-9 };
+      // 앤티는 handContribution에 넣지 않는다. 넣으면 BB만 기여액이 한 단계 높아져
+      // "BB만 자격이 있는 사이드 팟"이 생기고, BB가 자기 앤티를 매 핸드 되돌려받는다.
+      return {
+        ...p,
+        chips,
+        streetContribution: blindPart,
+        handContribution: blindPart,
+        anteContribution: antePart,
+        allIn: chips <= 1e-9,
+      };
     }
     return p;
   });
@@ -494,7 +504,8 @@ function actionLog(state: MysteryGameState, seat: Seat, action: string, amount?:
 
 /** 현재 테이블에 올라온 총 팟(모든 스트리트 기여 합산, 이번 스트리트 진행분 포함) */
 export function currentTotalPot(state: MysteryGameState): number {
-  return round2(state.players.reduce((sum, p) => sum + p.handContribution, 0));
+  // 앤티도 팟의 일부다(팟 리밋 계산에 포함되어야 한다). 계층만 만들지 않을 뿐이다.
+  return round2(state.players.reduce((sum, p) => sum + p.handContribution + p.anteContribution, 0));
 }
 
 // ───────────────────────── 진행 오케스트레이션 ─────────────────────────
@@ -573,6 +584,11 @@ function resetStreetContributions(players: readonly PlayerState[]): PlayerState[
   return players.map((p) => ({ ...p, streetContribution: 0 }));
 }
 
+/** 이번 핸드에 걷힌 Big Blind Ante 총액 — 계층 없이 메인 팟에 얹히는 데드머니 */
+function totalAnteChips(players: readonly PlayerState[]): number {
+  return round2(players.reduce((sum, p) => sum + p.anteContribution, 0));
+}
+
 // ───────────────────────── 핸드 정산(쇼다운/폴드 승리) ─────────────────────────
 
 function settleHandByFold(state: MysteryGameState): MysteryGameState {
@@ -580,7 +596,7 @@ function settleHandByFold(state: MysteryGameState): MysteryGameState {
   const contributors: PotContributor[] = state.players
     .filter((p) => p.inHand)
     .map((p) => ({ seat: p.seat, amount: p.handContribution, folded: p.folded }));
-  const pots = buildPots(contributors);
+  const pots = buildPots(contributors, totalAnteChips(state.players));
   const awards = awardAllPotsToSingleWinner(pots, winnerSeat);
   const amounts = mergeAwardAmounts(awards);
   return finishHandSettlement(state, pots, awards, amounts, false);
@@ -590,7 +606,7 @@ function resolveShowdown(state: MysteryGameState): MysteryGameState {
   const contributors: PotContributor[] = state.players
     .filter((p) => p.inHand)
     .map((p) => ({ seat: p.seat, amount: p.handContribution, folded: p.folded }));
-  const pots = buildPots(contributors);
+  const pots = buildPots(contributors, totalAnteChips(state.players));
   const awards = awardPots(pots, state.players, state.board, state.buttonSeat, state.seatCount);
   const amounts = mergeAwardAmounts(awards);
   return finishHandSettlement({ ...state, phase: "showdown" }, pots, awards, amounts, true);

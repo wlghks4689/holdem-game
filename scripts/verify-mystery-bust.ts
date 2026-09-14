@@ -32,8 +32,10 @@ for (let seed = 1; seed <= 100 && found == null; seed++) {
     players: state.players.map((p) => (p.seat === seatA ? { ...p, chips: potMax - aStreet } : p)),
   };
   // 스택을 조정한 뒤, 이미 팟에 들어간 몫까지 합쳐 "판 위의 칩 총량"을 기준으로 삼는다.
+  // 앤티는 handContribution과 별도로 쌓이므로 함께 더해야 총량이 맞는다.
   const chipsBefore =
-    totalChipsInPlay(state) + state.players.reduce((sum, p) => sum + p.handContribution, 0);
+    totalChipsInPlay(state) +
+    state.players.reduce((sum, p) => sum + p.handContribution + p.anteContribution, 0);
 
   state = dispatch(state, { type: "ALL_IN", seat: seatA }, rng);
   if (state.toActSeat != null) {

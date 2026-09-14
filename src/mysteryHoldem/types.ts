@@ -121,8 +121,16 @@ export interface PlayerState {
   busted: boolean;
   /** 이번 스트리트 기여 칩 */
   streetContribution: number;
-  /** 이번 핸드 전체 기여 칩 */
+  /**
+   * 이번 핸드 전체 기여 칩. Big Blind Ante는 포함하지 않는다.
+   *
+   * 앤티까지 여기에 넣으면 BB만 기여액이 한 단계 높아져 "BB만 자격이 있는 사이드 팟"이
+   * 매 핸드 생긴다 — 즉 BB가 자기 앤티를 그대로 되돌려받는다. 앤티는 특정 좌석의 몫이
+   * 아니라 테이블 공용 데드머니이므로 anteContribution으로 분리한다.
+   */
   handContribution: number;
+  /** 이번 핸드에 낸 Big Blind Ante — 팟 계층을 만들지 않고 메인 팟에 그대로 얹힌다 */
+  anteContribution: number;
   mission: PlayerMissionState | null;
   missionPoint: number;
   bountyPoint: number;

@@ -21,7 +21,7 @@ function withFourCards(hole: Card[], withRule: boolean): PlayerState {
   return {
     seat: 0, name: "P", chips: 0, pendingDeal: [], discarded: [], holeCards: hole,
     inHand: true, folded: false, allIn: false, busted: false,
-    streetContribution: 0, handContribution: 0,
+    streetContribution: 0, handContribution: 0, anteContribution: 0,
     mission: withRule ? { def: def!, assignedRound: 1, achieved: false } : null,
     missionPoint: 0, bountyPoint: 0, chipPoint: 0, totalPoint: 0,
   };

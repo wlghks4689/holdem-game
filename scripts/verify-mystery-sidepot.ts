@@ -37,6 +37,7 @@ function player(seat: number, hole: [ReturnType<typeof card>, ReturnType<typeof 
     busted: false,
     streetContribution: 0,
     handContribution: seat === 0 ? 50 : seat === 1 ? 100 : 30,
+    anteContribution: 0,
     mission: null,
     missionPoint: 0,
     bountyPoint: 0,

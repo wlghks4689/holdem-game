@@ -14,7 +14,7 @@ export interface PotContributor {
  * 그 층까지 기여한 모든 플레이어(폴드 포함)의 몫이 들어가되, 폴드한 플레이어는
  * eligibleSeats에서 제외된다. 인접한 두 층의 eligibleSeats가 동일하면 하나로 합친다.
  */
-export function buildPots(contributors: readonly PotContributor[]): Pot[] {
+export function buildPots(contributors: readonly PotContributor[], deadChips = 0): Pot[] {
   const remaining = contributors
     .filter((c) => c.amount > 1e-9)
     .map((c) => ({ ...c }));
@@ -29,7 +29,20 @@ export function buildPots(contributors: readonly PotContributor[]): Pot[] {
     for (const c of layerContributors) c.amount = round2(c.amount - min);
   }
 
-  return mergeAdjacentSameEligibility(layers);
+  const merged = mergeAdjacentSameEligibility(layers);
+
+  // Big Blind Ante 같은 데드머니는 특정 좌석의 몫이 아니므로 계층을 만들지 않고
+  // 메인 팟에 그대로 얹는다. 계층으로 만들면 그 돈을 낸 좌석만 자격을 갖게 된다.
+  if (deadChips > 1e-9) {
+    if (merged.length > 0) {
+      merged[0]!.amount = round2(merged[0]!.amount + deadChips);
+    } else {
+      // 아무도 베팅하지 않은(있을 수 없지만) 상황 — 앤티만 남는다.
+      merged.push({ amount: round2(deadChips), eligibleSeats: [] });
+    }
+  }
+
+  return merged;
 }
 
 function mergeAdjacentSameEligibility(pots: Pot[]): Pot[] {

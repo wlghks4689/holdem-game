@@ -66,9 +66,12 @@ function bustSeatsAndStartNextHand(
   const bbPlayer = state.players.find((p) => p.seat === bb)!;
   assert.equal(sbPlayer.streetContribution, MYSTERY_HOLDEM_CONFIG.smallBlind);
   assert.equal(bbPlayer.streetContribution, MYSTERY_HOLDEM_CONFIG.bigBlind);
+  // 앤티는 BB 전용 사이드 팟을 만들지 않도록 handContribution이 아니라 anteContribution에
+  // 따로 쌓인다. 징수 총액은 그대로 블라인드 + 앤티다.
+  assert.equal(bbPlayer.handContribution, MYSTERY_HOLDEM_CONFIG.bigBlind);
   assert.equal(
-    bbPlayer.handContribution,
-    MYSTERY_HOLDEM_CONFIG.bigBlind + MYSTERY_HOLDEM_CONFIG.bigBlindAnte,
+    bbPlayer.anteContribution,
+    MYSTERY_HOLDEM_CONFIG.bigBlindAnte,
     "BB Ante도 함께 징수되어야 한다",
   );
 }

@@ -20,6 +20,7 @@ function player(overrides: Partial<PlayerState>): PlayerState {
     busted: false,
     streetContribution: 0,
     handContribution: 0,
+    anteContribution: 0,
     mission: null,
     missionPoint: 0,
     bountyPoint: 0,
