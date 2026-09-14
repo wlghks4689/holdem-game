@@ -188,6 +188,8 @@ export interface MysteryHoldemConfig {
   totalRounds: number;
   missionChangeRounds: number[];
   raiseCap: Record<"preflop" | "flop" | "turn" | "river", number>;
+  /** 베트/레이즈 금액의 최소 단위 — 358, 512 같은 어중간한 금액이 나오지 않게 한다 */
+  betStepUnit: number;
   chipPointDivisor: number;
   /** 총 플레이어 수 → 버스트 1건당 Bounty Point (인원이 적을수록 높다) */
   bountyRewardBySeatCount: Record<number, number>;

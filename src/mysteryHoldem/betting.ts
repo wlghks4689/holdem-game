@@ -83,6 +83,46 @@ export function legalRaiseRange(
   });
 }
 
+/**
+ * 합법 레인지를 베팅 단위 경계로 좁힌다(UI 슬라이더용).
+ *
+ * 숏스택 올인 근처처럼 레인지 폭이 단위보다 좁으면 단위 배수가 구간 안에 하나도 없을 수
+ * 있다. 그때는 단위를 포기하고 원래 구간을 그대로 돌려준다 — 그러지 않으면 합법인데도
+ * 베팅 자체를 할 수 없게 된다.
+ */
+export function snapRaiseRangeToStep(
+  range: { min: number; max: number },
+  step: number = MYSTERY_HOLDEM_CONFIG.betStepUnit,
+): { min: number; max: number; step: number } {
+  const snappedMin = Math.ceil(range.min / step) * step;
+  const snappedMax = Math.floor(range.max / step) * step;
+  if (snappedMin <= snappedMax) return { min: snappedMin, max: snappedMax, step };
+  return { min: range.min, max: range.max, step: 1 };
+}
+
+/**
+ * 원하는 금액을 합법 레인지 안의 베팅 단위 배수로 맞춘다(봇용).
+ *
+ * 반드시 구간 안의 값을 돌려줘야 한다. 엔진이 거부하면 봇이 같은 액션을 무한히 반복한다.
+ * 단위 배수 → 정수 → clamp된 원값 순으로 물러난다.
+ */
+export function snapBetAmountToStep(
+  desired: number,
+  range: { min: number; max: number },
+  step: number = MYSTERY_HOLDEM_CONFIG.betStepUnit,
+): number {
+  const clamped = Math.max(range.min, Math.min(range.max, desired));
+  const stepped = Math.round(clamped / step) * step;
+  if (stepped >= range.min && stepped <= range.max) return stepped;
+  const snapped = snapRaiseRangeToStep(range, step);
+  if (snapped.step === step) {
+    // 원하는 금액 쪽 경계가 구간 안의 유일한(또는 가장 가까운) 단위 배수다.
+    return Math.max(snapped.min, Math.min(snapped.max, stepped));
+  }
+  const rounded = Math.round(clamped);
+  return rounded >= range.min && rounded <= range.max ? rounded : clamped;
+}
+
 export function potLimitMaxRaiseForSeat(
   seat: Seat,
   betting: BettingState,

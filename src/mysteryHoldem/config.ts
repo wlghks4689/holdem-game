@@ -17,6 +17,12 @@ export const MYSTERY_HOLDEM_CONFIG: MysteryHoldemConfig = {
   missionChangeRounds: [1, 4, 7, 10, 13],
   /** 최초 Bet은 포함하지 않는 스트리트별 Raise Cap */
   raiseCap: { preflop: 2, flop: 2, turn: 2, river: 3 },
+  /**
+   * 베트/레이즈는 이 단위로만 이루어진다(SB와 동일한 100). 사람 플레이어는 슬라이더가
+   * 이 단위로 스냅되고, 봇도 같은 단위로 반올림한다. 다만 합법 구간의 폭이 이 단위보다
+   * 좁을 수 있으므로(숏스택 올인 근처) 강제할 수 없는 경우에는 원래 금액을 그대로 쓴다.
+   */
+  betStepUnit: 100,
   /** Chip Point = 보유 Chips / chipPointDivisor */
   chipPointDivisor: 100,
   /**

@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { CardBack, PlayingCard } from "@/app/holdem/components/Card";
+import { PlayingCard } from "@/app/holdem/components/Card";
 import {
   MADE_FX_CARD_GLOW,
   MADE_FX_CYCLE_AURA_CLASS,
@@ -14,9 +14,11 @@ import type { Card } from "@/holdem/cards";
 import { HOLDEM_PREFS_CHANGED_EVENT, loadMadeHandFxEnabled } from "@/holdem/holdemPrefs";
 import { handValueDisplayPatternKorean, madeHandFxKind, madeHandFxTier } from "@/holdem/pokerEval";
 import type { MadeHandFxKind } from "@/holdem/pokerEval";
+import { snapRaiseRangeToStep } from "@/mysteryHoldem/betting";
 import { DEFAULT_PROTOTYPE_SEAT_COUNT, MYSTERY_HOLDEM_CONFIG } from "@/mysteryHoldem/config";
 import { createInitialMysteryGameState, currentTotalPot, mysteryHoldemReducer } from "@/mysteryHoldem/gameReducer";
 import { positionLabelForSeat } from "@/mysteryHoldem/positions";
+import { scoreBreakdownForAll } from "@/mysteryHoldem/scoring";
 import { legalActionsForSeat, potLimitMaxRaiseDisplay } from "@/mysteryHoldem/selectors";
 import { computeBestHandForPlayer } from "@/mysteryHoldem/showdown";
 import type { MysteryGameAction, MysteryGameState, PlayerState, Seat } from "@/mysteryHoldem/types";
@@ -24,20 +26,25 @@ import { decideBotAction, pickHoleKeepIndexes, pickMissionId } from "@/mysteryHo
 
 const HERO_SEAT: Seat = 0;
 const BOT_DELAY_MS = 650;
-/** 상대에게는 실제 홀카드 수(2 또는 Extra Hand Mission의 4)를 절대 노출하지 않는다 */
-const OPPONENT_CARD_BACK_COUNT = 2;
 
 function reducerWithRng(state: MysteryGameState, action: MysteryGameAction): MysteryGameState {
   return mysteryHoldemReducer(state, action, Math.random);
 }
 
+/**
+ * 좌석은 테이블 중심을 기준으로 한 타원 위에 배치한다. 타원의 반지름(--seat-rx/--seat-ry)은
+ * 테이블 컨테이너가 클래스로 정해주며, 세로 화면에서는 가로로 좁고 세로로 긴 값이 들어온다.
+ * JS로 화면 방향을 감지하지 않고 calc()로 넘겨야 리사이즈·회전에 즉시 반응하고 하이드레이션
+ * 불일치도 생기지 않는다.
+ */
 function seatStyle(indexFromHero: number, total: number): React.CSSProperties {
   const angle = Math.PI / 2 + (indexFromHero / total) * 2 * Math.PI;
-  const rx = 43;
-  const ry = 37;
-  const x = 50 + rx * Math.cos(angle);
-  const y = 50 + ry * Math.sin(angle);
-  return { left: `${x}%`, top: `${y}%` };
+  const cos = Math.cos(angle).toFixed(4);
+  const sin = Math.sin(angle).toFixed(4);
+  return {
+    left: `calc(50% + (var(--seat-rx) * ${cos}) * 1%)`,
+    top: `calc(50% + (var(--seat-ry) * ${sin}) * 1%)`,
+  };
 }
 
 function fmt(n: number): string {
@@ -224,19 +231,27 @@ export function MysteryHoldemClient() {
     <div className="min-h-dvh bg-gradient-to-b from-zinc-900 via-zinc-900 to-zinc-950 text-zinc-50">
       <div className="mx-auto flex max-w-5xl flex-col gap-4 px-3 py-6 sm:px-6">
         <TopBar state={state} />
+        <ScoreboardDrawer state={state} />
 
-        <div className="relative mx-auto aspect-[16/10] w-full max-w-3xl rounded-[999px] border-4 border-emerald-900/60 bg-gradient-to-b from-emerald-800/40 to-emerald-950/60 shadow-2xl">
+        {/*
+          세로 화면(모바일·태블릿 세로)에서는 16:10 가로 테이블의 높이가 너무 낮아 좌석 배지와
+          커뮤니티 카드가 서로 겹친다. 세로에서는 테이블 자체를 세로로 세우고 좌석 타원도
+          가로로 좁게 / 세로로 길게 바꾼다.
+        */}
+        <div className="relative mx-auto aspect-[16/10] w-full max-w-3xl rounded-[999px] border-4 border-emerald-900/60 bg-gradient-to-b from-emerald-800/40 to-emerald-950/60 shadow-2xl [--seat-rx:43] [--seat-ry:37] portrait:aspect-[3/4] portrait:[--seat-rx:39] portrait:[--seat-ry:41]">
           <div className="absolute inset-[10%] rounded-[999px] border border-emerald-700/40 bg-emerald-900/30" />
 
           {/* 커뮤니티 카드 + 팟 */}
-          <div className="absolute left-1/2 top-[38%] flex -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-2">
-            <div className="flex gap-1.5">
+          <div className="absolute left-1/2 top-[38%] flex -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-2 portrait:top-[45%]">
+            {/* 세로 화면에서는 좌우 좌석 배지와 겹치지 않도록 보드 전체를 축소한다. */}
+            <div className="flex gap-1 portrait:scale-[0.72] sm:gap-1.5">
               {Array.from({ length: 5 }, (_, i) => (
                 <div key={i}>
                   {i < state.board.length ? (
-                    <PlayingCard card={state.board[i]!} size="community" />
+                    // 좁은 화면에서 5장이 항상 한 줄에 들어가는 board 규격을 쓴다.
+                    <PlayingCard card={state.board[i]!} size="board" />
                   ) : (
-                    <div className="h-[clamp(4.7178rem,20.97vw,5.535rem)] w-[clamp(3.54375rem,15.75vw,4.158rem)] rounded-lg border border-dashed border-emerald-700/40" />
+                    <div className="h-[3.6rem] w-[2.6rem] rounded-lg border border-dashed border-emerald-700/40 sm:h-[5.38rem] sm:w-[3.85rem]" />
                   )}
                 </div>
               ))}
@@ -369,14 +384,14 @@ function LobbyScreen({
 
 function TopBar({ state }: { state: MysteryGameState }) {
   return (
-    <div className="flex items-center justify-between rounded-xl border border-zinc-700/70 bg-zinc-900/60 px-4 py-2.5">
+    <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 rounded-xl border border-zinc-700/70 bg-zinc-900/60 px-4 py-2.5">
       <div className="flex items-center gap-2">
         <span className="text-xs font-bold uppercase tracking-widest text-fuchsia-400">MysteryHoldem</span>
         <Link href="/" className="text-xs text-zinc-500 hover:text-zinc-300">
           홈
         </Link>
       </div>
-      <div className="flex items-center gap-3 text-xs text-zinc-300">
+      <div className="flex items-center gap-3 whitespace-nowrap text-xs text-zinc-300">
         <span>
           Round <span className="font-bold text-zinc-50">{state.round}</span>/{state.config.totalRounds}
         </span>
@@ -390,6 +405,73 @@ function TopBar({ state }: { state: MysteryGameState }) {
         ) : null}
       </div>
     </div>
+  );
+}
+
+/**
+ * 매치 중 언제든 펼쳐볼 수 있는 점수표 서랍.
+ * PlayerState의 chipPoint/totalPoint는 매치 종료 시에만 채워지는 캐시라서,
+ * 진행 중에는 현재 스택에서 매번 다시 계산해야 실시간 값이 나온다.
+ */
+function ScoreboardDrawer({ state }: { state: MysteryGameState }) {
+  const rows = scoreBreakdownForAll(state.players)
+    .map((score) => ({ score, player: state.players.find((p) => p.seat === score.seat)! }))
+    .sort((a, b) => b.score.totalPoint - a.score.totalPoint);
+
+  return (
+    <details className="group rounded-xl border border-zinc-700/70 bg-zinc-900/60">
+      <summary className="flex cursor-pointer list-none select-none items-center justify-between gap-2 px-4 py-2.5 [&::-webkit-details-marker]:hidden">
+        <span className="flex items-center gap-1.5 text-xs font-semibold text-zinc-200">
+          <span className="text-zinc-500 transition-transform group-open:rotate-180">▾</span>
+          점수표
+          <span className="font-normal text-zinc-500">스택 환산 · Mission · Bounty</span>
+        </span>
+        <span className="text-[10px] uppercase tracking-wide text-zinc-500">
+          1위 {fmt(rows[0]?.score.totalPoint ?? 0)}pt
+        </span>
+      </summary>
+      <div className="overflow-x-auto border-t border-zinc-800 px-3 pb-3 pt-2">
+        <table className="w-full min-w-[330px] text-left text-[11px]">
+          <thead className="text-zinc-500">
+            <tr>
+              <th className="py-1 pr-2 font-medium">#</th>
+              <th className="py-1 pr-2 font-medium">Player</th>
+              <th className="py-1 pr-2 text-right font-medium">스택 환산</th>
+              <th className="py-1 pr-2 text-right font-medium">Mission</th>
+              <th className="py-1 pr-2 text-right font-medium">Bounty</th>
+              <th className="py-1 text-right font-medium">Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map(({ score, player }, rank) => (
+              <tr
+                key={score.seat}
+                className={[
+                  "border-t border-zinc-800/70",
+                  player.busted ? "text-zinc-600 line-through" : "text-zinc-200",
+                  player.seat === HERO_SEAT ? "font-semibold text-fuchsia-200" : "",
+                ].join(" ")}
+              >
+                <td className="py-1 pr-2 text-zinc-500">{rank + 1}</td>
+                <td className="py-1 pr-2">
+                  {player.name}
+                  {player.seat === HERO_SEAT ? " (you)" : ""}
+                </td>
+                <td className="py-1 pr-2 text-right tabular-nums">{fmt(score.chipPoint)}</td>
+                <td className="py-1 pr-2 text-right tabular-nums">{fmt(score.missionPoint)}</td>
+                <td className="py-1 pr-2 text-right tabular-nums">{fmt(score.bountyPoint)}</td>
+                <td className="py-1 text-right font-bold tabular-nums text-amber-300">
+                  {fmt(score.totalPoint)}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        <p className="mt-2 text-[10px] leading-relaxed text-zinc-500">
+          스택 환산 = 보유 칩 ÷ {state.config.chipPointDivisor} · Total = 세 점수의 합
+        </p>
+      </div>
+    </details>
   );
 }
 
@@ -408,31 +490,30 @@ function SeatView({
 }) {
   const pos = positionLabelForSeat(player.seat, state.players, state.buttonSeat, state.seatCount);
   const isActing = state.toActSeat === player.seat;
-  const showCards = isHero || state.phase === "showdown" || state.phase === "hand_over" || state.phase === "match_over";
+  // 히어로의 홀카드는 하단 HeroPanel에 이미 표시되고, 상대 카드는 뒷면이어도 보드 카드와
+  // 자리가 겹치므로(테이블 상단 좌석이 커뮤니티 카드 영역과 인접) 플레이 중에는 좌석 위에
+  // 카드를 그리지 않는다. 쇼다운/핸드 종료 시에만 기존 좌석 위치에 실제 카드를 공개한다.
+  const isRevealPhase =
+    state.phase === "showdown" || state.phase === "hand_over" || state.phase === "match_over";
 
   return (
     <div
       className="absolute flex -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-1"
       style={style}
     >
-      <div className="flex gap-0.5">
-        {player.holeCards.length > 0 && !player.folded ? (
-          showCards ? (
-            isHero ? (
-              <HeroCardsWithMadeFx cards={player.holeCards} size="compact" fx={heroFx} />
-            ) : (
-              player.holeCards.map((c, i) => <PlayingCard key={i} card={c} size="compact" />)
-            )
+      {isRevealPhase && player.holeCards.length > 0 && !player.folded ? (
+        // 세로 화면에서는 공개 카드를 축소해 좁은 테이블 폭 안에 머물게 한다.
+        <div className="flex origin-bottom gap-0.5 portrait:scale-[0.72]">
+          {isHero ? (
+            <HeroCardsWithMadeFx cards={player.holeCards} size="compact" fx={heroFx} />
           ) : (
-            // 상대는 실제 홀카드 수(Extra Hand Mission의 4장 포함)와 무관하게 항상 2장
-            // 뒷면만 보여준다 — 카드 매수만으로도 어떤 Mission인지 추론되지 않게 한다(§13).
-            Array.from({ length: OPPONENT_CARD_BACK_COUNT }, (_, i) => <CardBack key={i} size="compact" />)
-          )
-        ) : null}
-      </div>
+            player.holeCards.map((c, i) => <PlayingCard key={i} card={c} size="compact" />)
+          )}
+        </div>
+      ) : null}
       <div
         className={[
-          "flex min-w-[92px] flex-col items-center rounded-lg border px-2 py-1 text-center shadow",
+          "flex min-w-[92px] flex-col items-center rounded-lg border px-2 py-1 text-center shadow portrait:min-w-[62px] portrait:px-1 portrait:py-0.5",
           player.busted
             ? "border-zinc-800 bg-zinc-900/70 opacity-50"
             : isActing
@@ -442,16 +523,20 @@ function SeatView({
                 : "border-zinc-600 bg-zinc-900/80",
         ].join(" ")}
       >
-        <span className="text-[11px] font-semibold text-zinc-100">
+        <span className="whitespace-nowrap text-[11px] font-semibold text-zinc-100 portrait:text-[10px]">
           {player.name} {isHero ? "(you)" : ""}
         </span>
-        <span className="text-[10px] text-zinc-400">
+        <span className="whitespace-nowrap text-[10px] text-zinc-400 portrait:text-[9px]">
           {pos} · {player.busted ? "Busted" : fmt(player.chips)}
         </span>
-        {player.folded && !player.busted ? <span className="text-[10px] text-rose-400">Fold</span> : null}
-        {player.allIn ? <span className="text-[10px] text-amber-400">All-In</span> : null}
+        {player.folded && !player.busted ? (
+          <span className="text-[10px] text-rose-400 portrait:text-[9px]">Fold</span>
+        ) : null}
+        {player.allIn ? <span className="text-[10px] text-amber-400 portrait:text-[9px]">All-In</span> : null}
         {player.streetContribution > 0 && !player.folded && !player.busted ? (
-          <span className="text-[10px] text-emerald-300">Bet {fmt(player.streetContribution)}</span>
+          <span className="whitespace-nowrap text-[10px] text-emerald-300 portrait:text-[9px]">
+            Bet {fmt(player.streetContribution)}
+          </span>
         ) : null}
       </div>
     </div>
@@ -562,7 +647,7 @@ function HeroPanel({
   dispatch: (a: MysteryGameAction) => void;
 }) {
   const isMyTurn = state.toActSeat === HERO_SEAT;
-  const range = legal.raiseRange;
+  const range = legal.raiseRange ? snapRaiseRangeToStep(legal.raiseRange) : null;
   const sliderValue = raiseTo ?? range?.min ?? 0;
 
   return (
@@ -624,7 +709,7 @@ function HeroPanel({
                 type="range"
                 min={range.min}
                 max={range.max}
-                step={1}
+                step={range.step}
                 value={Math.min(Math.max(sliderValue, range.min), range.max)}
                 onChange={(e) => setRaiseTo(Number(e.target.value))}
                 className="w-40 accent-fuchsia-500"

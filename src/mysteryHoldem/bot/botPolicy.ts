@@ -1,4 +1,5 @@
 import type { Card } from "@/holdem/cards";
+import { snapBetAmountToStep } from "../betting";
 import { currentTotalPot } from "../gameReducer";
 import { mysteryPreflopHandScore } from "../mysteryHandRanking";
 import { contestingSeats, positionLabelForSeat } from "../positions";
@@ -163,12 +164,9 @@ function betOrRaiseAction(
   const desired = isOpeningBet
     ? player.streetContribution + pot * potFraction
     : legal.callAmount + player.streetContribution + pot * potFraction;
-  // 먼저 합법 구간으로 clamp한 뒤 반올림한다. 반올림 결과가 구간을 벗어나면
-  // (구간 폭이 1칩 미만인 숏스택 등) clamp된 원값을 그대로 쓴다 — 엔진이 거부하면
-  // 봇이 같은 액션을 무한 반복하게 되므로 반드시 구간 안에 있어야 한다.
-  const clamped = Math.max(range.min, Math.min(range.max, desired));
-  const rounded = Math.round(clamped);
-  const target = rounded >= range.min && rounded <= range.max ? rounded : clamped;
+  // 사람 슬라이더와 같은 베팅 단위(100)로 맞춘다. 구간을 벗어나지 않는 것이 최우선이며
+  // (엔진이 거부하면 봇이 같은 액션을 무한 반복한다) 단위는 그 다음이다.
+  const target = snapBetAmountToStep(desired, range);
   return isOpeningBet
     ? { type: "BET", seat, amount: target }
     : { type: "RAISE", seat, toAmount: target };
