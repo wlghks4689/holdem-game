@@ -345,7 +345,6 @@ export function MysteryHoldemClient() {
     <div className="min-h-dvh bg-gradient-to-b from-zinc-900 via-zinc-900 to-zinc-950 text-zinc-50">
       <div className="mx-auto flex max-w-5xl flex-col gap-4 px-3 py-6 sm:px-6">
         <TopBar state={state} />
-        <ScoreboardDrawer state={state} />
 
         {/*
           세로 화면(모바일·태블릿 세로)에서는 16:10 가로 테이블의 높이가 너무 낮아 좌석 배지와
@@ -355,8 +354,9 @@ export function MysteryHoldemClient() {
         <div className="relative mx-auto aspect-[16/10] w-full max-w-3xl rounded-[999px] border-4 border-emerald-900/60 bg-gradient-to-b from-emerald-800/40 to-emerald-950/60 shadow-2xl [--bet-rx:31] [--bet-ry:25] [--seat-rx:43] [--seat-ry:37] portrait:aspect-[3/4] portrait:[--bet-rx:25] portrait:[--bet-ry:31] portrait:[--seat-rx:39] portrait:[--seat-ry:41]">
           <div className="absolute inset-[10%] rounded-[999px] border border-emerald-700/40 bg-emerald-900/30" />
 
-          {/* 커뮤니티 카드 + 팟 */}
+          {/* 커뮤니티 카드 + 팟 (진행 정보는 보드 바로 위에) */}
           <div className="absolute left-1/2 top-[42%] flex -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-2 portrait:top-[48%]">
+            <TableInfoStrip state={state} />
             {/* 세로 화면에서는 좌우 좌석 배지와 겹치지 않도록 보드 전체를 축소한다. */}
             <div className="flex gap-1 portrait:scale-[0.72] sm:gap-1.5">
               {Array.from({ length: 5 }, (_, i) => (
@@ -515,28 +515,47 @@ function LobbyScreen({
   );
 }
 
+/**
+ * 최상단은 홈 버튼과 점수표만 남긴다. 라운드·블라인드·레이즈 정보는 테이블 안(보드 위)으로
+ * 옮겨서 세로 공간을 아낀다 — TableInfoStrip 참고.
+ */
 function TopBar({ state }: { state: MysteryGameState }) {
   return (
-    <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 rounded-xl border border-zinc-700/70 bg-zinc-900/60 px-4 py-2.5">
-      <div className="flex items-center gap-2">
-        <span className="text-xs font-bold uppercase tracking-widest text-fuchsia-400">MysteryHoldem</span>
-        <Link href="/" className="text-xs text-zinc-500 hover:text-zinc-300">
-          홈
-        </Link>
-      </div>
-      <div className="flex items-center gap-3 whitespace-nowrap text-xs text-zinc-300">
-        <span>
-          Round <span className="font-bold text-zinc-50">{state.round}</span>/{state.config.totalRounds}
-        </span>
-        <span className="rounded-full bg-zinc-800 px-2 py-0.5 uppercase tracking-wide text-zinc-400">
-          {state.phase}
-        </span>
-        {state.betting.raiseCap > 0 ? (
-          <span className="text-zinc-500">
+    <div className="flex items-center justify-between gap-2">
+      <Link
+        href="/"
+        className="flex items-center gap-1.5 rounded-lg border border-zinc-600 bg-zinc-800/80 px-3 py-1.5 text-xs font-semibold text-zinc-100 shadow transition hover:border-zinc-400 hover:bg-zinc-700"
+      >
+        <span aria-hidden>←</span> 홈
+      </Link>
+      <ScoreboardDrawer state={state} />
+    </div>
+  );
+}
+
+/** 보드 바로 위에 붙는 진행 정보 — 라운드 / 블라인드 / 레이즈 횟수 */
+function TableInfoStrip({ state }: { state: MysteryGameState }) {
+  return (
+    // 절대배치 컬럼 안이라 가용 폭이 좁다. 줄바꿈시키면 2줄이 되어 보드를 밀어내므로
+    // 보드 카드행처럼 한 줄로 두고 넘치게 둔다.
+    <div className="flex w-max flex-nowrap items-center justify-center gap-x-2 whitespace-nowrap rounded-full bg-black/45 px-3 py-1 text-[11px] text-zinc-300 shadow portrait:gap-x-1.5 portrait:px-2 portrait:text-[10px]">
+      <span>
+        Round <span className="font-bold text-zinc-50">{state.round}</span>/{state.config.totalRounds}
+      </span>
+      <span className="text-zinc-600" aria-hidden>·</span>
+      <span className="text-zinc-400">
+        {state.config.smallBlind}/{state.config.bigBlind}
+        {/* 세로 화면에서는 스트립이 좌우 좌석을 침범하지 않도록 부가 정보를 접는다 */}
+        <span className="text-zinc-500 portrait:hidden"> (Ante {state.config.bigBlindAnte})</span>
+      </span>
+      {state.betting.raiseCap > 0 ? (
+        <>
+          <span className="text-zinc-600" aria-hidden>·</span>
+          <span className="text-zinc-400">
             Raise {state.betting.raisesUsed}/{state.betting.raiseCap}
           </span>
-        ) : null}
-      </div>
+        </>
+      ) : null}
     </div>
   );
 }
@@ -551,20 +570,25 @@ function ScoreboardDrawer({ state }: { state: MysteryGameState }) {
     .map((score) => ({ score, player: state.players.find((p) => p.seat === score.seat)! }))
     .sort((a, b) => b.score.totalPoint - a.score.totalPoint);
 
+  const leader = rows[0];
+
   return (
-    <details className="group rounded-xl border border-zinc-700/70 bg-zinc-900/60">
-      <summary className="flex cursor-pointer list-none select-none items-center justify-between gap-2 px-4 py-2.5 [&::-webkit-details-marker]:hidden">
-        <span className="flex items-center gap-1.5 text-xs font-semibold text-zinc-200">
-          <span className="text-zinc-500 transition-transform group-open:rotate-180">▾</span>
-          점수표
-          <span className="font-normal text-zinc-500">스택 환산 · Mission · Bounty</span>
-        </span>
-        <span className="text-[10px] uppercase tracking-wide text-zinc-500">
-          1위 {fmt(rows[0]?.score.totalPoint ?? 0)}pt
-        </span>
+    // 펼쳤을 때 보드를 아래로 밀지 않도록, 패널을 absolute로 띄워 테이블 위에 겹쳐 보여준다.
+    <details className="group relative">
+      <summary className="flex cursor-pointer list-none select-none items-center gap-1.5 rounded-lg border border-zinc-600 bg-zinc-800/80 px-3 py-1.5 text-xs shadow transition hover:border-zinc-400 hover:bg-zinc-700 [&::-webkit-details-marker]:hidden">
+        <span className="font-semibold text-zinc-100">점수표</span>
+        {leader ? (
+          <span className="whitespace-nowrap text-zinc-300">
+            {leader.player.name}
+            {leader.player.seat === HERO_SEAT ? " (you)" : ""}
+            <span className="text-zinc-500"> · 1위 · </span>
+            <span className="font-bold tabular-nums text-amber-300">{fmt(leader.score.totalPoint)}PT</span>
+          </span>
+        ) : null}
+        <span className="text-zinc-500 transition-transform group-open:rotate-180" aria-hidden>▾</span>
       </summary>
-      <div className="overflow-x-auto border-t border-zinc-800 px-3 pb-3 pt-2">
-        <table className="w-full min-w-[330px] text-left text-[11px]">
+      <div className="absolute right-0 top-[calc(100%+0.375rem)] z-30 max-h-[70vh] w-[min(22rem,calc(100vw-1.5rem))] overflow-auto rounded-xl border border-zinc-600 bg-zinc-900/95 px-3 pb-3 pt-2 shadow-2xl backdrop-blur">
+        <table className="w-full text-left text-[11px]">
           <thead className="text-zinc-500">
             <tr>
               <th className="py-1 pr-2 font-medium">#</th>
@@ -605,6 +629,46 @@ function ScoreboardDrawer({ state }: { state: MysteryGameState }) {
         </p>
       </div>
     </details>
+  );
+}
+
+/**
+ * 내 Mystery Card 칩. 클릭하면 고정되고 마우스를 올리면 잠깐 뜨는 설명 팝오버를 단다.
+ * 상대에게는 어차피 보이지 않는 정보이므로 본인 패널에서만 쓴다.
+ */
+function MysteryCardChip({ mission }: { mission: NonNullable<PlayerState["mission"]> }) {
+  const [pinned, setPinned] = React.useState(false);
+  const def = mission.def;
+
+  return (
+    <div className="relative max-w-[55%]">
+      <button
+        type="button"
+        onClick={() => setPinned((v) => !v)}
+        aria-expanded={pinned}
+        className="peer w-full rounded-lg border border-fuchsia-700/50 bg-fuchsia-950/20 px-3 py-1.5 text-right transition hover:border-fuchsia-400 hover:bg-fuchsia-900/30"
+      >
+        <p className="flex items-center justify-end gap-1 text-[10px] font-bold uppercase tracking-wide text-fuchsia-400">
+          My Mystery Card
+          <span className="rounded-full border border-fuchsia-500/60 px-1 text-[9px] leading-none text-fuchsia-300">?</span>
+        </p>
+        <p className="text-xs font-semibold text-zinc-100">{def.name}</p>
+      </button>
+
+      <div
+        className={[
+          "absolute bottom-[calc(100%+0.375rem)] right-0 z-30 w-[min(18rem,calc(100vw-2rem))] rounded-xl border border-fuchsia-700/60 bg-zinc-900/95 p-3 text-left shadow-2xl backdrop-blur",
+          // 클릭하면 고정, 아니면 호버/포커스에만 표시
+          pinned ? "" : "hidden peer-hover:block peer-focus-visible:block",
+        ].join(" ")}
+      >
+        <p className="text-[10px] font-bold uppercase tracking-wide text-fuchsia-400">{def.category}</p>
+        <p className="mt-0.5 text-sm font-bold text-zinc-50">{def.name}</p>
+        <p className="mt-1.5 text-xs leading-relaxed text-zinc-300">{def.description}</p>
+        {/* def.trigger는 기획 문서용 내부 문자열이라 노출하지 않는다 */}
+        <p className="mt-2 text-[11px] font-semibold text-amber-300">+{def.reward} Mission Point</p>
+      </div>
+    </div>
   );
 }
 
@@ -800,12 +864,7 @@ function HeroPanel({
     <div className="rounded-2xl border border-zinc-700/70 bg-zinc-900/70 p-4 shadow-xl">
       <div className="mb-3 flex items-center justify-between">
         <HeroCardsWithMadeFx cards={hero.holeCards} size="hero" fx={heroFx} />
-        {hero.mission ? (
-          <div className="max-w-[55%] rounded-lg border border-fuchsia-700/50 bg-fuchsia-950/20 px-3 py-1.5 text-right">
-            <p className="text-[10px] font-bold uppercase tracking-wide text-fuchsia-400">My Mission</p>
-            <p className="text-xs font-semibold text-zinc-100">{hero.mission.def.name}</p>
-          </div>
-        ) : null}
+        {hero.mission ? <MysteryCardChip mission={hero.mission} /> : null}
       </div>
 
       {!isMyTurn ? (
