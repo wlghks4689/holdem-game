@@ -15,6 +15,21 @@ export function computeBestHandForPlayer(p: PlayerState, board: readonly Card[])
   return bestHandStandard(p.holeCards, board);
 }
 
+/**
+ * 쇼다운에서 공개할 홀카드. Extra Hand(홀 4장)는 정확히 2장만 사용하므로 그 2장만 공개한다.
+ *
+ * 4장을 전부 보여주면 (1) 규칙과 달리 4장을 다 쓴 것처럼 보이고 (2) 좁은 좌석 폭을 넘쳐
+ * 레이아웃이 깨진다. 보드가 아직 부족해 조합을 못 고르는 단계에서는 앞 2장으로 잘라 둔다.
+ */
+export function showdownHoleCardsForPlayer(p: PlayerState, board: readonly Card[]): Card[] {
+  const specialRule = specialRuleFor(p.mission?.def.specialRule);
+  if (specialRule == null || p.holeCards.length !== specialRule.finalHoleCardCount) {
+    return [...p.holeCards];
+  }
+  const used = specialRule.bestHoleCardsUsed?.(p.holeCards, board) ?? [];
+  return used.length > 0 ? used : p.holeCards.slice(0, specialRule.showdownHoleCardCount);
+}
+
 export interface PotAward {
   pot: Pot;
   winners: Seat[];

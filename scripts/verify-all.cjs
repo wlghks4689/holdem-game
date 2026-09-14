@@ -61,6 +61,7 @@ const checks = [
     file: "scripts/verify-mystery-missionrewards.ts",
   },
   { group: "mystery", label: "MysteryHoldem missions", file: "scripts/verify-mystery-missions.ts" },
+  { group: "mystery", label: "MysteryHoldem four card", file: "scripts/verify-mystery-fourcard.ts" },
   { group: "mystery", label: "MysteryHoldem pot-limit", file: "scripts/verify-mystery-potlimit.ts" },
   {
     group: "mystery",

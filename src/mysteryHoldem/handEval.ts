@@ -29,16 +29,35 @@ export function bestHandExactUse(
   holeUse: number,
   boardUse: number,
 ): HandValue {
+  return bestHandExactUseDetailed(hole, board, holeUse, boardUse).value;
+}
+
+/**
+ * bestHandExactUse와 같은 계산이지만 "실제로 사용한 홀카드"까지 돌려준다.
+ *
+ * 쇼다운 UI에서 홀 4장을 전부 보여주면 4장을 다 쓴 것처럼 보이므로(실제로는 정확히 2장만
+ * 쓴다) 사용한 카드만 공개하는 데 쓴다.
+ */
+export function bestHandExactUseDetailed(
+  hole: readonly Card[],
+  board: readonly Card[],
+  holeUse: number,
+  boardUse: number,
+): { value: HandValue; holeUsed: Card[] } {
   const holeCombos = combinations(hole, holeUse);
   const boardCombos = combinations(board, boardUse);
   let best: HandValue = { rank: 0, kickers: [] };
+  let bestHole: Card[] = [];
   for (const h of holeCombos) {
     for (const b of boardCombos) {
       const v = evaluate5([...h, ...b]);
-      if (compareHandValue(v, best) > 0) best = v;
+      if (compareHandValue(v, best) > 0) {
+        best = v;
+        bestHole = h;
+      }
     }
   }
-  return best;
+  return { value: best, holeUsed: bestHole };
 }
 
 /** 일반 텍사스 홀덤(홀 2장, 보드와 자유 조합) 최선 5장 — 기존 best5Of7 재사용 */

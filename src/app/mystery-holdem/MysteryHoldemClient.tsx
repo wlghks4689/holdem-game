@@ -24,7 +24,7 @@ import {
   legalActionsForSeat,
   potLimitMaxRaiseDisplay,
 } from "@/mysteryHoldem/selectors";
-import { computeBestHandForPlayer } from "@/mysteryHoldem/showdown";
+import { computeBestHandForPlayer, showdownHoleCardsForPlayer } from "@/mysteryHoldem/showdown";
 import type { MysteryGameAction, MysteryGameState, PlayerState, Seat } from "@/mysteryHoldem/types";
 import { decideBotAction, pickHoleKeepIndexes, pickMissionId } from "@/mysteryHoldem/bot/botPolicy";
 
@@ -52,18 +52,11 @@ function seatStyle(indexFromHero: number, total: number): React.CSSProperties {
 }
 
 /**
- * 베팅 칩은 좌석과 같은 각도의, 더 작은 타원 위에 놓는다. 결과적으로 칩은 언제나 좌석에서
- * 테이블 안쪽 방향으로 놓인다 — 내 좌석(아래)은 프로필 박스 위, 위쪽 좌석은 박스 아래,
- * 좌우 좌석은 박스 안쪽.
+ * 좌석이 테이블 아래쪽 절반에 있는지 — 베팅 칩을 프로필 박스 위에 둘지 아래에 둘지 정한다.
+ * 칩은 언제나 테이블 안쪽(중앙 방향)에 붙어야 한다.
  */
-function betChipStyle(indexFromHero: number, total: number): React.CSSProperties {
-  const angle = Math.PI / 2 + (indexFromHero / total) * 2 * Math.PI;
-  const cos = Math.cos(angle).toFixed(4);
-  const sin = Math.sin(angle).toFixed(4);
-  return {
-    left: `calc(50% + (var(--bet-rx) * ${cos}) * 1%)`,
-    top: `calc(50% + (var(--bet-ry) * ${sin}) * 1%)`,
-  };
+function seatIsOnLowerHalf(indexFromHero: number, total: number): boolean {
+  return Math.sin(Math.PI / 2 + (indexFromHero / total) * 2 * Math.PI) > 0;
 }
 
 /** 칩 수집 연출 길이 — globals.css의 .mystery-chip-collect와 맞춰야 한다 */
@@ -73,26 +66,22 @@ function fmt(n: number): string {
   return Math.round(n * 10) / 10 === Math.round(n) ? String(Math.round(n)) : n.toFixed(1);
 }
 
-/** 테이블 위에 놓이는 베팅 칩 한 무더기(칩 아이콘 + 금액) */
-function BetChipStack({
-  amount,
-  style,
-  collecting,
-}: {
-  amount: number;
-  style: React.CSSProperties;
-  collecting?: boolean;
-}) {
+/**
+ * 테이블 위에 놓이는 베팅 칩 한 무더기(칩 아이콘 + 금액).
+ *
+ * 칩 크기는 "작아서 잘 안 보인다"는 피드백으로 기존 대비 15% 키웠다
+ * (아이콘 12→13.8px, 글자 10→11.5px).
+ */
+function BetChipStack({ amount, className = "" }: { amount: number; className?: string }) {
   return (
     <div
       className={[
-        "absolute z-10 flex -translate-x-1/2 -translate-y-1/2 items-center gap-1 rounded-full bg-black/60 px-1.5 py-0.5 shadow-lg ring-1 ring-black/50",
-        collecting ? "mystery-chip-collect" : "",
+        "flex w-fit items-center gap-[4.6px] rounded-full bg-black/60 px-[7px] py-[2.3px] shadow-lg ring-1 ring-black/50",
+        className,
       ].join(" ")}
-      style={style}
     >
-      <span className="h-3 w-3 shrink-0 rounded-full border-2 border-dashed border-amber-100/90 bg-gradient-to-b from-amber-400 to-amber-600 shadow-inner" />
-      <span className="text-[10px] font-bold tabular-nums leading-none text-amber-100">{fmt(amount)}</span>
+      <span className="h-[13.8px] w-[13.8px] shrink-0 rounded-full border-2 border-dashed border-amber-100/90 bg-gradient-to-b from-amber-400 to-amber-600 shadow-inner" />
+      <span className="text-[11.5px] font-bold tabular-nums leading-none text-amber-100">{fmt(amount)}</span>
     </div>
   );
 }
@@ -363,7 +352,7 @@ export function MysteryHoldemClient() {
           커뮤니티 카드가 서로 겹친다. 세로에서는 테이블 자체를 세로로 세우고 좌석 타원도
           가로로 좁게 / 세로로 길게 바꾼다.
         */}
-        <div className="relative mx-auto aspect-[16/10] w-full max-w-3xl rounded-[999px] border-4 border-emerald-900/60 bg-gradient-to-b from-emerald-800/40 to-emerald-950/60 shadow-2xl [--bet-rx:31] [--bet-ry:25] [--seat-rx:43] [--seat-ry:37] portrait:aspect-[3/4] portrait:[--bet-rx:23] portrait:[--bet-ry:31] portrait:[--seat-rx:39] portrait:[--seat-ry:41]">
+        <div className="relative mx-auto aspect-[16/10] w-full max-w-3xl rounded-[999px] border-4 border-emerald-900/60 bg-gradient-to-b from-emerald-800/40 to-emerald-950/60 shadow-2xl [--bet-rx:31] [--bet-ry:25] [--seat-rx:43] [--seat-ry:37] portrait:aspect-[3/4] portrait:[--bet-rx:25] portrait:[--bet-ry:31] portrait:[--seat-rx:39] portrait:[--seat-ry:41]">
           <div className="absolute inset-[10%] rounded-[999px] border border-emerald-700/40 bg-emerald-900/30" />
 
           {/* 커뮤니티 카드 + 팟 */}
@@ -403,30 +392,21 @@ export function MysteryHoldemClient() {
                 isHero={p.seat === HERO_SEAT}
                 heroFx={p.seat === HERO_SEAT ? heroFx : NO_MADE_FX}
                 revealCards={chips.revealCards}
+                chipBelowBadge={!seatIsOnLowerHalf(idx, state.seatCount)}
+                showChip={chips.showSeatChips}
               />
             );
           })}
 
-          {/* 좌석 앞에 놓인 이번 스트리트 베팅 칩 */}
-          {chips.showSeatChips &&
-            state.players
-              .filter((p) => p.streetContribution > 1e-9 && !p.busted)
-              .map((p) => (
-                <BetChipStack
-                  key={`bet-${p.seat}`}
-                  amount={p.streetContribution}
-                  style={betChipStyle((p.seat - HERO_SEAT + state.seatCount) % state.seatCount, state.seatCount)}
-                />
-              ))}
-
-          {/* 팟으로 빨려 들어가는 중인 칩 */}
+          {/* 팟으로 빨려 들어가는 중인 칩 — 좌석 위치에서 출발해 중앙으로 모인다 */}
           {chips.flying?.bets.map((b) => (
-            <BetChipStack
+            <div
               key={`collect-${chips.flying!.id}-${b.seat}`}
-              amount={b.amount}
-              style={betChipStyle((b.seat - HERO_SEAT + state.seatCount) % state.seatCount, state.seatCount)}
-              collecting
-            />
+              className="mystery-chip-collect absolute z-10 -translate-x-1/2 -translate-y-1/2"
+              style={seatStyle((b.seat - HERO_SEAT + state.seatCount) % state.seatCount, state.seatCount)}
+            >
+              <BetChipStack amount={b.amount} />
+            </div>
           ))}
         </div>
 
@@ -635,6 +615,8 @@ function SeatView({
   isHero,
   heroFx,
   revealCards,
+  chipBelowBadge,
+  showChip,
 }: {
   player: PlayerState;
   state: MysteryGameState;
@@ -643,9 +625,19 @@ function SeatView({
   heroFx: HeroMadeFx;
   /** 카드를 공개할 시점인지 — 쇼다운이어도 칩 회수 연출이 끝나기 전에는 false */
   revealCards: boolean;
+  /** 칩을 프로필 박스 아래에 둘지(위쪽 좌석) 위에 둘지(아래쪽 좌석) */
+  chipBelowBadge: boolean;
+  showChip: boolean;
 }) {
   const pos = positionLabelForSeat(player.seat, state.players, state.buttonSeat, state.seatCount);
   const isActing = state.toActSeat === player.seat;
+  // Four Card(홀 4장)는 정확히 2장만 쓰므로 쇼다운에서도 실제로 쓴 2장만 공개한다.
+  // 4장을 다 보여주면 규칙과 달리 전부 쓴 것처럼 보이고 좌석 폭도 넘친다.
+  const revealedHole = showdownHoleCardsForPlayer(player, state.board.slice(0, state.boardRevealed));
+  // 칩은 좌석 컬럼 안에 넣는다. 절대좌표 타원 위에 따로 띄우면 10인처럼 좌석이 촘촘할 때
+  // 이웃 좌석의 배지를 침범한다(실측 확인). 좌석에 붙여 두면 인원수와 무관하게 안전하다.
+  const chipAmount =
+    showChip && player.streetContribution > 1e-9 && !player.busted ? player.streetContribution : null;
 
   return (
     <div
@@ -657,19 +649,20 @@ function SeatView({
         자리가 겹치므로 플레이 중에는 좌석 위에 카드를 그리지 않는다. 쇼다운/핸드 종료 시에만
         기존 좌석 위치에 실제 카드를 공개한다.
       */}
-      {revealCards && player.holeCards.length > 0 && !player.folded ? (
+      {!chipBelowBadge && chipAmount != null ? <BetChipStack amount={chipAmount} /> : null}
+      {revealCards && revealedHole.length > 0 && !player.folded ? (
         // 세로 화면에서는 공개 카드를 축소해 좁은 테이블 폭 안에 머물게 한다.
         <div className="flex origin-bottom gap-0.5 portrait:scale-[0.72]">
           {isHero ? (
-            <HeroCardsWithMadeFx cards={player.holeCards} size="compact" fx={heroFx} />
+            <HeroCardsWithMadeFx cards={revealedHole} size="compact" fx={heroFx} />
           ) : (
-            player.holeCards.map((c, i) => <PlayingCard key={i} card={c} size="compact" />)
+            revealedHole.map((c, i) => <PlayingCard key={i} card={c} size="compact" />)
           )}
         </div>
       ) : null}
       <div
         className={[
-          "flex min-w-[92px] flex-col items-center rounded-lg border px-2 py-1 text-center shadow portrait:min-w-[62px] portrait:px-1 portrait:py-0.5",
+          "flex min-w-[92px] flex-col items-center rounded-lg border px-2 py-1 text-center shadow portrait:min-w-[54px] portrait:px-1 portrait:py-0.5",
           player.busted
             ? "border-zinc-800 bg-zinc-900/70 opacity-50"
             : isActing
@@ -691,6 +684,7 @@ function SeatView({
         {player.allIn ? <span className="text-[10px] text-amber-400 portrait:text-[9px]">All-In</span> : null}
         {/* 베팅 금액은 프로필 박스가 아니라 테이블 위 칩(BetChipStack)으로 보여준다 */}
       </div>
+      {chipBelowBadge && chipAmount != null ? <BetChipStack amount={chipAmount} /> : null}
     </div>
   );
 }

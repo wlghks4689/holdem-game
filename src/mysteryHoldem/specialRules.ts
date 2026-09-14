@@ -1,6 +1,6 @@
 import type { Card } from "@/holdem/cards";
 import type { HandValue } from "@/holdem/pokerEval";
-import { bestHandExactUse } from "./handEval";
+import { bestHandExactUse, bestHandExactUseDetailed } from "./handEval";
 import type { SpecialRuleId } from "./types";
 
 /**
@@ -13,21 +13,24 @@ export interface SpecialRuleHooks {
   finalHoleCardCount: number;
   /** 최초 3장 중 2장 선택 이후, 추가로 받는 카드 수 */
   extraDealCount: number;
-  /** 추가 카드 수령 후 최종적으로 더 버려야 하는 카드 수 */
-  extraDiscardCount: number;
+  /** 쇼다운에서 실제로 사용하는(=공개하는) 홀카드 수 */
+  showdownHoleCardCount: number;
   evaluateBestHand: (hole: readonly Card[], board: readonly Card[]) => HandValue;
+  /** 최선 조합에 실제로 쓰인 홀카드 — 쇼다운에서 그 카드만 공개하는 데 사용한다 */
+  bestHoleCardsUsed?: (hole: readonly Card[], board: readonly Card[]) => Card[];
 }
 
 export const SPECIAL_RULES: Record<SpecialRuleId, SpecialRuleHooks> = {
   /**
-   * Extra Hand(§12): 카드 선택 이후 2장 추가 획득 → 1장 버림 → 최종 홀카드 4장 보유.
+   * Extra Hand(§12): 카드 선택 이후 2장 추가 획득 → 최종 홀카드 4장 보유(추가 버림 없음).
    * 쇼다운에서는 오마하 방식처럼 홀카드 정확히 2장 + 보드 3장으로만 5장을 구성한다.
    */
   extra_hand_four_card: {
     finalHoleCardCount: 4,
     extraDealCount: 2,
-    extraDiscardCount: 1,
+    showdownHoleCardCount: 2,
     evaluateBestHand: (hole, board) => bestHandExactUse(hole, board, 2, 3),
+    bestHoleCardsUsed: (hole, board) => bestHandExactUseDetailed(hole, board, 2, 3).holeUsed,
   },
 };
 
