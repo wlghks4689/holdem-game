@@ -159,6 +159,23 @@ export function HoldemHomeHub() {
         ) : null}
 
         <div className="grid gap-4 sm:grid-cols-2">
+          {/* ── MysteryHoldem: 기존 Hold'em과 별도인 신규 게임(§3) ── */}
+          <Link
+            href="/mystery-holdem"
+            className="flex flex-col gap-2 rounded-2xl border border-fuchsia-700/60 bg-fuchsia-950/30 p-5 shadow-lg transition hover:border-fuchsia-500/70 hover:bg-fuchsia-900/30 active:scale-[0.99] sm:col-span-2"
+          >
+            <span className="flex items-center gap-2 text-lg font-semibold text-fuchsia-100">
+              MysteryHoldem
+              <span className="rounded-full bg-fuchsia-700/60 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-fuchsia-100">
+                New
+              </span>
+            </span>
+            <span className="text-xs leading-relaxed text-zinc-400">
+              최대 10인 · 3장 중 2장 선택 · 비공개 Mystery Mission · Pot-Limit 베팅 · 15라운드 Chip/Mission/Bounty
+              Point 합산 게임. 기존 Hold&apos;em과는 완전히 별도의 게임입니다.
+            </span>
+          </Link>
+
           {/* ── 멀티플레이 카드 ── */}
           <div
             className={[

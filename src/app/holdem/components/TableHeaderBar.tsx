@@ -38,6 +38,8 @@ export type TableHeaderBarProps = {
   state: GameState;
   playerNames: [string, string];
   mySeat?: PlayerIndex;
+  /** 플레이어 정보가 테이블 좌석에 표시될 때 라운드·블라인드만 남긴다. */
+  compact?: boolean;
 };
 
 const GAIN_ANIM_MS = 2000;
@@ -105,7 +107,7 @@ export function RoundBlindBadge({ state }: { state: GameState }) {
   );
 }
 
-export function TableHeaderBar({ state, playerNames, mySeat }: TableHeaderBarProps) {
+export function TableHeaderBar({ state, playerNames, mySeat, compact = false }: TableHeaderBarProps) {
   const { locale } = useHoldemI18n();
   const isEn = locale === "en";
   const motionMode = useHoldemMotionMode();
@@ -137,6 +139,24 @@ export function TableHeaderBar({ state, playerNames, mySeat }: TableHeaderBarPro
 
   /** 매치 승자 확정 시(버스트·30R·조기 종료 무관) 승/패 배너 구분 */
   const matchDecided = state.matchEnded;
+
+  if (compact) {
+    return (
+      <div className="flex min-w-0 items-center justify-end rounded-lg border border-zinc-700/70 bg-zinc-800/35 px-2 py-1 text-sm sm:px-3 sm:py-1.5">
+        <span
+          className={`shrink-0 text-zinc-400 ${headerMetaMono}`}
+          title={
+            isEn
+              ? "Total chips removed by IA since match start"
+              : "매치 시작부터 IA로 팟에서 빠져 나간 칩 누적(칩 단위)"
+          }
+        >
+          {isEn ? "IA total" : "IA 누적"} {fmtChips(iaRemovedTotal)}
+          {isEn ? " chips" : "칩"}
+        </span>
+      </div>
+    );
+  }
 
   return (
       <div className="rounded-xl border border-zinc-600/90 bg-zinc-700/70 p-1.5 text-sm sm:p-2.5">

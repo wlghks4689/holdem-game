@@ -19,12 +19,10 @@ import { HU_DEALER_SB_LABEL, headsUpPositionLabel } from "@/holdem/headsUpLabels
 import { AllInShowdownCinemaOverlay } from "./components/AllInShowdownCinemaOverlay";
 import { AllInBanner } from "./components/AllInBanner";
 import { ActionPanel } from "./components/ActionPanel";
-import { BoardDisplay } from "./components/BoardDisplay";
 import { HandLog } from "./components/HandLog";
 import { HandSelectPanel } from "./components/HandSelectPanel";
-import { HoleCards } from "./components/HoleCards";
+import { HoldemTableStage } from "./components/HoldemTableStage";
 import { IaBanner } from "./components/IaBanner";
-import { PlayAreaPotBetting } from "./components/PlayAreaPotBetting";
 import { RoundBlindBadge, TableHeaderBar } from "./components/TableHeaderBar";
 import { rabbitHuntInfo, viewerMayUseRabbit } from "@/holdem/rabbitHunt";
 import { useAllInShowdownCinema } from "./hooks/useAllInShowdownCinema";
@@ -322,7 +320,7 @@ export function HoldemPlayUI({
         {showPauseChrome ? (
           <div
             className={[
-              "pointer-events-auto absolute right-3 top-3 z-40 flex max-w-[min(19rem,calc(100%-1.5rem))] flex-col items-end gap-2 sm:right-5 sm:top-5",
+              "pointer-events-auto absolute right-3 top-3 z-40 flex max-w-[min(19rem,calc(100%-1.5rem))] flex-row flex-wrap items-start justify-end gap-2 sm:right-5 sm:top-5 sm:flex-col sm:items-end",
               showdownCinema.active && showdownCinema.phase !== "showdown-resolve"
                 ? "holdem-cinema-context-blur"
                 : "",
@@ -397,7 +395,7 @@ export function HoldemPlayUI({
         <header
           className={[
             "mb-3 flex flex-col gap-2 pr-[5.5rem] sm:pr-[6rem] lg:mb-4 lg:flex-row lg:items-start lg:justify-between",
-            showPauseChrome ? "min-h-[5rem]" : "",
+            showPauseChrome ? "min-h-[3rem] sm:min-h-[5rem]" : "",
             showdownCinema.active && showdownCinema.phase !== "showdown-resolve"
               ? "holdem-cinema-context-blur"
               : "",
@@ -552,6 +550,7 @@ export function HoldemPlayUI({
               state={cinemaDisplayState}
               playerNames={playerNames}
               mySeat={playMode === "local" ? viewer : mySeat}
+              compact
             />
           )}
         </div>
@@ -591,87 +590,29 @@ export function HoldemPlayUI({
               </p>
             </div>
           ) : null}
-          {/* 쇼다운 비교 패널은 보드 위 한 곳에서 양쪽을 함께 보여준다. */}
-          {!selecting && state.phase === "showdown" ? (
-            <div className="holdem-cinema-hole-stage mx-auto w-full max-w-3xl transition-all duration-500">
-              <HoleCards
-                state={cinemaDisplayState}
-                viewer={viewer}
-                playerNames={playerNames}
-                seatFilter="both"
-                cinematicWinnerPulse={winnerCinematicPulse}
-                showdownFxArmed={showdownFxArmed}
-                showdownRunoutFx={showdownRunoutFx}
-                showdownHoleCardsRevealed={showdownCinema.showHoleCards}
-              />
-            </div>
-          ) : null}
-          {!selecting && state.phase !== "showdown" ? state.phase === "hand_over" ? (
-            <div
-              className={[
-                "holdem-cinema-hole-stage hidden space-y-2 transition-all duration-500 lg:block",
-              ].join(" ")}
-            >
-              <HoleCards
-                state={cinemaDisplayState}
-                viewer={viewer}
-                playerNames={playerNames}
-                seatFilter="opponent"
-                cinematicWinnerPulse={winnerCinematicPulse}
-                showdownFxArmed={showdownFxArmed}
-              />
-              {!showdownCinema.blockingInput ? (
-                <div className="pt-1">
-                  <IaBanner state={state} viewer={viewer} playerNames={playerNames} />
-                </div>
-              ) : null}
-            </div>
-          ) : (
-            <div
-              className={[
-                "hidden transition-opacity duration-500 lg:block",
-                showdownCinema.active && showdownCinema.phase !== "showdown-resolve"
-                  ? "opacity-55"
-                  : "",
-              ].join(" ")}
-            >
-              <IaBanner state={state} viewer={viewer} playerNames={playerNames} />
-            </div>
-          ) : null}
-
           {!selecting && !showdownCinema.blockingInput ? <AllInBanner state={state} /> : null}
           {!selecting ? (
             <div
               className={[
-                "holdem-cinema-board-stage mx-auto w-full max-w-4xl transition-all duration-500",
-                state.phase === "showdown" ? "-mt-0.5 pt-0" : "",
+                "holdem-cinema-board-stage mx-auto w-full transition-all duration-500",
+                showdownCinema.active && showdownCinema.phase !== "showdown-resolve"
+                  ? "opacity-90"
+                  : "",
               ].join(" ")}
             >
-              <BoardDisplay
+              <HoldemTableStage
                 state={cinemaDisplayState}
+                viewer={viewer}
+                playerNames={playerNames}
+                cinematicWinnerPulse={winnerCinematicPulse}
+                showdownFxArmed={showdownFxArmed}
+                showdownRunoutFx={showdownRunoutFx}
+                showdownHoleCardsRevealed={showdownCinema.showHoleCards}
                 visualRevealedOverride={showdownCinema.visualRevealed}
                 cinematicFlip={showdownCinema.active && showdownCinema.phase === "showdown-reveal"}
                 cinemaStreetPulse={showdownCinema.streetPulse}
                 cinemaAnticipation={showdownCinema.activeStreet}
-                showdownFxArmed={showdownFxArmed}
                 rabbitHunt={rabbitBoardUi}
-              />
-            </div>
-          ) : null}
-
-          {!selecting ? (
-            <div
-              className={[
-                "holdem-cinema-pot-stage mx-auto w-full max-w-4xl transition-all duration-500",
-                showdownCinema.active && showdownCinema.phase !== "showdown-resolve"
-                  ? "opacity-85"
-                  : "",
-              ].join(" ")}
-            >
-              <PlayAreaPotBetting
-                state={cinemaDisplayState}
-                viewer={viewer}
-                playerNames={playerNames}
               />
             </div>
           ) : null}
@@ -694,72 +635,10 @@ export function HoldemPlayUI({
 
           {!selecting ? <div
             className={[
-              "space-y-2 transition-all duration-500 sm:space-y-3 lg:hidden",
-              showdownCinema.blockingInput ? "holdem-cinema-hole-stage" : "",
+              "mt-2 grid gap-2 transition-all duration-500 sm:gap-3 lg:mt-5 lg:items-start lg:gap-6",
+              "lg:mx-auto lg:w-full lg:max-w-2xl lg:grid-cols-1",
             ].join(" ")}
           >
-            {/* 모바일 상대 카드 — 쇼다운에서만 전체 표시 */}
-            {state.phase === "hand_over" ? (
-              <div className="rounded-xl border border-zinc-600/90 bg-zinc-700/40 p-1.5 sm:p-3">
-                <HoleCards
-                  state={cinemaDisplayState}
-                  viewer={viewer}
-                  playerNames={playerNames}
-                  seatFilter="both"
-                  cinematicWinnerPulse={winnerCinematicPulse}
-                  showdownFxArmed={showdownFxArmed}
-                />
-              </div>
-            ) : state.phase !== "showdown" ? (
-              <div className="rounded-xl border border-zinc-600/90 bg-zinc-700/40 p-1.5 sm:p-3">
-                <HoleCards
-                  state={cinemaDisplayState}
-                  viewer={viewer}
-                  playerNames={playerNames}
-                  seatFilter="hero"
-                  cinematicWinnerPulse={winnerCinematicPulse}
-                  showdownFxArmed={showdownFxArmed}
-                />
-              </div>
-            ) : null}
-            {!showdownCinema.blockingInput ? (
-              <ActionPanel
-                state={state}
-                dispatch={(a) => void dispatch(a)}
-                playerNames={playerNames}
-                mySeat={mySeat}
-                actionTimerSecondsLeft={actionTimerSecondsLeft}
-              />
-            ) : null}
-            {!showdownCinema.blockingInput ? (
-              <IaBanner state={state} viewer={viewer} playerNames={playerNames} />
-            ) : null}
-          </div> : null}
-
-          {!selecting ? <div
-            className={[
-              "mt-2 hidden gap-8 transition-all duration-500 lg:mt-8 lg:grid lg:items-start lg:gap-10",
-              showdownCinema.blockingInput
-                ? "holdem-cinema-hole-stage lg:mx-auto lg:w-full lg:max-w-2xl lg:grid-cols-1"
-                : state.phase === "showdown"
-                  ? "lg:mx-auto lg:w-full lg:max-w-2xl lg:grid-cols-1"
-                  : "lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]",
-            ].join(" ")}
-          >
-            {state.phase !== "showdown" ? (
-              <div className="min-w-0 lg:h-full">
-                <div className="h-full">
-                  <HoleCards
-                    state={cinemaDisplayState}
-                    viewer={viewer}
-                    playerNames={playerNames}
-                    seatFilter="hero"
-                    cinematicWinnerPulse={winnerCinematicPulse}
-                    showdownFxArmed={showdownFxArmed}
-                  />
-                </div>
-              </div>
-            ) : null}
             {!showdownCinema.blockingInput ? (
               <div className="min-w-0 lg:h-full">
                 <ActionPanel
@@ -769,6 +648,11 @@ export function HoldemPlayUI({
                   mySeat={mySeat}
                   actionTimerSecondsLeft={actionTimerSecondsLeft}
                 />
+              </div>
+            ) : null}
+            {!showdownCinema.blockingInput ? (
+              <div className="lg:col-span-full">
+                <IaBanner state={state} viewer={viewer} playerNames={playerNames} />
               </div>
             ) : null}
           </div> : null}

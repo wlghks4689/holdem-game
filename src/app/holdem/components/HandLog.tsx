@@ -446,7 +446,7 @@ export function HandLog({
 }: HandLogProps) {
   const { locale } = useHoldemI18n();
   const isEn = locale === "en";
-  const [open, setOpen] = React.useState(true);
+  const [open, setOpen] = React.useState(false);
   const recent = React.useMemo(() => logs.slice(-140), [logs]);
   const sections = React.useMemo(
     () =>
@@ -465,7 +465,7 @@ export function HandLog({
 
   return (
     <details
-      className="rounded-xl border border-zinc-600/90 bg-zinc-700/55 p-3"
+      className="rounded-xl border border-zinc-700/80 bg-zinc-800/45 p-2.5"
       open={open}
       onToggle={(e) => setOpen(e.currentTarget.open)}
     >
@@ -477,7 +477,7 @@ export function HandLog({
           </span>
         </span>
       </summary>
-      <div className="mt-3 max-h-[22rem] overflow-y-auto">
+      <div className="mt-2.5 max-h-64 overflow-y-auto">
         <div className="space-y-3">
           {tail.map((sec, si) => (
             <div

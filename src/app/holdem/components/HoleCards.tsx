@@ -11,6 +11,7 @@ import {
   madeHandFxTier,
 } from "@/holdem/pokerEval";
 import type { MadeHandFxKind } from "@/holdem/pokerEval";
+import { HOLE_DIM_CLASS, NEUTRAL_FOCUS_GLOW } from "./showdownFocusStyles";
 import {
   HOLDEM_PREFS_CHANGED_EVENT,
   loadMadeHandFxEnabled,
@@ -56,20 +57,21 @@ export const MADE_TURN_PANEL: Record<number, string> = {
   5: "border-zinc-600/70 bg-sky-950/22 shadow-[0_0_56px_rgba(192,132,252,0.4)] z-[2]",
 };
 
-const MADE_FX_IMPACT_CLASS: Partial<Record<MadeHandFxKind, string>> = {
+/** MysteryHoldem 등 다른 게임에서도 동일한 메이드 연출을 재사용할 수 있도록 export(§25 공용 모듈 추출) */
+export const MADE_FX_IMPACT_CLASS: Partial<Record<MadeHandFxKind, string>> = {
   straight: "holdem-preview-impact-t1-fx",
   flush: "holdem-preview-impact-t2-fx",
   "full-house": "holdem-preview-impact-t3-fx",
 };
 
-const MADE_FX_CYCLE_AURA_CLASS: Partial<Record<MadeHandFxKind, string>> = {
+export const MADE_FX_CYCLE_AURA_CLASS: Partial<Record<MadeHandFxKind, string>> = {
   straight: "holdem-preview-cycle-aura-straight",
   flush: "holdem-preview-cycle-aura-flush",
   "full-house": "holdem-preview-cycle-aura-full-house",
   quads: "holdem-preview-cycle-aura-quads",
 };
 
-type MadeFxVariantClasses = {
+export type MadeFxVariantClasses = {
   panel: string;
   fx: string;
   card: string;
@@ -77,7 +79,7 @@ type MadeFxVariantClasses = {
   badge: string;
 };
 
-const MADE_FX_VARIANT_CLASSES: Partial<
+export const MADE_FX_VARIANT_CLASSES: Partial<
   Record<MadeHandFxKind, MadeFxVariantClasses>
 > = {
   quads: {
@@ -131,6 +133,12 @@ export type HoleCardsProps = {
   state: GameState;
   viewer: PlayerIndex;
   playerNames: [string, string];
+  /** 테이블 흐름 안에서 카드와 족보 정보를 압축해 표시 */
+  variant?: "panel" | "table";
+  /** 좁은 테이블 좌석에서 공개되는 카드에만 더 작은 보드 크기 사용 */
+  tableCardSize?: "compact" | "board" | "seat";
+  /** 통합 플레이어 카드 안에서는 별도 카드 패널 테두리·배경을 제거 */
+  embedded?: boolean;
   /** `both`(기본). 테이블 레이아웃: 상대만 / 나만 분리 표시 */
   seatFilter?: "both" | "opponent" | "hero";
   /** 올인 쇼다운 연출 마지막: 승자 패널 펄스 */
@@ -159,6 +167,9 @@ export function HoleCards({
   state,
   viewer,
   playerNames,
+  variant = "panel",
+  tableCardSize = "compact",
+  embedded = false,
   seatFilter = "both",
   cinematicWinnerPulse = false,
   showdownFxArmed = true,
@@ -270,8 +281,10 @@ export function HoleCards({
     <div
       className={[
         "grid",
-        seatFilter === "both" ? "grid-cols-2 gap-2 sm:gap-3" : "grid-cols-1 gap-3",
-        seatFilter !== "both" ? "h-full" : "",
+        seatFilter === "both"
+          ? variant === "table" ? "grid-cols-2 gap-1.5" : "grid-cols-2 gap-2 sm:gap-3"
+          : "grid-cols-1 gap-3",
+        seatFilter !== "both" && variant !== "table" ? "h-full" : "",
       ].join(" ")}
     >
       {seatOrder.map((p) => {
@@ -417,10 +430,18 @@ export function HoleCards({
         }
 
         const frameClass = [
-          "rounded-xl border transition-[box-shadow,background-color,border-color,opacity,filter] duration-200",
-          seatFilter !== "both" ? "h-full" : "",
-          showdownReveal ? "p-1.5 sm:p-2" : "p-2 sm:p-3",
-          foldedSeat
+          embedded
+            ? "bg-transparent transition-[box-shadow,background-color,border-color,opacity,filter] duration-200"
+            : "rounded-xl border transition-[box-shadow,background-color,border-color,opacity,filter] duration-200",
+          seatFilter !== "both" && variant !== "table" ? "h-full" : "",
+          embedded
+            ? "p-0"
+            : variant === "table"
+            ? "p-1.5"
+            : showdownReveal ? "p-1.5 sm:p-2" : "p-2 sm:p-3",
+          embedded
+            ? ""
+            : foldedSeat
             ? "border-zinc-800/90 bg-zinc-950/65 text-zinc-500 brightness-[0.82] saturate-50"
             : loserShowdown
             ? "border-zinc-800/85 bg-zinc-950/45 text-zinc-600 opacity-[0.48] brightness-[0.72] saturate-50"
@@ -482,7 +503,9 @@ export function HoleCards({
           : showdownHand ?? compactHand;
 
         const cardSize =
-          showdownReveal
+          variant === "table"
+            ? tableCardSize
+            : showdownReveal
             ? ("showdown" as const)
             : isMe
               ? ("hero" as const)
@@ -523,12 +546,12 @@ export function HoleCards({
               />
             ) : null}
             {sel && showFaces ? (
-              <div className={seatFilter !== "both" ? "h-full" : ""}>
+              <div className={seatFilter !== "both" && variant !== "table" ? "h-full" : ""}>
                 <div
                   className={[
                     "flex flex-col items-center justify-center gap-1.5 text-center",
-                    seatFilter !== "both" ? "h-full" : "",
-                    showdownReveal ? "gap-1 sm:gap-3" : "",
+                    seatFilter !== "both" && variant !== "table" ? "h-full" : "",
+                    showdownReveal && variant !== "table" ? "gap-1 sm:gap-3" : "",
                   ].join(" ")}
                 >
                   {/* 카드 2장 — 스트레이트↑ 메이드 시 티어별 연출 */}
@@ -554,8 +577,10 @@ export function HoleCards({
                     ) : null}
                     <div
                       className={[
-                        "flex shrink-0",
-                        showdownReveal ? "gap-1 sm:gap-3" : "gap-3",
+                      "flex shrink-0",
+                      variant === "table"
+                        ? "gap-1.5"
+                        : showdownReveal ? "gap-1 sm:gap-3" : "gap-3",
                         showMadeFx || showDefaultShowdownGlow
                           ? "holdem-made-fx-stack"
                           : "",
@@ -597,11 +622,9 @@ export function HoleCards({
                                   showRing
                                     ? madeFxTier > 0
                                       ? madeFxCardClass
-                                      : "holdem-showdown-default-card-glow"
+                                      : NEUTRAL_FOCUS_GLOW
                                     : "",
-                                  dimNonMade
-                                    ? "opacity-35 brightness-[0.78] saturate-50 grayscale-[0.18]"
-                                    : "",
+                                  dimNonMade ? HOLE_DIM_CLASS : "",
                                 ]
                                   .filter(Boolean)
                                   .join(" ")}
@@ -613,7 +636,7 @@ export function HoleCards({
                     </div>
                   </div>
 
-                  <div className="flex min-h-7 w-full flex-wrap items-center justify-center gap-2 px-1">
+                  <div className={variant === "table" ? "flex min-h-5 w-full flex-wrap items-center justify-center gap-1 px-1" : "flex min-h-7 w-full flex-wrap items-center justify-center gap-2 px-1"}>
                     {/* 일반 진행은 내 족보, 쇼다운은 양쪽 현재 족보를 카드 아래에 표시한다. */}
                     {displayedHandLabel ? (
                       <span
@@ -625,7 +648,9 @@ export function HoleCards({
                             : `hand-label-${madeFxOuterKey}`
                         }
                         className={[
-                          "holdem-made-hand-copy inline-block text-center text-lg font-extrabold leading-tight tracking-tight drop-shadow-sm sm:text-xl",
+                          variant === "table"
+                            ? "holdem-made-hand-copy inline-block text-center text-xs font-extrabold leading-tight tracking-tight drop-shadow-sm sm:text-sm"
+                            : "holdem-made-hand-copy inline-block text-center text-lg font-extrabold leading-tight tracking-tight drop-shadow-sm sm:text-xl",
                           foldedSeat
                             ? "text-zinc-400"
                             : showdownHand
@@ -652,7 +677,7 @@ export function HoleCards({
                     ) : null}
                   </div>
                 </div>
-                {isMe &&
+                {variant !== "table" && isMe &&
                 iaOpponentLearnedAboutMe != null &&
                 !showdownReveal ? (
                   <p className="mt-2 text-center text-[11px] leading-snug text-indigo-200/90 sm:text-left">
@@ -667,16 +692,18 @@ export function HoleCards({
                 ) : null}
               </div>
             ) : showShowdownBacks || showOpponentBacks ? (
-              <div className="flex h-full flex-col items-center justify-center gap-1.5 text-center">
+              <div className={variant === "table" ? "flex flex-col items-center justify-center gap-1 text-center" : "flex h-full flex-col items-center justify-center gap-1.5 text-center"}>
                 <div
                   className={[
-                    "flex shrink-0 justify-center gap-3",
+                    variant === "table" ? "flex shrink-0 justify-center gap-1.5" : "flex shrink-0 justify-center gap-3",
                     foldedSeat ? "opacity-70 brightness-75" : "",
                   ].join(" ")}
                 >
                     <CardBack
                       size={
-                        showShowdownBacks
+                        variant === "table"
+                          ? tableCardSize
+                          : showShowdownBacks
                           ? "showdown"
                           : foldedSeat || opponentFoldWinner
                             ? "hero"
@@ -685,7 +712,9 @@ export function HoleCards({
                     />
                     <CardBack
                       size={
-                        showShowdownBacks
+                        variant === "table"
+                          ? tableCardSize
+                          : showShowdownBacks
                           ? "showdown"
                           : foldedSeat || opponentFoldWinner
                             ? "hero"
@@ -694,17 +723,19 @@ export function HoleCards({
                     />
                 </div>
                 {foldedSeat || opponentFoldWinner ? (
-                  <div className="flex min-h-7 w-full items-center justify-center px-1">
+                  <div className={variant === "table" ? "flex min-h-5 w-full items-center justify-center px-1" : "flex min-h-7 w-full items-center justify-center px-1"}>
                     <span
                       className={[
-                        "holdem-made-hand-copy text-lg font-extrabold leading-tight tracking-tight drop-shadow-sm sm:text-xl",
+                        variant === "table"
+                          ? "holdem-made-hand-copy text-xs font-extrabold leading-tight tracking-tight drop-shadow-sm sm:text-sm"
+                          : "holdem-made-hand-copy text-lg font-extrabold leading-tight tracking-tight drop-shadow-sm sm:text-xl",
                         foldedSeat ? "text-zinc-400" : "text-amber-200",
                       ].join(" ")}
                     >
                       {foldedSeat ? "FOLD" : "WIN"}
                     </span>
                   </div>
-                ) : !showShowdownBacks && p === opp && iaCategoryForOpp ? (
+                ) : variant !== "table" && !showShowdownBacks && p === opp && iaCategoryForOpp ? (
                   <p className="text-[11px] leading-snug text-indigo-200/90">
                     {t("hole.iaOppCategory")}{" "}
                     <span className="font-semibold text-indigo-100">

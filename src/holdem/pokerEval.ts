@@ -18,6 +18,19 @@ const RANK_FULL_HOUSE = 7;
 const RANK_QUADS = 8;
 const RANK_STRAIGHT_FLUSH = 9;
 
+/** 족보 rank 상수 재사용용 export(§25 공용 모듈 추출) — 값·로직 변경 없음 */
+export const HAND_RANK = {
+  HIGH_CARD: RANK_HIGH_CARD,
+  PAIR: RANK_PAIR,
+  TWO_PAIR: RANK_TWO_PAIR,
+  TRIPS: RANK_TRIPS,
+  STRAIGHT: RANK_STRAIGHT,
+  FLUSH: RANK_FLUSH,
+  FULL_HOUSE: RANK_FULL_HOUSE,
+  QUADS: RANK_QUADS,
+  STRAIGHT_FLUSH: RANK_STRAIGHT_FLUSH,
+} as const;
+
 /** 스트레이트=1, 플러시=2, 풀=3, 포카드=4, 스트플=5. 트립 이하는 0 (이펙트 없음). */
 export function madeHandFxTier(v: HandValue): number {
   if (v.rank < RANK_STRAIGHT) return 0;
@@ -55,7 +68,11 @@ function sortRanksDesc(ranks: number[]): number[] {
   return [...ranks].sort((a, b) => b - a);
 }
 
-function evaluate5(cards: Card[]): HandValue {
+/**
+ * 5장 정확히 평가하는 최하위 순수 함수. MysteryHoldem의 Omaha식(정확히 N장 홀+M장 보드)
+ * 평가에도 재사용하기 위해 export한다(§25 공용 모듈 추출) — 로직 변경 없음.
+ */
+export function evaluate5(cards: Card[]): HandValue {
   if (cards.length !== 5) {
     return { rank: 0, kickers: [] };
   }

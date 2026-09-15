@@ -9,7 +9,11 @@ import {
   compareHandValue,
   madeHandFxKind,
 } from "@/holdem/pokerEval";
-import type { MadeHandFxKind } from "@/holdem/pokerEval";
+import {
+  BOARD_DIM_CLASS,
+  BOARD_FOCUS_FILTER,
+  SHOWDOWN_BOARD_GLOW,
+} from "./showdownFocusStyles";
 import { useHoldemMotionMode } from "../HoldemMotionRuntime";
 import { CardBack, PlayingCard } from "./Card";
 import {
@@ -39,15 +43,6 @@ const TURN_RIVER_STAGGER_MS = 80;
 
 const BOARD_GAP = "gap-px sm:gap-5 lg:gap-7";
 
-const SHOWDOWN_BOARD_GLOW: Record<MadeHandFxKind, string> = {
-  none: "holdem-showdown-default-card-glow",
-  straight: "holdem-made-card-glow-t1",
-  flush: "holdem-made-card-glow-t2",
-  "full-house": "holdem-made-card-glow-t3",
-  quads: "holdem-preview-quads-coral-card",
-  "straight-flush": "holdem-preview-straight-flush-rainbow-card",
-  "royal-flush": "holdem-preview-royal-flush-card",
-};
 
 function rabbitSlotLabel(
   i: number,
@@ -124,6 +119,8 @@ function buildEnterDeal(
 
 export type BoardDisplayProps = {
   state: GameState;
+  /** 일반 카드 패널 또는 타원형 테이블 중앙용 표현 */
+  variant?: "panel" | "table";
   /** 올인 쇼다운 연출: 실제 `boardRevealed` 대신 공개 장 수(없으면 상태값 사용) */
   visualRevealedOverride?: number | null;
   /** 올인 연출: 새로 깔린 카드에 플립 애니메이션 */
@@ -139,6 +136,7 @@ export type BoardDisplayProps = {
 
 export function BoardDisplay({
   state,
+  variant = "panel",
   visualRevealedOverride = null,
   cinematicFlip = false,
   cinemaStreetPulse = null,
@@ -156,6 +154,7 @@ export function BoardDisplay({
       : state.boardRevealed;
   const slots = [0, 1, 2, 3, 4] as const;
   const showdown = state.phase === "showdown";
+  const cardSize = variant === "table" ? "board" : "community";
 
   /**
    * 체크·콜로 스트리트가 넘어가는 순간 팟에 칩이 모이자마자 다음 카드가
@@ -323,15 +322,17 @@ export function BoardDisplay({
   return (
     <div
       className={[
-        // 모바일 풀블리드 보정: 부모 섹션의 실제 패딩(p-2=8px)과 맞춘다.
-        // 이전 -mx-3(12px)은 4px 과보정되어 640px 미만 전 구간에서 패널이
-        // 섹션 경계를 살짝 넘었다(폭에 상관없이 균일하게 발생).
-        "-mx-2 w-[calc(100%+1rem)] rounded-xl border bg-gradient-to-b from-zinc-900 via-zinc-800/95 to-zinc-800/90 sm:mx-0 sm:w-auto",
-        showdown
-          ? "border-zinc-600/70 px-px py-2 sm:px-3 sm:py-2.5"
-          : "border-amber-900/40 px-px py-2.5 shadow-[0_0_40px_rgba(245,158,11,0.06)] sm:px-3.5 sm:py-2.5 lg:px-4 lg:py-3",
+        variant === "table"
+          ? "w-full rounded-xl px-px py-1.5 sm:px-2 sm:py-2"
+          : "-mx-2 w-[calc(100%+1rem)] rounded-xl border bg-gradient-to-b from-zinc-900 via-zinc-800/95 to-zinc-800/90 sm:mx-0 sm:w-auto",
+        variant === "table"
+          ? ""
+          : showdown
+            ? "border-zinc-600/70 px-px py-2 sm:px-3 sm:py-2.5"
+            : "border-amber-900/40 px-px py-2.5 shadow-[0_0_40px_rgba(245,158,11,0.06)] sm:px-3.5 sm:py-2.5 lg:px-4 lg:py-3",
         cinemaStreetPulse ? `holdem-board-cinema-${cinemaStreetPulse}` : "",
       ].join(" ")}
+      data-board-layout={variant}
     >
       <div
         className={[
@@ -375,15 +376,11 @@ export function BoardDisplay({
               >
                 <PlayingCard
                   card={c}
-                  size="community"
+                  size={cardSize}
                   className={[
                     showdown ? "drop-shadow-sm" : "drop-shadow-md",
-                    madeOnWinner
-                      ? `brightness-[1.16] contrast-[1.1] saturate-[1.12] ${showdownGlowClass}`
-                      : "",
-                    dimNonMade
-                      ? "opacity-20 brightness-[0.48] contrast-75 saturate-[0.28] grayscale-[0.58]"
-                      : "",
+                    madeOnWinner ? `${BOARD_FOCUS_FILTER} ${showdownGlowClass}` : "",
+                    dimNonMade ? BOARD_DIM_CLASS : "",
                     hasEnterDeal ? "opacity-0" : "opacity-100",
                   ].join(" ")}
                 />
@@ -403,15 +400,11 @@ export function BoardDisplay({
                     >
                       <PlayingCard
                         card={c}
-                        size="community"
+                        size={cardSize}
                         className={[
                           "drop-shadow-lg",
-                          madeOnWinner
-                            ? `brightness-[1.16] contrast-[1.1] saturate-[1.12] ${showdownGlowClass}`
-                            : "",
-                          dimNonMade
-                            ? "opacity-20 brightness-[0.48] contrast-75 saturate-[0.28] grayscale-[0.58]"
-                            : "",
+                          madeOnWinner ? `${BOARD_FOCUS_FILTER} ${showdownGlowClass}` : "",
+                          dimNonMade ? BOARD_DIM_CLASS : "",
                         ].join(" ")}
                       />
                     </div>
@@ -429,7 +422,7 @@ export function BoardDisplay({
                 className="transition-transform"
               >
                 <CardBack
-                  size="community"
+                  size={cardSize}
                   className={[
                     "opacity-80",
                     cinemaAnticipation
@@ -489,13 +482,13 @@ export function BoardDisplay({
                           </span>
                           <PlayingCard
                             card={c}
-                            size="community"
+                            size={cardSize}
                             className="drop-shadow-md ring-1 ring-cyan-400/50 shadow-[0_0_14px_rgba(34,211,238,0.22)]"
                           />
                         </>
                       ) : (
                         <CardBack
-                          size="community"
+                          size={cardSize}
                           className="opacity-80 ring-1 ring-cyan-500/35 shadow-[0_0_10px_rgba(34,211,238,0.12)]"
                         />
                       )}
