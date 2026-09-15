@@ -3,22 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { PlayingCard } from "@/app/holdem/components/Card";
-import {
-  MADE_FX_CARD_GLOW,
-  MADE_FX_CYCLE_AURA_CLASS,
-  MADE_FX_IMPACT_CLASS,
-  MADE_FX_VARIANT_CLASSES,
-} from "@/app/holdem/components/HoleCards";
-import { shouldPlayMadeHandBurst } from "@/app/holdem/madeHandFxPresentation";
-import type { Card } from "@/holdem/cards";
-import { HOLDEM_PREFS_CHANGED_EVENT, loadMadeHandFxEnabled } from "@/holdem/holdemPrefs";
-import {
-  handValueDisplayPatternKorean,
-  handValueSummaryKorean,
-  madeHandFxKind,
-  madeHandFxTier,
-} from "@/holdem/pokerEval";
-import type { MadeHandFxKind } from "@/holdem/pokerEval";
+import { handValueSummaryKorean } from "@/holdem/pokerEval";
 import { snapBetAmountToStep, snapRaiseRangeToStep } from "@/mysteryHoldem/betting";
 import { DEFAULT_PROTOTYPE_SEAT_COUNT, MYSTERY_HOLDEM_CONFIG } from "@/mysteryHoldem/config";
 import {
@@ -29,7 +14,15 @@ import {
   pickCardTargetForSeat,
 } from "@/mysteryHoldem/gameReducer";
 import { CARD_CATEGORY_LABEL, cardCategoryFromLegacy } from "@/mysteryHoldem/mysteryCard";
+import { findMissionDef } from "@/mysteryHoldem/mysteryMissions";
 import { missionSuccessSeatsFromLogs } from "@/mysteryHoldem/missionFeedback";
+import {
+  HeroCardsWithMadeFx,
+  NO_MADE_FX,
+  buildMadeFx,
+  useMadeHandFxEnabled,
+  type HeroMadeFx,
+} from "./madeFx";
 import { MysteryCardFace, MysteryCardPicker, cardRewardLabel } from "./MysteryCardPicker";
 import { positionLabelForSeat } from "@/mysteryHoldem/positions";
 import { scoreBreakdownForAll, survivalRewardForRank } from "@/mysteryHoldem/scoring";
@@ -257,88 +250,6 @@ function useBetChipCollect(state: MysteryGameState): BetChipState {
   };
 }
 
-/** 기존 홀덤(§25 공용 모듈)의 메이드 연출 설정을 그대로 공유한다 */
-function useMadeHandFxEnabled(): boolean {
-  const [on, setOn] = React.useState(() => (typeof window !== "undefined" ? loadMadeHandFxEnabled() : true));
-  React.useEffect(() => {
-    setOn(loadMadeHandFxEnabled());
-    const handler = () => setOn(loadMadeHandFxEnabled());
-    window.addEventListener(HOLDEM_PREFS_CHANGED_EVENT, handler);
-    return () => window.removeEventListener(HOLDEM_PREFS_CHANGED_EVENT, handler);
-  }, []);
-  return on;
-}
-
-interface HeroMadeFx {
-  tier: number;
-  kind: MadeHandFxKind;
-  label: string;
-  cardClass: string;
-  labelClass: string;
-  outerFxClass: string;
-  cycleAuraClass: string | undefined;
-  showBurst: boolean;
-  replayKey: string;
-}
-
-const NO_MADE_FX: HeroMadeFx = {
-  tier: 0,
-  kind: "none",
-  label: "",
-  cardClass: "",
-  labelClass: "",
-  outerFxClass: "",
-  cycleAuraClass: undefined,
-  showBurst: false,
-  replayKey: "no-fx",
-};
-
-/**
- * 한 플레이어의 현재 족보로 메이드 연출 설정을 만든다(§25 공용 모듈 재사용).
- *
- * 히어로의 진행 중 연출과 쇼다운에서의 상대 공개 연출이 같은 계산을 쓰도록 순수 함수로
- * 분리했다. 다른 점은 "언제 부르는가"뿐이다 — 상대 것은 카드가 실제로 공개되는 순간에만
- * 계산해야 한다. 플레이 중에 상대 좌석에 연출이 뜨면 비공개여야 할 패가 새어 나간다.
- */
-function buildMadeFx(
-  enabled: boolean,
-  player: PlayerState,
-  board: Card[],
-  keyPrefix: string,
-): HeroMadeFx {
-  if (!enabled || player.holeCards.length === 0) return NO_MADE_FX;
-  const value = computeBestHandForPlayer(player, board);
-  const tier = madeHandFxTier(value);
-  if (tier <= 0) return NO_MADE_FX;
-  const kind = madeHandFxKind(value);
-  const variant = MADE_FX_VARIANT_CLASSES[kind];
-  const cardClass = variant?.card ?? MADE_FX_CARD_GLOW[tier] ?? "";
-  const labelClass = variant?.label ?? `holdem-made-hand-label-t${tier}`;
-  const impactClass = MADE_FX_IMPACT_CLASS[kind] ?? "";
-  const outerFxClass = ["holdem-made-fx", `holdem-made-fx-t${tier}`, "overflow-visible", impactClass, variant?.fx ?? ""]
-    .filter(Boolean)
-    .join(" ");
-  const showBurst = shouldPlayMadeHandBurst({
-    madeFxTier: tier,
-    showdownReveal: false,
-    showdownResultGlow: false,
-    showdownRunoutFx: false,
-  });
-  return {
-    tier,
-    kind,
-    label: handValueDisplayPatternKorean(value),
-    cardClass,
-    labelClass,
-    outerFxClass,
-    cycleAuraClass: MADE_FX_CYCLE_AURA_CLASS[kind],
-    showBurst,
-    // 같은 라운드에서 족보 종류가 유지되는 동안은 재마운트하지 않고, 실제로 족보가
-    // 바뀔 때만(예: 트립스→풀하우스) 새 키를 받아 연출을 다시 재생한다.
-    replayKey: `${keyPrefix}-${kind}`,
-  };
-}
-
 /** 진행 중 "내 카드"의 메이드 연출. 상대 좌석에는 절대 쓰지 않는다. */
 function useHeroMadeHandFx(state: MysteryGameState, hero: PlayerState | undefined): HeroMadeFx {
   const enabled = useMadeHandFxEnabled();
@@ -368,49 +279,6 @@ function useShowdownMadeFx(state: MysteryGameState, revealCards: boolean): Map<S
     }
     return map;
   }, [enabled, revealCards, state.players, state.board, state.boardRevealed, state.round]);
-}
-
-function HeroCardsWithMadeFx({
-  cards,
-  size,
-  fx,
-}: {
-  cards: Card[];
-  size: "board" | "hero";
-  fx: HeroMadeFx;
-}) {
-  if (fx.tier <= 0) {
-    return (
-      <div className="flex gap-1.5">
-        {cards.map((c, i) => (
-          <PlayingCard key={i} card={c} size={size} />
-        ))}
-      </div>
-    );
-  }
-  return (
-    <div key={fx.replayKey} className={["mystery-hole-fx-bounds", fx.outerFxClass].join(" ")}>
-      {fx.showBurst && fx.cycleAuraClass ? (
-        <span className={`holdem-preview-cycle-aura ${fx.cycleAuraClass}`} aria-hidden />
-      ) : null}
-      <div className="flex gap-1.5 holdem-made-fx-stack">
-        {cards.map((c, i) => (
-          <div
-            key={i}
-            className={fx.showBurst ? "holdem-made-fx-card" : undefined}
-            style={fx.showBurst ? { animationDelay: `${i * 0.08}s` } : undefined}
-          >
-            <PlayingCard card={c} size={size} className={fx.cardClass} />
-          </div>
-        ))}
-      </div>
-      {size === "hero" ? (
-        <p className={["holdem-made-hand-copy mt-1 text-center text-xs font-extrabold tracking-tight", fx.labelClass].join(" ")}>
-          {fx.label}
-        </p>
-      ) : null}
-    </div>
-  );
 }
 
 export function MysteryHoldemClient() {
@@ -1559,21 +1427,75 @@ function ActionPanel({
 }
 
 function HandOverPanel({ state, onContinue }: { state: MysteryGameState; onContinue: () => void }) {
-  const recentLogs = state.logs.filter(
-    (l) => l.t === "showdown" || l.t === "fold_win" || l.t === "mission_result" || l.t === "bounty_awarded" || l.t === "player_busted",
-  );
   const lastRoundStartIdx = [...state.logs].reverse().findIndex((l) => l.t === "round_start");
   const sliceFrom = lastRoundStartIdx >= 0 ? state.logs.length - 1 - lastRoundStartIdx : 0;
-  const thisHandLogs = recentLogs.filter((l) => state.logs.indexOf(l) >= sliceFrom);
+  const thisHandLogs = state.logs.filter((l, i) => i >= sliceFrom);
+
+  const potLogs = thisHandLogs.filter(
+    (l) => l.t === "showdown" || l.t === "fold_win" || l.t === "bounty_awarded" || l.t === "player_busted",
+  );
+
+  /*
+    카드 결과는 **무언가 일어난 좌석만** 싣는다. 예전에는 참가자 전원의 실패까지 한 줄씩
+    나열해서, 10인 테이블이면 아무 일도 없는 줄이 아홉 개씩 쌓였다.
+
+    점수가 0인 발동형·강화형(Forced Split, Four Card)도 남긴다 — 그 카드의 보상은 점수가
+    아니라 규칙 변경이라, 점수로 거르면 정작 판을 바꾼 카드가 사라진다.
+    무효화된 줄도 남긴다. 그게 없으면 Mission Breaker가 왜 점수를 받았는지 읽히지 않는다.
+  */
+  const cardLogs = thisHandLogs.filter(
+    (l) => l.t === "mission_result" && (l.achieved || l.deniedReward > 0),
+  );
+
+  const nameOf = (seat: Seat) => state.players.find((p) => p.seat === seat)?.name ?? `Seat ${seat}`;
 
   return (
     <div className="rounded-2xl border border-amber-700/50 bg-zinc-900/70 p-4 shadow-xl">
       <p className="mb-2 text-sm font-bold text-amber-300">Round {state.round} 결과</p>
       <ul className="mb-3 flex flex-col gap-1 text-xs text-zinc-300">
-        {thisHandLogs.map((l, i) => (
+        {potLogs.map((l, i) => (
           <li key={i}>{describeLog(l)}</li>
         ))}
       </ul>
+
+      {cardLogs.length > 0 ? (
+        <div className="mb-3 rounded-xl border border-fuchsia-800/40 bg-fuchsia-950/10 p-2.5">
+          <p className="mb-1.5 text-[10px] font-bold uppercase tracking-wide text-fuchsia-400">
+            Mystery Card
+          </p>
+          <ul className="flex flex-col gap-1">
+            {cardLogs.map((l, i) => {
+              if (l.t !== "mission_result") return null;
+              const def = findMissionDef(l.missionId);
+              const nullified = l.deniedReward > 0;
+              return (
+                <li key={i} className="flex flex-wrap items-baseline gap-x-1.5 text-xs">
+                  <span className="font-semibold text-zinc-100">{nameOf(l.seat)}</span>
+                  {def != null ? (
+                    <>
+                      <span className="text-[10px] text-zinc-500">
+                        [{CARD_CATEGORY_LABEL[cardCategoryFromLegacy(def.category)]}]
+                      </span>
+                      <span className="font-bold text-fuchsia-200">{def.name}</span>
+                    </>
+                  ) : null}
+                  {/* 지정형(Mission Breaker / Parasite)은 누구를 물었는지가 결과의 절반이다 */}
+                  {l.targetSeat != null ? (
+                    <span className="text-[11px] text-sky-300">→ {nameOf(l.targetSeat)}</span>
+                  ) : null}
+                  {nullified ? (
+                    <span className="font-bold text-rose-300">무효화 −{fmt(l.deniedReward)}pt</span>
+                  ) : l.reward > 0 ? (
+                    <span className="font-bold text-amber-300">+{fmt(l.reward)}pt</span>
+                  ) : (
+                    <span className="text-[11px] text-zinc-400">발동</span>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      ) : null}
       <button
         type="button"
         onClick={onContinue}
