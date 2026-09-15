@@ -7,11 +7,17 @@ import {
   survivalPointsBySeat,
   survivalRewardForRank,
 } from "../src/mysteryHoldem/scoring";
+import { MYSTERY_HOLDEM_CONFIG } from "../src/mysteryHoldem/config";
 import type { PlayerState } from "../src/mysteryHoldem/types";
 
-// Chip Point = Chips / 100 (§19-1)
-assert.equal(chipPointFromChips(30_000), 300);
-assert.equal(chipPointFromChips(42_500), 425);
+// Chip Point = 보유 칩 / chipPointDivisor. 분모는 설정값이므로 하드코딩하지 않는다 —
+// 칩 비중을 조정할 때마다 테스트가 깨지면 무엇을 검증하는 테스트인지 흐려진다.
+{
+  const d = MYSTERY_HOLDEM_CONFIG.chipPointDivisor;
+  assert.equal(chipPointFromChips(30_000), 30_000 / d);
+  assert.equal(chipPointFromChips(42_500), 42_500 / d);
+  assert.equal(d, 200, "현재 확정값 — 칩이 다른 점수를 압도하지 않도록 100에서 올렸다");
+}
 
 function player(overrides: Partial<PlayerState>): PlayerState {
   return {
@@ -41,10 +47,9 @@ function player(overrides: Partial<PlayerState>): PlayerState {
 // Total Point = Chip Point + Mission Point + Bounty Point, 각 항목은 독립적으로 관리된다(§19, §20).
 {
   const p = player({ chips: 34_200, missionPoint: 180, bountyPoint: 60 });
-  // 342 + 180 + 60 = 582
   const chip = chipPointFromChips(p.chips);
-  assert.equal(chip, 342);
-  assert.equal(chip + p.missionPoint + p.bountyPoint, 582);
+  assert.equal(chip, 34_200 / MYSTERY_HOLDEM_CONFIG.chipPointDivisor);
+  assert.equal(scoreBreakdownFor(p).totalPoint, chip + 180 + 60);
 }
 
 // §21-A: 15라운드 정상 종료 — 최고 Total Point 플레이어 승리.
@@ -61,9 +66,11 @@ function player(overrides: Partial<PlayerState>): PlayerState {
 // §22: 최고점 동률이면 무승부, 추가 타이브레이커(칩 보유량 등) 없음.
 {
   const players = [
-    player({ seat: 0, chips: 25_000, missionPoint: 50, bountyPoint: 0 }), // 300
-    player({ seat: 1, chips: 30_000, missionPoint: 0, bountyPoint: 0 }), // 300
-    player({ seat: 2, chips: 10_000, missionPoint: 0, bountyPoint: 0 }), // 100
+    // 25,000/200 = 125, +50 = 175
+    player({ seat: 0, chips: 25_000, missionPoint: 50, bountyPoint: 0 }),
+    // 35,000/200 = 175 — 위와 동점
+    player({ seat: 1, chips: 35_000, missionPoint: 0, bountyPoint: 0 }),
+    player({ seat: 2, chips: 10_000, missionPoint: 0, bountyPoint: 0 }),
   ];
   const result = resolveRoundLimitResult(players);
   assert.deepEqual([...result.winners].sort(), [0, 1]);
@@ -156,7 +163,7 @@ function player(overrides: Partial<PlayerState>): PlayerState {
 // 생존 점수는 Total Point에 합산된다.
 {
   const p = player({ chips: 20_000, missionPoint: 100, bountyPoint: 50, survivalPoint: 200 });
-  assert.equal(scoreBreakdownFor(p).totalPoint, 200 + 100 + 50 + 200);
+  assert.equal(scoreBreakdownFor(p).totalPoint, chipPointFromChips(20_000) + 100 + 50 + 200);
   assert.equal(scoreBreakdownFor(p).survivalPoint, 200);
 }
 

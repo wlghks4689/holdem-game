@@ -28,8 +28,15 @@ export const MYSTERY_HOLDEM_CONFIG: MysteryHoldemConfig = {
    * 좁을 수 있으므로(숏스택 올인 근처) 강제할 수 없는 경우에는 원래 금액을 그대로 쓴다.
    */
   betStepUnit: 100,
-  /** Chip Point = 보유 Chips / chipPointDivisor */
-  chipPointDivisor: 100,
+  /**
+   * Chip Point = 보유 Chips / chipPointDivisor.
+   *
+   * 100에서 200으로 올렸다. 실측에서 칩이 다른 점수를 압도하고 있었다 — 최후 1인의 Chip
+   * Point가 1,600점인데 2위의 Mission 총합이 310점 수준이라, Mystery Card로 무엇을 하든
+   * 순위가 칩 하나로 결정됐다. 분모를 두 배로 하면 칩 비중이 절반이 되고 Mission·Bounty·
+   * 생존 점수가 상대적으로 그만큼 커진다.
+   */
+  chipPointDivisor: 200,
   /**
    * 생존 점수(시작 인원 1명당). 실제 지급액 = 값 × 시작 인원, 10단위 반올림.
    * 10인이면 1위 200 / 2위 100 / 3위 50, 4인이면 80 / 40 / 20이 된다.

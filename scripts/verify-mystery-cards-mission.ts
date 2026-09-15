@@ -44,13 +44,27 @@ import type { MysteryGameState, Seat } from "../src/mysteryHoldem/types";
     false,
   );
 
-  // Maker 세 장의 구간이 겹치지 않는다 — 한 족보에 최대 한 장만 성공해야 한다.
+  // Maker 구간은 스티플을 뺀 모든 족보에서 겹치지 않는다.
+  //
+  // 스티플만 예외로 여러 장이 동시에 성공한다. 스티플은 스트레이트이면서 플러시이고
+  // 풀하우스 이상이기도 한데, 이걸 실패로 처리하면 "노리던 족보를 더 크게 만들었더니
+  // 미션이 깨지는" 함정이 된다.
   const makers = ["maker_set", "maker_straight", "maker_flush", "maker_high_end"].map(
     (id) => findMissionDef(id)!,
   );
   for (const rank of Object.values(HAND_RANK)) {
+    if (rank === HAND_RANK.STRAIGHT_FLUSH) continue;
     const hit = makers.filter((m) => m.condition(makeMissionCtx({ bestHandValue: hv(rank) })));
     assert.ok(hit.length <= 1, `족보 ${rank}에서 ${hit.map((m) => m.id).join(",")}가 동시에 성공한다`);
+  }
+
+  // 스티플은 스트레이트·플러시·High-End 세 장 모두를 성공시킨다.
+  {
+    const sf = makeMissionCtx({ bestHandValue: hv(HAND_RANK.STRAIGHT_FLUSH) });
+    assert.equal(findMissionDef("maker_straight")!.condition(sf), true, "스티플은 스트레이트로 인정");
+    assert.equal(findMissionDef("maker_flush")!.condition(sf), true, "스티플은 플러시로 인정");
+    assert.equal(findMissionDef("maker_high_end")!.condition(sf), true);
+    assert.equal(findMissionDef("maker_set")!.condition(sf), false, "트립스는 스티플과 무관");
   }
 }
 
@@ -59,9 +73,9 @@ import type { MysteryGameState, Seat } from "../src/mysteryHoldem/types";
   const def = findMissionDef("maker_high_end")!;
   const paid = (rank: number) =>
     resolveMissionReward(def, makeMissionCtx({ bestHandValue: { rank, kickers: [] } }));
-  assert.equal(paid(HAND_RANK.FULL_HOUSE), 300);
+  assert.equal(paid(HAND_RANK.FULL_HOUSE), 350);
   assert.equal(paid(HAND_RANK.QUADS), 600);
-  assert.equal(paid(HAND_RANK.STRAIGHT_FLUSH), 1200);
+  assert.equal(paid(HAND_RANK.STRAIGHT_FLUSH), 1000);
 }
 
 // ─────────────── Blind Defender: 시작 인원 × 10 ───────────────

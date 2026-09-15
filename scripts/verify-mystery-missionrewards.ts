@@ -33,13 +33,18 @@ const ctxWith = (rank: number, extra = {}) =>
     HAND_RANK.STRAIGHT, HAND_RANK.FLUSH, HAND_RANK.FULL_HOUSE, HAND_RANK.QUADS,
     HAND_RANK.STRAIGHT_FLUSH,
   ];
+  // 스트레이트/플러시 Maker는 스티플도 인정한다 — 스티플은 그 둘을 모두 포함하는 족보라,
+  // 실패로 처리하면 "노리던 것을 더 크게 만들었더니 미션이 깨지는" 함정이 된다.
+  const acceptsStraightFlush = new Set(["maker_straight", "maker_flush"]);
   for (const [id, exactRank] of cases) {
     const def = findMissionDef(id)!;
     for (const rank of allRanks) {
+      const expected =
+        rank === exactRank || (acceptsStraightFlush.has(id) && rank === HAND_RANK.STRAIGHT_FLUSH);
       assert.equal(
         def.condition(ctxWith(rank)),
-        rank === exactRank,
-        `${id}는 ${exactRank} 족보에서만 성공해야 하는데 ${rank}에서 ${def.condition(ctxWith(rank))}`,
+        expected,
+        `${id}가 족보 ${rank}에서 기대(${expected})와 다릅니다`,
       );
     }
     // 쇼다운에 도달하지 않으면 족보가 맞아도 실패다.
@@ -51,10 +56,12 @@ const ctxWith = (rank: number, extra = {}) =>
 {
   const def = findMissionDef("maker_high_end")!;
   assert.equal(def.condition(ctxWith(HAND_RANK.FLUSH)), false, "플러시는 High-End 영역이 아니다");
+  // 스티플은 High-End에도 포함된다(풀하우스 이상이므로).
+  assert.equal(def.condition(ctxWith(HAND_RANK.STRAIGHT_FLUSH)), true);
   for (const [rank, expected] of [
-    [HAND_RANK.FULL_HOUSE, 300],
+    [HAND_RANK.FULL_HOUSE, 350],
     [HAND_RANK.QUADS, 600],
-    [HAND_RANK.STRAIGHT_FLUSH, 1200],
+    [HAND_RANK.STRAIGHT_FLUSH, 1000],
   ] as const) {
     assert.equal(def.condition(ctxWith(rank)), true);
     assert.equal(resolveMissionReward(def, ctxWith(rank)), expected, `${rank} 족보 보상`);

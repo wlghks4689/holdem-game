@@ -12,7 +12,12 @@ import {
 import { shouldPlayMadeHandBurst } from "@/app/holdem/madeHandFxPresentation";
 import type { Card } from "@/holdem/cards";
 import { HOLDEM_PREFS_CHANGED_EVENT, loadMadeHandFxEnabled } from "@/holdem/holdemPrefs";
-import { handValueDisplayPatternKorean, madeHandFxKind, madeHandFxTier } from "@/holdem/pokerEval";
+import {
+  handValueDisplayPatternKorean,
+  handValueSummaryKorean,
+  madeHandFxKind,
+  madeHandFxTier,
+} from "@/holdem/pokerEval";
 import type { MadeHandFxKind } from "@/holdem/pokerEval";
 import { snapRaiseRangeToStep } from "@/mysteryHoldem/betting";
 import { DEFAULT_PROTOTYPE_SEAT_COUNT, MYSTERY_HOLDEM_CONFIG } from "@/mysteryHoldem/config";
@@ -929,6 +934,16 @@ function SeatView({
           */}
           <HeroCardsWithMadeFx cards={revealedHole} size="compact" fx={heroFx} />
         </div>
+      ) : null}
+      {/*
+        공개된 카드 아래에 족보를 적는다. 카드만 열리면 누가 무엇으로 이겼는지 읽으려고
+        숫자와 무늬를 직접 대조해야 하는데, 여러 좌석이 동시에 열리는 쇼다운에서는 그게
+        사실상 불가능하다. 좌석 폭을 넘기지 않도록 nowrap으로 두고 세로 화면에서는 줄인다.
+      */}
+      {revealCards && revealedHole.length > 0 && !player.folded ? (
+        <span className="whitespace-nowrap rounded bg-black/70 px-1.5 py-px text-[10px] font-bold leading-tight text-amber-200 shadow portrait:text-[8px]">
+          {handValueSummaryKorean(computeBestHandForPlayer(player, state.board.slice(0, state.boardRevealed)))}
+        </span>
       ) : null}
       <div
         className={[

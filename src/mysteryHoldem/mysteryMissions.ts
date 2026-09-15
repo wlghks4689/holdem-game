@@ -1,5 +1,5 @@
 import { shuffle } from "@/holdem/cards";
-import { HAND_RANK } from "@/holdem/pokerEval";
+import { HAND_RANK, compareHandValue } from "@/holdem/pokerEval";
 import type { MissionEvalContext, MysteryMissionDef, Seat } from "./types";
 
 /**
@@ -24,17 +24,21 @@ export const PARASITE_MIN_REWARD = 100;
  * 족보별 지급액을 그대로 표로 적는다 — UI에 그대로 보여줄 수 있고 밸런싱도 눈으로 읽힌다.
  */
 export const HIGH_END_REWARD_BY_HAND_RANK: Record<number, number> = {
-  [HAND_RANK.FULL_HOUSE]: 300,
+  [HAND_RANK.FULL_HOUSE]: 350,
   [HAND_RANK.QUADS]: 600,
-  [HAND_RANK.STRAIGHT_FLUSH]: 1_200,
+  [HAND_RANK.STRAIGHT_FLUSH]: 1_000,
 };
 
 /**
- * Maker 계열 생성기 — "정확히 그 족보"로만 성공한다(§6~§8).
+ * Maker 계열 생성기 — 기준 족보로 성공한다(§6~§8).
  *
  * 예전 Made 계열은 "기준 족보 이상"이라 트립스 미션이 풀하우스로도 성공했고, 그 위를
- * 보상하려고 배수를 곱했다. 이제는 구간이 겹치지 않으므로 Set Miner가 풀하우스로
- * 발전하면 실패하고, 그 영역은 High-End Maker가 맡는다.
+ * 보상하려고 배수를 곱했다. 지금은 구간을 나눠 Set Miner가 풀하우스로 발전하면 실패하고,
+ * 그 영역은 High-End Maker가 맡는다.
+ *
+ * 스트레이트 플러시만 예외다(includeStraightFlush). 스티플은 스트레이트이면서 플러시인데,
+ * 이걸 실패로 처리하면 "노리던 것을 더 크게 만들었더니 미션이 깨지는" 함정이 된다.
+ * 족보를 노리다 완성한 사람이 손해를 보는 규칙은 카드의 목적과 정면으로 어긋난다.
  */
 function exactMakerCard(opts: {
   id: string;
@@ -43,6 +47,7 @@ function exactMakerCard(opts: {
   shortDescription: string;
   rank: number;
   reward: number;
+  includeStraightFlush?: boolean;
 }): MysteryMissionDef {
   return {
     id: opts.id,
@@ -51,7 +56,12 @@ function exactMakerCard(opts: {
     description: opts.description,
     shortDescription: opts.shortDescription,
     trigger: "hand_result(showdown)",
-    condition: (ctx) => ctx.wentToShowdown && ctx.bestHandValue?.rank === opts.rank,
+    condition: (ctx) => {
+      if (!ctx.wentToShowdown || ctx.bestHandValue == null) return false;
+      const rank = ctx.bestHandValue.rank;
+      if (rank === opts.rank) return true;
+      return opts.includeStraightFlush === true && rank === HAND_RANK.STRAIGHT_FLUSH;
+    },
     reward: opts.reward,
     replacementRule: "on_success",
   };
@@ -76,30 +86,34 @@ export const MISSION_POOL: MysteryMissionDef[] = [
     description: "쇼다운에서 최종 족보가 정확히 트립스면 성공합니다. 승패는 관계없습니다.",
     shortDescription: "쇼다운에서 최종 족보를 정확히 트립스로 만드세요.",
     rank: HAND_RANK.TRIPS,
-    reward: 90,
+    reward: 120,
   }),
   exactMakerCard({
     id: "maker_straight",
     name: "STRAIGHT MAKER",
-    description: "쇼다운에서 최종 족보가 정확히 스트레이트면 성공합니다. 승패는 관계없습니다.",
-    shortDescription: "쇼다운에서 최종 족보를 정확히 스트레이트로 만드세요.",
+    description:
+      "쇼다운에서 최종 족보가 스트레이트면 성공합니다. 스트레이트 플러시도 인정합니다. 승패는 관계없습니다.",
+    shortDescription: "쇼다운에서 최종 족보를 스트레이트로 만드세요.",
     rank: HAND_RANK.STRAIGHT,
-    reward: 120,
+    reward: 180,
+    includeStraightFlush: true,
   }),
   exactMakerCard({
     id: "maker_flush",
     name: "FLUSH MAKER",
-    description: "쇼다운에서 최종 족보가 정확히 플러시면 성공합니다. 승패는 관계없습니다.",
-    shortDescription: "쇼다운에서 최종 족보를 정확히 플러시로 만드세요.",
+    description:
+      "쇼다운에서 최종 족보가 플러시면 성공합니다. 스트레이트 플러시도 인정합니다. 승패는 관계없습니다.",
+    shortDescription: "쇼다운에서 최종 족보를 플러시로 만드세요.",
     rank: HAND_RANK.FLUSH,
-    reward: 180,
+    reward: 240,
+    includeStraightFlush: true,
   }),
   {
     id: "maker_high_end",
     name: "HIGH-END MAKER",
     category: "mission",
     description:
-      "쇼다운에서 풀하우스 이상을 완성합니다. 승패는 관계없고 보상은 족보에 따라 다릅니다(풀하우스 300 / 포카드 600 / 스트레이트 플러시 이상 1,200).",
+      "쇼다운에서 풀하우스 이상을 완성합니다. 승패는 관계없고 보상은 족보에 따라 다릅니다(풀하우스 350 / 포카드 600 / 스트레이트 플러시 이상 1,000).",
     shortDescription: "쇼다운에서 풀하우스 이상을 완성하세요. 승패는 관계없습니다.",
     trigger: "hand_result(showdown)",
     condition: (ctx) =>
@@ -180,18 +194,20 @@ export const MISSION_POOL: MysteryMissionDef[] = [
     name: "COOLER INSURANCE",
     category: "trigger",
     description:
-      "트립스 이상을 들고 쇼다운에서 더 높은 등급의 족보에게 패배하면 보상을 받습니다. 같은 등급 안에서의 강약 차이(A 플러시 vs K 플러시 등)는 인정하지 않습니다.",
-    shortDescription: "트립스 이상을 들고 더 높은 등급의 족보에게 지면 발동합니다.",
+      "트립스 이상을 들고 쇼다운에서 패배하면 보상을 받습니다. 셋 오버 셋이나 낮은 스트레이트처럼 같은 족보 안에서 밀린 경우도 인정합니다.",
+    shortDescription: "트립스 이상을 들고 쇼다운에서 지면 발동합니다.",
     trigger: "hand_result(showdown+lose_to_higher_rank)",
     condition: (ctx) => {
       if (!ctx.wentToShowdown || ctx.wonAnyPot) return false;
       const mine = ctx.bestHandValue;
       // 스택까지 잃는 상황을 보상하는 카드이므로, 애초에 "쿨러"라 부를 만한 강한 패에서만 발동한다.
       if (mine == null || mine.rank < HAND_RANK.TRIPS) return false;
-      // 판정은 족보 "등급"만 본다 — 킥커나 같은 등급 내 서열 차이는 쿨러가 아니다(§5).
-      return ctx.showdownOpponents.some(
-        (seat) => (ctx.opponentBestHandValues[seat]?.rank ?? -1) > mine.rank,
-      );
+      // 등급 차이뿐 아니라 같은 족보 안에서 밀린 경우도 센다. 셋 오버 셋이나 낮은
+      // 스트레이트로 지는 것이야말로 전형적인 쿨러인데, 등급만 비교하면 그게 전부 빠진다.
+      return ctx.showdownOpponents.some((seat) => {
+        const theirs = ctx.opponentBestHandValues[seat];
+        return theirs != null && compareHandValue(theirs, mine) > 0;
+      });
     },
     reward: 400,
     replacementRule: "on_trigger",

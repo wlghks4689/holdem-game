@@ -24,8 +24,8 @@ import type { MysteryGameState, Seat } from "../src/mysteryHoldem/types";
 const COOLER = findMissionDef("cooler_insurance")!;
 const BREAKER = findMissionDef("card_breaker")!;
 const PARASITE = findMissionDef("parasite")!;
-const FLUSH_MAKER = findMissionDef("maker_flush")!; // 180
-const SET_MINER = findMissionDef("maker_set")!; // 90
+const FLUSH_MAKER = findMissionDef("maker_flush")!; // 240
+const SET_MINER = findMissionDef("maker_set")!; // 120
 const FOUR_CARD = findMissionDef("four_card")!; // 강화형
 
 const hv = (rank: number) => ({ rank, kickers: [10, 9, 8, 7, 6] });
@@ -196,23 +196,30 @@ function parasiteScenario(targetCard: typeof FLUSH_MAKER, targetRank: number) {
 }
 
 {
-  // 상대 180 → Parasite 180
+  // 대상의 점수를 그대로 복제한다.
   const rows = parasiteScenario(FLUSH_MAKER, HAND_RANK.FLUSH);
-  assert.equal(rows.find((r) => r.seat === 0)!.reward, 180);
+  assert.equal(rows.find((r) => r.seat === 0)!.reward, FLUSH_MAKER.reward);
   // 복제일 뿐 강탈이 아니다 — 원본은 그대로 받는다.
-  assert.equal(rows.find((r) => r.seat === 1)!.reward, 180, "Parasite는 대상의 점수를 빼앗지 않는다");
+  assert.equal(
+    rows.find((r) => r.seat === 1)!.reward,
+    FLUSH_MAKER.reward,
+    "Parasite는 대상의 점수를 빼앗지 않는다",
+  );
 }
 
 {
-  // 상대 90 → Parasite 최소 100
+  // Set Miner가 120점으로 올라 최소 보상(100)을 넘으므로 복제값이 그대로 나온다.
   const rows = parasiteScenario(SET_MINER, HAND_RANK.TRIPS);
-  assert.equal(rows.find((r) => r.seat === 0)!.reward, PARASITE_MIN_REWARD);
-  assert.equal(rows.find((r) => r.seat === 1)!.reward, 90);
+  assert.equal(
+    rows.find((r) => r.seat === 0)!.reward,
+    Math.max(PARASITE_MIN_REWARD, SET_MINER.reward),
+  );
+  assert.equal(rows.find((r) => r.seat === 1)!.reward, SET_MINER.reward);
 }
 
 // ─────────────── §11 연쇄: A=Breaker→B, B=Parasite→C, C=Straight Maker ───────────────
 {
-  const STRAIGHT_MAKER = findMissionDef("maker_straight")!; // 120
+  const STRAIGHT_MAKER = findMissionDef("maker_straight")!; // 180
   const entries = [
     {
       seat: 2, // C
@@ -244,7 +251,11 @@ function parasiteScenario(targetCard: typeof FLUSH_MAKER, targetRank: number) {
   ];
 
   const check = (rows: ReturnType<typeof resolveMissionsForHand>) => {
-    assert.equal(rows.find((r) => r.seat === 2)!.reward, 120, "C는 Straight Maker 점수를 정상 획득");
+    assert.equal(
+      rows.find((r) => r.seat === 2)!.reward,
+      STRAIGHT_MAKER.reward,
+      "C는 Straight Maker 점수를 정상 획득",
+    );
     assert.equal(rows.find((r) => r.seat === 1)!.reward, 0, "B의 Parasite는 Break당해 0점");
     assert.equal(rows.find((r) => r.seat === 0)!.reward, 150, "A는 Breaker 성공 +150");
   };
