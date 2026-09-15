@@ -19,7 +19,7 @@ import {
   madeHandFxTier,
 } from "@/holdem/pokerEval";
 import type { MadeHandFxKind } from "@/holdem/pokerEval";
-import { snapRaiseRangeToStep } from "@/mysteryHoldem/betting";
+import { snapBetAmountToStep, snapRaiseRangeToStep } from "@/mysteryHoldem/betting";
 import { DEFAULT_PROTOTYPE_SEAT_COUNT, MYSTERY_HOLDEM_CONFIG } from "@/mysteryHoldem/config";
 import {
   cardTargetCandidates,
@@ -447,7 +447,7 @@ export function MysteryHoldemClient() {
 
   return (
     <div className="min-h-dvh bg-gradient-to-b from-zinc-900 via-zinc-900 to-zinc-950 text-zinc-50">
-      <div className="mx-auto flex max-w-5xl flex-col gap-4 px-3 py-6 sm:px-6">
+      <div className="mx-auto flex max-w-5xl flex-col gap-4 px-3 pb-3 pt-6 sm:px-6">
         <TopBar state={state} />
 
         {/*
@@ -474,7 +474,7 @@ export function MysteryHoldemClient() {
               "--seat-card-scale-portrait": BOARD_PORTRAIT_SCALE,
             } as React.CSSProperties
           }
-          className="relative mx-auto my-14 mt-28 aspect-[16/10] w-full max-w-3xl rounded-[999px] portrait:my-10 portrait:mt-20 border-4 border-emerald-900/60 bg-gradient-to-b from-emerald-800/40 to-emerald-950/60 shadow-2xl [--bet-rx:31] [--bet-ry:25] [--seat-rx:45] [--seat-ry:45] portrait:aspect-[3/4] portrait:[--bet-rx:25] portrait:[--bet-ry:31] portrait:[--seat-rx:45] portrait:[--seat-ry:45]">
+          className="relative mx-auto my-14 mt-28 aspect-[16/10] w-full max-w-3xl rounded-[999px] portrait:my-10 portrait:mt-20 border-4 border-emerald-900/60 bg-gradient-to-b from-emerald-800/40 to-emerald-950/60 shadow-2xl [--bet-rx:31] [--bet-ry:25] [--seat-rx:45] [--seat-ry:45] [--card-fit:1] max-[359px]:[--card-fit:0.84] portrait:aspect-[3/4] portrait:[--bet-rx:25] portrait:[--bet-ry:31] portrait:[--seat-rx:45] portrait:[--seat-ry:45]">
           <div className="absolute inset-[10%] rounded-[999px] border border-emerald-700/40 bg-emerald-900/30" />
 
           {/*
@@ -495,8 +495,12 @@ export function MysteryHoldemClient() {
           {/* 커뮤니티 카드 + 팟 (진행 정보는 보드 바로 위에) */}
           <div className="absolute left-1/2 top-[42%] flex -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-2 portrait:top-[48%]">
             <TableInfoStrip state={state} />
-            {/* 세로 화면에서는 좌우 좌석 배지와 겹치지 않도록 보드 전체를 축소한다. */}
-            <div className="flex gap-1 portrait:scale-[0.72] sm:gap-1.5">
+            {/*
+              세로 화면에서는 좌우 좌석 배지와 겹치지 않도록 보드 전체를 축소한다.
+              --card-fit은 360px 미만에서만 1보다 작아지는 공통 계수로, 커뮤니티 카드와
+              좌석 홀카드가 **같이** 줄어야 둘의 크기가 어긋나지 않는다.
+            */}
+            <div className="flex gap-1 [zoom:var(--card-fit)] portrait:[zoom:calc(0.72*var(--card-fit))] sm:gap-1.5">
               {Array.from({ length: 5 }, (_, i) => (
                 <div key={i}>
                   {i < state.board.length ? (
@@ -565,16 +569,21 @@ export function MysteryHoldemClient() {
         !heroNeedsHoleSelection &&
         !heroNeedsMission &&
         !heroNeedsCardTarget ? (
-          <HeroPanel
-            hero={hero}
-            heroFx={heroFx}
-            state={state}
-            legal={legal}
-            potMax={potMax}
-            raiseTo={raiseTo}
-            setRaiseTo={setRaiseTo}
-            dispatch={dispatch}
-          />
+          <>
+            {/*
+              내 Mystery Card와 액션 버튼을 한 상자에 담으면, 베팅하려고 눈을 내릴 때마다
+              카드 설명이 같이 걸려 읽는 흐름이 끊긴다. 성격이 다른 정보라 상자를 나눈다.
+            */}
+            <MysteryCardPanel hero={hero} state={state} />
+            <ActionPanel
+              state={state}
+              legal={legal}
+              potMax={potMax}
+              raiseTo={raiseTo}
+              setRaiseTo={setRaiseTo}
+              dispatch={dispatch}
+            />
+          </>
         ) : null}
 
         {state.phase === "hand_over" && !state.matchEnded ? (
@@ -988,7 +997,19 @@ function SeatView({
   const chipAmount =
     showChip && player.streetContribution > 1e-9 && !player.busted ? player.streetContribution : null;
 
-  const showCards = revealCards && revealedHole.length > 0 && !player.folded;
+  /*
+    히어로의 홀카드는 **자기 프로필 박스 위에 상시 고정**한다. 예전에는 화면 하단 패널에만
+    있어서, 내 카드를 확인하려면 테이블에서 눈을 떼고 아래로 내려가야 했다. 다른 좌석은
+    예전처럼 쇼다운에서만 열린다.
+
+    히어로는 showdownHoleCardsForPlayer가 아니라 실제 손패 전체를 본다 — Four Card로 4장을
+    들고 있으면 4장 다 보여야 어느 2장이 쓰일지 판단할 수 있다.
+  */
+  const ownCards = isHero && !player.folded ? player.holeCards : [];
+  const shownCards = revealCards && !player.folded ? revealedHole : ownCards;
+  const showCards = shownCards.length > 0;
+  // 보드가 깔리기 전(프리플랍)에는 족보가 의미 없다. 쇼다운이거나 플랍 이후에만 적는다.
+  const showHandLabel = showCards && state.boardRevealed >= 3;
 
   return (
     /*
@@ -1024,15 +1045,18 @@ function SeatView({
           {showCards ? (
             /*
               배율은 테이블이 내려주는 값을 따른다(가로/세로 각각 별도 사다리, 좌석 수 기준).
-              origin이 아래여야 줄어들 때 카드가 프로필 박스에 붙은 채로 작아진다.
+
+              transform: scale이 아니라 zoom을 쓴다. scale은 그려지는 크기만 줄이고 레이아웃
+              상자는 원래 크기 그대로 남겨서, 좌우 끝 좌석에서 보이지도 않는 빈 상자가 화면
+              밖으로 8px씩 삐져나갔다(실측). zoom은 레이아웃 상자까지 같이 줄인다.
             */
-            <div className="flex origin-bottom gap-0.5 scale-[var(--seat-card-scale)] portrait:scale-[var(--seat-card-scale-portrait)]">
+            <div className="flex gap-0.5 [zoom:calc(var(--seat-card-scale)*var(--card-fit))] portrait:[zoom:calc(var(--seat-card-scale-portrait)*var(--card-fit))]">
               {/*
                 쇼다운에서는 상대 좌석도 메이드 연출을 받는다. 누가 무엇으로 이겼는지가
                 카드 숫자를 읽기 전에 전달되는 것이 이 연출의 목적이다. heroFx는 히어로면
                 진행 중 연출, 상대면 공개 시점에 계산된 연출이 들어온다(없으면 NO_MADE_FX).
               */}
-              <HeroCardsWithMadeFx cards={revealedHole} size="board" fx={heroFx} />
+              <HeroCardsWithMadeFx cards={shownCards} size="board" fx={heroFx} />
             </div>
           ) : null}
           {/*
@@ -1040,7 +1064,7 @@ function SeatView({
             숫자와 무늬를 직접 대조해야 하는데, 여러 좌석이 동시에 열리는 쇼다운에서는 그게
             사실상 불가능하다. 좌석 폭을 넘기지 않도록 nowrap으로 두고 세로 화면에서는 줄인다.
           */}
-          {showCards ? (
+          {showHandLabel ? (
             <span className="whitespace-nowrap rounded bg-black/70 px-1.5 py-px text-[10px] font-bold leading-tight text-amber-200 shadow portrait:text-[8px]">
               {handValueSummaryKorean(
                 computeBestHandForPlayer(player, state.board.slice(0, state.boardRevealed)),
@@ -1224,9 +1248,39 @@ function HoleCardPicker({
   );
 }
 
-function HeroPanel({
-  hero,
-  heroFx,
+/**
+ * 내가 들고 있는 Mystery Card와 True Sight 정보.
+ *
+ * 액션 패널과 상자를 나눈다 — 이쪽은 핸드 내내 거의 바뀌지 않는 "참고 정보"이고,
+ * 액션 패널은 내 차례마다 바뀌는 "조작부"라 성격이 다르다. 히어로의 홀카드는 여기 없다.
+ * 테이블 위 내 프로필 박스에 상시 고정되어 있다(SeatView 참고).
+ */
+function MysteryCardPanel({ hero, state }: { hero: PlayerState; state: MysteryGameState }) {
+  const trueSight = trueSightRevealedCards(state, HERO_SEAT);
+  if (hero.mission == null && trueSight.length === 0) return null;
+
+  return (
+    <div className="rounded-2xl border border-zinc-700/70 bg-zinc-900/70 p-3 shadow-xl">
+      {hero.mission ? <MysteryCardChip mission={hero.mission} /> : null}
+      <TrueSightPanel state={state} />
+    </div>
+  );
+}
+
+/** 팟 대비 베팅 크기 프리셋 — 실제 금액은 합법 레인지 안으로 스냅된다 */
+const POT_FRACTION_PRESETS = [0.3, 0.5, 1] as const;
+
+/**
+ * 베팅 조작부.
+ *
+ * 테이블이 화면 높이를 거의 다 쓰기 때문에 흐름에 그냥 두면 내 차례마다 스크롤해서 버튼을
+ * 찾아야 한다. sticky로 화면 아래에 붙여 언제나 손이 닿는 곳에 둔다.
+ *
+ * 기본 상태는 폴드 / 체크·콜 / 벳·레이즈 세 칸이다. 슬라이더를 처음부터 펼쳐 두면 체크만
+ * 하려는 대부분의 턴에서도 화면 아래쪽이 조작부로 가득 차, 정작 눌러야 할 버튼이 작아진다.
+ * 벳·레이즈를 누른 뒤에만 금액 조절 화면으로 바뀐다.
+ */
+function ActionPanel({
   state,
   legal,
   potMax,
@@ -1234,8 +1288,6 @@ function HeroPanel({
   setRaiseTo,
   dispatch,
 }: {
-  hero: PlayerState;
-  heroFx: HeroMadeFx;
   state: MysteryGameState;
   legal: ReturnType<typeof legalActionsForSeat>;
   potMax: number;
@@ -1245,86 +1297,171 @@ function HeroPanel({
 }) {
   const isMyTurn = state.toActSeat === HERO_SEAT;
   const range = legal.raiseRange ? snapRaiseRangeToStep(legal.raiseRange) : null;
-  const sliderValue = raiseTo ?? range?.min ?? 0;
+  const canSize = (legal.canBet || legal.canRaise) && range != null;
+  const [sizing, setSizing] = React.useState(false);
 
-  return (
-    <div className="rounded-2xl border border-zinc-700/70 bg-zinc-900/70 p-4 shadow-xl">
-      <div className="mb-3 flex items-center justify-between">
-        <HeroCardsWithMadeFx cards={hero.holeCards} size="hero" fx={heroFx} />
-        {hero.mission ? <MysteryCardChip mission={hero.mission} /> : null}
+  // 내 차례가 아니게 되면 금액 조절 화면을 접는다. 그대로 두면 다음 턴이 시작될 때
+  // 지난 턴의 금액이 남은 채로 조작부가 열려 있어 잘못 누르기 쉽다.
+  React.useEffect(() => {
+    if (!isMyTurn || !canSize) setSizing(false);
+  }, [isMyTurn, canSize]);
+
+  if (!isMyTurn) {
+    return (
+      <div className="sticky bottom-0 z-20 rounded-2xl border border-zinc-800 bg-zinc-950/80 px-4 py-3 text-center text-xs text-zinc-500 backdrop-blur">
+        {state.toActSeat == null ? "정산 중..." : `Seat ${state.toActSeat} 차례를 기다리는 중...`}
       </div>
+    );
+  }
 
-      <TrueSightPanel state={state} />
+  const clamp = (n: number) => (range == null ? n : Math.min(Math.max(n, range.min), range.max));
+  const amount = clamp(raiseTo ?? range?.min ?? 0);
 
-      {!isMyTurn ? (
-        <p className="text-center text-xs text-zinc-500">
-          {state.toActSeat == null ? "정산 중..." : `Seat ${state.toActSeat} 차례를 기다리는 중...`}
-        </p>
-      ) : (
-        <div className="flex flex-wrap items-center gap-2">
+  /*
+    "팟의 f배"를 레이즈 총액으로 옮긴다. Pot-Limit 최대 레이즈가 곧
+    currentLevel + (팟 + 콜 금액)이므로, f=1이 정확히 팟 리밋 상한과 같아진다.
+  */
+  const potAfterCall = currentTotalPot(state) + legal.callAmount;
+  const amountForFraction = (f: number) =>
+    range == null ? 0 : snapBetAmountToStep(state.betting.currentLevel + f * potAfterCall, range);
+
+  const commit = () => {
+    dispatch(
+      legal.canBet
+        ? { type: "BET", seat: HERO_SEAT, amount }
+        : { type: "RAISE", seat: HERO_SEAT, toAmount: amount },
+    );
+    setSizing(false);
+    setRaiseTo(null);
+  };
+
+  if (sizing && range != null) {
+    return (
+      <div className="sticky bottom-0 z-20 rounded-2xl border border-fuchsia-800/50 bg-zinc-950/90 p-3 shadow-xl backdrop-blur">
+        <div className="mb-2 flex items-baseline justify-between">
+          <span className="text-[11px] uppercase tracking-wide text-zinc-500">
+            {legal.canBet ? "Bet" : "Raise"} · Pot Limit Max {fmt(potMax)}
+          </span>
+          <span className="text-lg font-black tabular-nums text-fuchsia-200">{fmt(amount)}</span>
+        </div>
+
+        <input
+          type="range"
+          aria-label={legal.canBet ? "베팅 금액" : "레이즈 금액"}
+          min={range.min}
+          max={range.max}
+          step={range.step}
+          value={amount}
+          onChange={(e) => setRaiseTo(Number(e.target.value))}
+          className="w-full accent-fuchsia-500"
+        />
+
+        <div className="mt-2 grid grid-cols-4 gap-1.5">
+          {POT_FRACTION_PRESETS.map((f) => {
+            const preset = amountForFraction(f);
+            return (
+              <button
+                key={f}
+                type="button"
+                onClick={() => setRaiseTo(preset)}
+                className="rounded-lg border border-zinc-600 bg-zinc-800 py-2 text-xs font-bold text-zinc-100 tabular-nums hover:bg-zinc-700"
+              >
+                {Math.round(f * 100)}%
+              </button>
+            );
+          })}
           <button
             type="button"
-            onClick={() => dispatch({ type: "FOLD", seat: HERO_SEAT })}
-            className="rounded-lg border border-rose-700/60 bg-rose-950/30 px-4 py-2 text-xs font-bold uppercase text-rose-200 hover:bg-rose-900/40"
+            onClick={() => setRaiseTo(range.max)}
+            className="rounded-lg border border-amber-600/60 bg-amber-950/40 py-2 text-xs font-bold text-amber-200 hover:bg-amber-900/40"
           >
-            Fold
+            MAX
           </button>
-          {legal.canCheck ? (
-            <button
-              type="button"
-              onClick={() => dispatch({ type: "CHECK", seat: HERO_SEAT })}
-              className="rounded-lg border border-zinc-600 bg-zinc-800 px-4 py-2 text-xs font-bold uppercase text-zinc-100 hover:bg-zinc-700"
-            >
-              Check
-            </button>
-          ) : null}
-          {legal.canCall ? (
-            <button
-              type="button"
-              onClick={() => dispatch({ type: "CALL", seat: HERO_SEAT })}
-              className="rounded-lg border border-emerald-700/60 bg-emerald-950/30 px-4 py-2 text-xs font-bold uppercase text-emerald-200 hover:bg-emerald-900/40"
-            >
-              Call {fmt(legal.callAmount)}
-            </button>
-          ) : null}
-          {legal.canAllIn ? (
-            <button
-              type="button"
-              onClick={() => dispatch({ type: "ALL_IN", seat: HERO_SEAT })}
-              className="rounded-lg border border-amber-600/60 bg-amber-950/30 px-4 py-2 text-xs font-bold uppercase text-amber-200 hover:bg-amber-900/40"
-            >
-              All-In
-            </button>
-          ) : null}
-
-          {(legal.canBet || legal.canRaise) && range ? (
-            <div className="flex w-full items-center gap-2 pt-1 sm:w-auto">
-              <input
-                type="range"
-                min={range.min}
-                max={range.max}
-                step={range.step}
-                value={Math.min(Math.max(sliderValue, range.min), range.max)}
-                onChange={(e) => setRaiseTo(Number(e.target.value))}
-                className="w-40 accent-fuchsia-500"
-              />
-              <span className="w-16 text-xs text-zinc-300">{fmt(Math.min(Math.max(sliderValue, range.min), range.max))}</span>
-              <button
-                type="button"
-                onClick={() =>
-                  dispatch(
-                    legal.canBet
-                      ? { type: "BET", seat: HERO_SEAT, amount: Math.min(Math.max(sliderValue, range.min), range.max) }
-                      : { type: "RAISE", seat: HERO_SEAT, toAmount: Math.min(Math.max(sliderValue, range.min), range.max) },
-                  )
-                }
-                className="rounded-lg border border-fuchsia-600/60 bg-fuchsia-950/30 px-4 py-2 text-xs font-bold uppercase text-fuchsia-200 hover:bg-fuchsia-900/40"
-              >
-                {legal.canBet ? "Bet" : "Raise"} (Pot Limit Max {fmt(potMax)})
-              </button>
-            </div>
-          ) : null}
         </div>
+
+        <div className="mt-2 grid grid-cols-2 gap-1.5">
+          <button
+            type="button"
+            onClick={() => {
+              setSizing(false);
+              setRaiseTo(null);
+            }}
+            className="rounded-lg border border-zinc-700 bg-zinc-800/60 py-2.5 text-sm font-bold text-zinc-300 hover:bg-zinc-700/60"
+          >
+            취소
+          </button>
+          <button
+            type="button"
+            onClick={commit}
+            className="rounded-lg border border-fuchsia-500/60 bg-fuchsia-700/40 py-2.5 text-sm font-black text-fuchsia-100 hover:bg-fuchsia-600/40"
+          >
+            {legal.canBet ? "벳" : "레이즈"} {fmt(amount)}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="sticky bottom-0 z-20 grid grid-cols-3 gap-1.5 rounded-2xl border border-zinc-700/70 bg-zinc-950/85 p-1.5 shadow-xl backdrop-blur">
+      <button
+        type="button"
+        onClick={() => dispatch({ type: "FOLD", seat: HERO_SEAT })}
+        className="rounded-xl border border-zinc-700 bg-zinc-800/70 py-3 text-sm font-black text-zinc-200 hover:bg-zinc-700/70"
+      >
+        폴드
+      </button>
+
+      {legal.canCheck ? (
+        <button
+          type="button"
+          onClick={() => dispatch({ type: "CHECK", seat: HERO_SEAT })}
+          className="rounded-xl border border-sky-700/60 bg-sky-950/40 py-3 text-sm font-black text-sky-200 hover:bg-sky-900/40"
+        >
+          체크
+        </button>
+      ) : legal.canCall ? (
+        <button
+          type="button"
+          onClick={() => dispatch({ type: "CALL", seat: HERO_SEAT })}
+          className="rounded-xl border border-emerald-700/60 bg-emerald-950/40 py-3 text-sm font-black text-emerald-200 hover:bg-emerald-900/40"
+        >
+          <span className="block leading-tight">콜</span>
+          <span className="block text-[11px] font-bold tabular-nums opacity-80">{fmt(legal.callAmount)}</span>
+        </button>
+      ) : (
+        <button type="button" disabled className="rounded-xl border border-zinc-800 py-3 text-sm font-black text-zinc-700">
+          체크
+        </button>
+      )}
+
+      {/*
+        벳·레이즈가 불가능한 턴(레이즈 캡 도달, 콜조차 못 채우는 숏스택)에는 올인만 남는다.
+        그 자리를 비워 두면 3칸 배치가 무너지므로 같은 칸을 올인이 이어받는다.
+      */}
+      {canSize ? (
+        <button
+          type="button"
+          onClick={() => {
+            setRaiseTo(range!.min);
+            setSizing(true);
+          }}
+          className="rounded-xl border border-fuchsia-600/60 bg-fuchsia-950/40 py-3 text-sm font-black text-fuchsia-200 hover:bg-fuchsia-900/40"
+        >
+          {legal.canBet ? "벳" : "레이즈"}
+        </button>
+      ) : legal.canAllIn ? (
+        <button
+          type="button"
+          onClick={() => dispatch({ type: "ALL_IN", seat: HERO_SEAT })}
+          className="rounded-xl border border-amber-600/60 bg-amber-950/40 py-3 text-sm font-black text-amber-200 hover:bg-amber-900/40"
+        >
+          올인
+        </button>
+      ) : (
+        <button type="button" disabled className="rounded-xl border border-zinc-800 py-3 text-sm font-black text-zinc-700">
+          벳
+        </button>
       )}
     </div>
   );
