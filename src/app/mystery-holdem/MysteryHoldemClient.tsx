@@ -29,6 +29,7 @@ import {
   pickCardTargetForSeat,
 } from "@/mysteryHoldem/gameReducer";
 import { CARD_CATEGORY_LABEL, cardCategoryFromLegacy } from "@/mysteryHoldem/mysteryCard";
+import { missionSuccessSeatsFromLogs } from "@/mysteryHoldem/missionFeedback";
 import { MysteryCardPicker, cardRewardLabel } from "./MysteryCardPicker";
 import { positionLabelForSeat } from "@/mysteryHoldem/positions";
 import { scoreBreakdownForAll, survivalRewardForRank } from "@/mysteryHoldem/scoring";
@@ -76,6 +77,20 @@ function seatStyle(indexFromHero: number, total: number): React.CSSProperties {
  */
 function seatIsOnLowerHalf(indexFromHero: number, total: number): boolean {
   return Math.sin(Math.PI / 2 + (indexFromHero / total) * 2 * Math.PI) > 0;
+}
+
+/**
+ * 좌석에 공개되는 홀카드의 배율.
+ *
+ * 카드 크기를 하나로 고정하면 10인 테이블에서 이웃 좌석과 보드를 침범한다. 좌석이 늘수록
+ * 한 좌석에 주어지는 원주가 짧아지므로 배율도 같이 줄인다. 읽을 수 있는 하한(0.62)은
+ * 지켜서, 겹치지 않는 대신 숫자를 못 읽는 상태가 되지 않게 한다.
+ */
+function seatCardScale(seatCount: number): number {
+  if (seatCount <= 4) return 1;
+  if (seatCount <= 6) return 0.88;
+  if (seatCount <= 8) return 0.76;
+  return 0.68;
 }
 
 /** 칩 수집 연출 길이 — globals.css의 .mystery-chip-collect와 맞춰야 한다 */
@@ -388,6 +403,12 @@ export function MysteryHoldemClient() {
   const chips = useBetChipCollect(state);
   const heroFx = useHeroMadeHandFx(state, hero);
   const showdownFx = useShowdownMadeFx(state, chips.revealCards);
+  // 판정은 순수 함수(missionFeedback.ts)에 있다 — 성공률이 낮아 브라우저에서 우연히
+  // 뜨기를 기다릴 수 없어 테스트로 고정했다.
+  const missionSuccessSeats = React.useMemo(
+    () => (chips.revealCards ? missionSuccessSeatsFromLogs(state.logs) : new Set<Seat>()),
+    [state.logs, chips.revealCards],
+  );
 
   if (state.phase === "lobby" || hero == null) {
     return <LobbyScreen seatCount={seatCount} onSeatCount={setSeatCount} onStart={() => dispatch({ type: "START_MATCH", seatCount })} />;
@@ -429,8 +450,25 @@ export function MysteryHoldemClient() {
           커뮤니티 카드가 서로 겹친다. 세로에서는 테이블 자체를 세로로 세우고 좌석 타원도
           가로로 좁게 / 세로로 길게 바꾼다.
         */}
-        <div className="relative mx-auto my-14 aspect-[16/10] w-full max-w-3xl rounded-[999px] portrait:my-10 border-4 border-emerald-900/60 bg-gradient-to-b from-emerald-800/40 to-emerald-950/60 shadow-2xl [--bet-rx:31] [--bet-ry:25] [--seat-rx:53] [--seat-ry:52] portrait:aspect-[3/4] portrait:[--bet-rx:25] portrait:[--bet-ry:31] portrait:[--seat-rx:46] portrait:[--seat-ry:51]">
+        <div
+          style={{ "--seat-card-scale": seatCardScale(state.seatCount) } as React.CSSProperties}
+          className="relative mx-auto my-14 aspect-[16/10] w-full max-w-3xl rounded-[999px] portrait:my-10 border-4 border-emerald-900/60 bg-gradient-to-b from-emerald-800/40 to-emerald-950/60 shadow-2xl [--bet-rx:31] [--bet-ry:25] [--seat-rx:53] [--seat-ry:52] portrait:aspect-[3/4] portrait:[--bet-rx:25] portrait:[--bet-ry:31] portrait:[--seat-rx:46] portrait:[--seat-ry:51]">
           <div className="absolute inset-[10%] rounded-[999px] border border-emerald-700/40 bg-emerald-900/30" />
+
+          {/*
+            쇼다운 음영(기존 Select Hold'em의 결과 단계 연출과 같은 의도).
+
+            펠트만 살짝 눌러 액션 단계와 결과 단계의 분위기를 나눈다. 좌석·공개 카드·보드는
+            DOM 순서상 이 레이어보다 뒤에 오므로 그대로 밝게 남고, 시선이 공개된 정보로 모인다.
+            숫자를 못 읽을 만큼 어두워지면 안 되므로 35%로 제한했다.
+          */}
+          <div
+            aria-hidden
+            className={[
+              "pointer-events-none absolute inset-0 rounded-[999px] bg-zinc-950 transition-opacity duration-500",
+              chips.revealCards ? "opacity-35" : "opacity-0",
+            ].join(" ")}
+          />
 
           {/* 커뮤니티 카드 + 팟 (진행 정보는 보드 바로 위에) */}
           <div className="absolute left-1/2 top-[42%] flex -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-2 portrait:top-[48%]">
@@ -470,6 +508,7 @@ export function MysteryHoldemClient() {
                 isHero={p.seat === HERO_SEAT}
                 heroFx={p.seat === HERO_SEAT ? heroFx : (showdownFx.get(p.seat) ?? NO_MADE_FX)}
                 revealCards={chips.revealCards}
+                missionSuccess={missionSuccessSeats.has(p.seat)}
                 chipBelowBadge={!seatIsOnLowerHalf(idx, state.seatCount)}
                 showChip={chips.showSeatChips}
               />
@@ -899,6 +938,7 @@ function SeatView({
   state,
   style,
   isHero,
+  missionSuccess,
   heroFx,
   revealCards,
   chipBelowBadge,
@@ -908,6 +948,7 @@ function SeatView({
   state: MysteryGameState;
   style: React.CSSProperties;
   isHero: boolean;
+  missionSuccess: boolean;
   heroFx: HeroMadeFx;
   /** 카드를 공개할 시점인지 — 쇼다운이어도 칩 회수 연출이 끝나기 전에는 false */
   revealCards: boolean;
@@ -961,8 +1002,18 @@ function SeatView({
           {/* 칩은 안쪽 끝(팟에 가장 가까운 쪽)에 둬야 팟으로 모이는 연출이 자연스럽다 */}
           {!chipBelowBadge && chipAmount != null ? <BetChipStack amount={chipAmount} /> : null}
           {showCards ? (
-            // 세로 화면에서는 공개 카드를 축소해 좁은 테이블 폭 안에 머물게 한다.
-            <div className="flex origin-bottom gap-0.5 portrait:scale-[0.72]">
+            /*
+              배율은 테이블이 내려주는 --seat-card-scale을 따른다(좌석 수 기준). 세로 화면은
+              폭이 더 빠듯하므로 거기에 0.82를 더 곱한다. origin을 안쪽 방향으로 잡아야
+              줄어들 때 프로필 박스에서 멀어지지 않는다.
+            */
+            <div
+              className={[
+                "flex gap-0.5 scale-[var(--seat-card-scale)]",
+                "portrait:scale-[calc(var(--seat-card-scale)*0.82)]",
+                chipBelowBadge ? "origin-top" : "origin-bottom",
+              ].join(" ")}
+            >
               {/*
                 쇼다운에서는 상대 좌석도 메이드 연출을 받는다. 누가 무엇으로 이겼는지가
                 카드 숫자를 읽기 전에 전달되는 것이 이 연출의 목적이다. heroFx는 히어로면
@@ -988,7 +1039,10 @@ function SeatView({
 
         <div
           className={[
-          "flex min-w-[92px] flex-col items-center rounded-lg border px-2 py-1 text-center shadow portrait:min-w-[54px] portrait:px-1 portrait:py-0.5",
+          "relative flex min-w-[92px] flex-col items-center rounded-lg border px-2 py-1 text-center shadow portrait:min-w-[54px] portrait:px-1 portrait:py-0.5",
+          // 미션 성공은 프로필 박스 테두리만 짧게 달군다. 좌석마다 독립적으로 재생되므로
+          // 여러 명이 동시에 성공해도 각자 자기 박스 안에서만 움직인다.
+          missionSuccess ? "mystery-mission-success" : "",
             player.busted
               ? "border-zinc-800 bg-zinc-900/70 opacity-50"
               : isActing
@@ -1011,6 +1065,19 @@ function SeatView({
             <span className="text-[10px] text-amber-400 portrait:text-[9px]">All-In</span>
           ) : null}
           {/* 베팅 금액은 프로필 박스가 아니라 테이블 위 칩(BetChipStack)으로 보여준다 */}
+
+          {/*
+            "미션 성공" 라벨. absolute라 박스 높이를 밀지 않으므로 레이아웃이 흔들리지 않는다.
+            세로 화면에서는 더 작게 — 모바일에서 이 라벨이 이웃 좌석까지 넘어가면 안 된다.
+          */}
+          {missionSuccess ? (
+            <span
+              className="mystery-mission-success-label pointer-events-none absolute -top-2 left-1/2 whitespace-nowrap rounded-full bg-amber-400 px-1.5 py-px text-[9px] font-black leading-tight text-zinc-950 shadow-lg portrait:text-[8px]"
+              aria-live="polite"
+            >
+              미션 성공
+            </span>
+          ) : null}
         </div>
 
 

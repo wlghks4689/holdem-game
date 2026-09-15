@@ -87,6 +87,11 @@ const checks = [
     label: "MysteryHoldem maker one-card/SF",
     file: "scripts/verify-mystery-maker-onecard.ts",
   },
+  {
+    group: "mystery",
+    label: "MysteryHoldem mission feedback",
+    file: "scripts/verify-mystery-mission-feedback.ts",
+  },
   { group: "mystery", label: "MysteryHoldem four card", file: "scripts/verify-mystery-fourcard.ts" },
   { group: "mystery", label: "MysteryHoldem pot-limit", file: "scripts/verify-mystery-potlimit.ts" },
   {

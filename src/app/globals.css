@@ -2346,3 +2346,68 @@ body {
   mask-composite: intersect;
 }
 
+
+/* ───────────── MysteryHoldem: 미션 성공 피드백 ─────────────
+   미션형 Mystery Card를 성공한 좌석에만 붙는 짧은 연출.
+
+   프로필 박스 "안"에서만 움직이도록 크기를 묶어 둔다. 한 핸드에 여러 명이 동시에 성공할 수
+   있는데, 박스 밖으로 튀어나오는 연출이 겹치면 테이블이 순식간에 읽을 수 없게 된다.
+   그래서 배지 테두리 글로우와 작은 라벨 하나로 제한하고, 1.6초 안에 끝낸다. */
+.mystery-mission-success {
+  animation: mystery-mission-success-glow 1.6s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes mystery-mission-success-glow {
+  0% {
+    box-shadow: 0 0 0 0 rgba(251, 191, 36, 0);
+    border-color: rgba(251, 191, 36, 0.35);
+  }
+  18% {
+    box-shadow: 0 0 14px 2px rgba(251, 191, 36, 0.75);
+    border-color: rgba(251, 191, 36, 1);
+  }
+  60% {
+    box-shadow: 0 0 10px 1px rgba(251, 191, 36, 0.45);
+    border-color: rgba(251, 191, 36, 0.85);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(251, 191, 36, 0);
+    border-color: rgba(251, 191, 36, 0.35);
+  }
+}
+
+/* 라벨은 짧게 떠올랐다 사라진다. 자리를 차지하지 않도록 absolute로 띄운다. */
+.mystery-mission-success-label {
+  animation: mystery-mission-success-label 1.6s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes mystery-mission-success-label {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, 4px) scale(0.8);
+  }
+  15% {
+    opacity: 1;
+    transform: translate(-50%, 0) scale(1.06);
+  }
+  25% {
+    transform: translate(-50%, 0) scale(1);
+  }
+  75% {
+    opacity: 1;
+    transform: translate(-50%, 0) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -3px) scale(0.96);
+  }
+}
+
+/* 모션을 줄이기로 한 사용자에게는 깜빡임 없이 정적으로 보여준다. */
+@media (prefers-reduced-motion: reduce) {
+  .mystery-mission-success,
+  .mystery-mission-success-label {
+    animation-duration: 1ms;
+    animation-iteration-count: 1;
+  }
+}
