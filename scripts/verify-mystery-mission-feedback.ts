@@ -25,7 +25,7 @@ const roundStart = (round: number): MysteryGameMessage => ({ t: "round_start", r
   const logs: MysteryGameMessage[] = [
     roundStart(3),
     result(0, "maker_flush", true, findMissionDef("maker_flush")!.reward), // 미션형 ✓
-    result(1, "maker_set", false, 0), // 실패
+    result(1, "maker_straight", false, 0), // 실패
     result(2, "four_card", true, 0), // 강화형 — 대상 아님
     result(3, "forced_split", true, 0), // 발동형 — 대상 아님
     result(4, "cooler_insurance", true, 400), // 발동형 — 점수가 있어도 대상 아님
@@ -39,7 +39,7 @@ const roundStart = (round: number): MysteryGameMessage => ({ t: "round_start", r
 {
   const logs: MysteryGameMessage[] = [
     roundStart(7),
-    result(0, "maker_set", true, 120),
+    result(0, "maker_straight", true, 180),
     result(2, "maker_straight", true, 180),
     result(5, "blind_defender", true, 60),
   ];

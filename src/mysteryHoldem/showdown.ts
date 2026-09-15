@@ -1,5 +1,5 @@
 import type { Card } from "@/holdem/cards";
-import { HAND_RANK, compareHandValue, type HandValue } from "@/holdem/pokerEval";
+import { HAND_RANK, compareHandValue, evaluate5, type HandValue } from "@/holdem/pokerEval";
 import { MYSTERY_HOLDEM_CONFIG } from "./config";
 import { bestHandStandard } from "./handEval";
 import { seatOrderFrom } from "./positions";
@@ -13,6 +13,24 @@ export function computeBestHandForPlayer(p: PlayerState, board: readonly Card[])
     return specialRule.evaluateBestHand(p.holeCards, board);
   }
   return bestHandStandard(p.holeCards, board);
+}
+
+/**
+ * 이 족보가 **커뮤니티 5장만으로 나오는 족보보다 나은가** — 곧 "내 홀카드가 쓰였는가".
+ *
+ * Maker 계열과 Ace High Like a Boss가 쓴다. 보드에 이미 스트레이트가 깔린 핸드에서는
+ * 참가자 전원의 최종 족보가 그 보드 스트레이트라, 아무것도 하지 않은 사람까지 Straight
+ * Maker를 성공시켜 버린다.
+ *
+ * 사용된 5장을 직접 비교하지 않는 이유는 동률 조합이 여러 개일 때(예: 보드 스트레이트와
+ * 같은 값을 내 카드로도 만들 수 있을 때) 어느 조합을 골랐느냐에 따라 답이 달라지기
+ * 때문이다. "보드보다 나아졌는가"는 조합 선택과 무관하게 일정하다.
+ *
+ * 보드가 5장 미만이면 보드만으로는 족보가 성립하지 않으므로 항상 true다(폴드 승리 등).
+ */
+export function handImprovesOnBoard(best: HandValue, board: readonly Card[]): boolean {
+  if (board.length < 5) return true;
+  return compareHandValue(best, evaluate5(board.slice(0, 5) as Card[])) > 0;
 }
 
 /**

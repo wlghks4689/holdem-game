@@ -121,6 +121,9 @@ export function makeMissionCtx(overrides: Partial<MissionEvalContext> = {}): Mis
     opponentMissionAchievers: [],
     targetSeat: null,
     potRuleTriggered: false,
+    // 기본값 true — 테스트 대부분은 "내 홀카드로 만든 족보"를 전제한다.
+    // 보드 그대로 쓰는 경우를 검증할 때만 false로 덮어쓴다.
+    improvesOnBoard: true,
     extraHandActive: false,
     ...overrides,
   };

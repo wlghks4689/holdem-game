@@ -92,6 +92,11 @@ const checks = [
     label: "MysteryHoldem mission feedback",
     file: "scripts/verify-mystery-mission-feedback.ts",
   },
+  {
+    group: "mystery",
+    label: "MysteryHoldem board-play exclusion",
+    file: "scripts/verify-mystery-board-play.ts",
+  },
   { group: "mystery", label: "MysteryHoldem four card", file: "scripts/verify-mystery-fourcard.ts" },
   { group: "mystery", label: "MysteryHoldem pot-limit", file: "scripts/verify-mystery-potlimit.ts" },
   {

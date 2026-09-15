@@ -87,6 +87,17 @@ export interface MissionEvalContext {
    * 카드를 들고만 있고 승자가 그대로였다면 false다.
    */
   potRuleTriggered: boolean;
+  /**
+   * 최종 족보가 **커뮤니티 5장만으로 나오는 족보보다 나은가**.
+   *
+   * "내 홀카드를 쓴 족보인가"를 판정하는 값이다. 보드에 이미 스트레이트가 깔려 모두가 그
+   * 보드를 그대로 쓰는 경우, 아무것도 안 했는데 Straight Maker가 성공해 버린다. 사용한
+   * 카드 목록을 직접 비교하지 않는 이유는 동률 조합이 여러 개일 때 어느 5장을 골랐느냐에
+   * 따라 답이 달라지기 때문이다 — "보드보다 나아졌는가"는 조합 선택과 무관하게 일정하다.
+   *
+   * 보드가 5장 미만이면(폴드 승리 등) 보드만으로는 족보가 성립하지 않으므로 항상 true다.
+   */
+  improvesOnBoard: boolean;
   extraHandActive: boolean;
 }
 

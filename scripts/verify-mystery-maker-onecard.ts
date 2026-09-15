@@ -122,7 +122,7 @@ function achieves(def: typeof STRAIGHT_MAKER, hole: Card[], board: Card[]): bool
 
 // ─────────────── 확정된 보상값 ───────────────
 {
-  assert.equal(findMissionDef("maker_set")!.reward, 120);
+  assert.equal(findMissionDef("maker_set"), undefined, "Set Miner는 삭제됐다");
   assert.equal(STRAIGHT_MAKER.reward, 180);
   assert.equal(FLUSH_MAKER.reward, 240);
 }

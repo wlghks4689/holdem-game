@@ -23,25 +23,40 @@ import type { MysteryGameState, Seat } from "../src/mysteryHoldem/types";
 
 // ─────────────── Maker 계열: 정확히 그 족보만 ───────────────
 {
-  const set = findMissionDef("maker_set")!;
+  const straight = findMissionDef("maker_straight")!;
   const hv = (rank: number) => ({ rank, kickers: [10, 9, 8, 7, 6] });
 
-  assert.equal(set.condition(makeMissionCtx({ bestHandValue: hv(HAND_RANK.TRIPS) })), true);
+  assert.equal(straight.condition(makeMissionCtx({ bestHandValue: hv(HAND_RANK.STRAIGHT) })), true);
   assert.equal(
-    set.condition(makeMissionCtx({ bestHandValue: hv(HAND_RANK.FULL_HOUSE) })),
+    straight.condition(makeMissionCtx({ bestHandValue: hv(HAND_RANK.FLUSH) })),
     false,
-    "트립스가 풀하우스로 발전하면 Set Miner는 실패한다(§6)",
+    "스트레이트가 플러시로 발전하면 Straight Maker는 실패한다(§7)",
   );
-  assert.equal(set.condition(makeMissionCtx({ bestHandValue: hv(HAND_RANK.TWO_PAIR) })), false);
+  assert.equal(straight.condition(makeMissionCtx({ bestHandValue: hv(HAND_RANK.TWO_PAIR) })), false);
   // 승패는 관계없다 — 지고도 성공한다.
   assert.equal(
-    set.condition(makeMissionCtx({ bestHandValue: hv(HAND_RANK.TRIPS), wonAnyPot: false })),
+    straight.condition(makeMissionCtx({ bestHandValue: hv(HAND_RANK.STRAIGHT), wonAnyPot: false })),
     true,
   );
   // 쇼다운에 도달하지 못하면 족보와 무관하게 실패한다.
   assert.equal(
-    set.condition(makeMissionCtx({ bestHandValue: hv(HAND_RANK.TRIPS), wentToShowdown: false })),
+    straight.condition(makeMissionCtx({ bestHandValue: hv(HAND_RANK.STRAIGHT), wentToShowdown: false })),
     false,
+  );
+  // 보드에 깔린 스트레이트를 그대로 쓴 경우는 인정하지 않는다 — 내 홀카드가 만든 족보가 아니다.
+  assert.equal(
+    straight.condition(
+      makeMissionCtx({ bestHandValue: hv(HAND_RANK.STRAIGHT), improvesOnBoard: false }),
+    ),
+    false,
+    "보드 스트레이트를 그대로 쓰면 Straight Maker는 실패한다",
+  );
+  assert.equal(
+    findMissionDef("maker_flush")!.condition(
+      makeMissionCtx({ bestHandValue: hv(HAND_RANK.FLUSH), improvesOnBoard: false }),
+    ),
+    false,
+    "보드 플러시를 그대로 쓰면 Flush Maker는 실패한다",
   );
 
   // Maker 구간은 스티플을 뺀 모든 족보에서 겹치지 않는다.
@@ -49,7 +64,7 @@ import type { MysteryGameState, Seat } from "../src/mysteryHoldem/types";
   // 스티플만 예외로 여러 장이 동시에 성공한다. 스티플은 스트레이트이면서 플러시이고
   // 풀하우스 이상이기도 한데, 이걸 실패로 처리하면 "노리던 족보를 더 크게 만들었더니
   // 미션이 깨지는" 함정이 된다.
-  const makers = ["maker_set", "maker_straight", "maker_flush", "maker_high_end"].map(
+  const makers = ["maker_straight", "maker_flush", "maker_high_end"].map(
     (id) => findMissionDef(id)!,
   );
   for (const rank of Object.values(HAND_RANK)) {
@@ -64,7 +79,6 @@ import type { MysteryGameState, Seat } from "../src/mysteryHoldem/types";
     assert.equal(findMissionDef("maker_straight")!.condition(sf), true, "스티플은 스트레이트로 인정");
     assert.equal(findMissionDef("maker_flush")!.condition(sf), true, "스티플은 플러시로 인정");
     assert.equal(findMissionDef("maker_high_end")!.condition(sf), true);
-    assert.equal(findMissionDef("maker_set")!.condition(sf), false, "트립스는 스티플과 무관");
   }
 }
 
@@ -242,7 +256,15 @@ import type { MysteryGameState, Seat } from "../src/mysteryHoldem/types";
     def.condition(makeMissionCtx({ wonAnyPot: false, boardRevealed: 5, bestHandValue: highCard })),
     false,
   );
-  assert.equal(def.reward, 600);
+  assert.equal(def.reward, 500);
+  // 보드 하이카드를 그대로 쓴 승리는 인정하지 않는다.
+  assert.equal(
+    def.condition(
+      makeMissionCtx({ wonAnyPot: true, boardRevealed: 5, bestHandValue: highCard, improvesOnBoard: false }),
+    ),
+    false,
+    "보드 하이카드를 그대로 쓰면 실패한다",
+  );
 }
 
 // ─────────────── Bounty Hunter: 최종 Bounty Reward 자체가 ×3 ───────────────
@@ -317,10 +339,10 @@ import type { MysteryGameState, Seat } from "../src/mysteryHoldem/types";
   assert.equal(hunted, base * 3, `Bounty Hunter 보유 시 ${base} → ${base * 3}`);
 }
 
-// ─────────────── 8장 모두가 미션형으로 선언되어 있다 ───────────────
+// ─────────────── 미션형 카드가 전부 미션형으로 선언되어 있다 ───────────────
 {
   const missionCardIds = [
-    "maker_set", "maker_straight", "maker_flush", "maker_high_end",
+    "maker_straight", "maker_flush", "maker_high_end",
     "blind_defender", "underdog", "high_card_boss", "bounty_hunter",
   ];
   for (const id of missionCardIds) {
@@ -331,4 +353,7 @@ import type { MysteryGameState, Seat } from "../src/mysteryHoldem/types";
   }
 }
 
-console.log("OK: mystery card 미션형 8장");
+// Set Miner는 삭제됐다 — 조건이 애매하고 기대 점수도 낮았다.
+assert.equal(findMissionDef("maker_set"), undefined, "Set Miner는 풀에서 제거되어야 한다");
+
+console.log("OK: mystery card 미션형 7장");

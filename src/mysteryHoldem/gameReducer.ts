@@ -29,7 +29,7 @@ import {
   resolveRoundLimitResult,
   survivalPointsBySeat,
 } from "./scoring";
-import { awardAllPotsToSingleWinner, awardPots, computeBestHandForPlayer, mergeAwardAmounts, type PotAward } from "./showdown";
+import { awardAllPotsToSingleWinner, awardPots, computeBestHandForPlayer, handImprovesOnBoard, mergeAwardAmounts, type PotAward } from "./showdown";
 import { specialRuleFor } from "./specialRules";
 import type {
   BettingState,
@@ -807,6 +807,8 @@ function finishHandSettlement(
     );
   }
 
+
+
   const missionInputs: MissionResolutionInput[] = [];
   for (const seat of handSeats) {
     const p = players.find((x) => x.seat === seat)!;
@@ -843,6 +845,10 @@ function finishHandSettlement(
       opponentMissionAchievers: [],
       targetSeat: p.mission.targetSeat,
       potRuleTriggered: potRuleTriggeredSeats.has(seat),
+      improvesOnBoard: (() => {
+        const mine = bestHandBySeat.get(seat);
+        return mine != null && handImprovesOnBoard(mine, state.board.slice(0, state.boardRevealed));
+      })(),
       extraHandActive: p.mission.def.specialRule === "extra_hand_four_card",
     };
     missionInputs.push({ seat, mission: p.mission, ctx });

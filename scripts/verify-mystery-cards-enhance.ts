@@ -19,7 +19,7 @@ import type { MysteryGameState, PlayerState, Pot, Seat } from "../src/mysteryHol
 const FORCED_SPLIT = findMissionDef("forced_split")!;
 const TRUE_SIGHT = findMissionDef("true_sight")!;
 const FOUR_CARD = findMissionDef("four_card")!;
-const SET_MINER = findMissionDef("maker_set")!;
+const MISSION_CARD = findMissionDef("underdog")!;
 
 const C = (rank: number, suit: string): Card => ({ rank, suit }) as Card;
 
@@ -178,13 +178,13 @@ function award(players: PlayerState[], pots: Pot[]) {
     players: state.players.map((p) =>
       p.seat === 0
         ? { ...p, mission: missionStateOf(TRUE_SIGHT) }
-        : { ...p, mission: missionStateOf(SET_MINER) },
+        : { ...p, mission: missionStateOf(MISSION_CARD) },
     ),
   };
 
   const mine = trueSightRevealedCards(state, 0);
   assert.equal(mine.length, 3, "팟에 남은 상대 3명의 카드가 보여야 한다");
-  assert.ok(mine.every((r) => r.cardName === SET_MINER.name));
+  assert.ok(mine.every((r) => r.cardName === MISSION_CARD.name));
   assert.ok(mine.every((r) => r.seat !== 0), "자기 자신은 포함하지 않는다");
 
   // 상대 좌석에서 같은 함수를 호출하면 아무것도 나오지 않는다 — 공개 사실조차 드러나지 않는다.
@@ -215,7 +215,8 @@ function award(players: PlayerState[], pots: Pot[]) {
 {
   assert.equal(TRUE_SIGHT.reward, 30);
   assert.equal(TRUE_SIGHT.category, "enhancement");
-  assert.equal(TRUE_SIGHT.replacementRule, "on_pot_win", "팟 승리 시에만 교체(§17)");
+  // 정보를 한 번 본 시점에 값어치를 다 쓴다 — 팟 승패와 무관하게 1회 사용 후 교체한다.
+  assert.equal(TRUE_SIGHT.replacementRule, "on_trigger", "1회 사용 후 교체(§17)");
   assert.equal(TRUE_SIGHT.condition(makeMissionCtx({ boardRevealed: 3 })), true);
   assert.equal(TRUE_SIGHT.condition(makeMissionCtx({ boardRevealed: 0 })), false);
   assert.equal(TRUE_SIGHT.condition(makeMissionCtx({ boardRevealed: 5, folded: true })), false);
@@ -231,10 +232,10 @@ function award(players: PlayerState[], pots: Pot[]) {
   assert.equal(FOUR_CARD.condition(makeMissionCtx({ extraHandActive: false })), false);
 }
 
-// ─────────────── 풀 구성: 기획서의 14장(Forced Exchange 제외) ───────────────
+// ─────────────── 풀 구성: 13장(Forced Exchange 제외, Set Miner 삭제) ───────────────
 {
-  // §5~§18에 정의된 14장이 기본 풀이고, §19의 Forced Exchange만 이번 버전에서 빠진다.
-  assert.equal(MISSION_POOL.length, 14, "기본 풀은 14장이어야 한다(§4)");
+  // §19의 Forced Exchange는 미구현이고, Set Miner는 조건이 애매해 삭제했다.
+  assert.equal(MISSION_POOL.length, 13, "기본 풀은 13장이어야 한다(§4)");
   assert.ok(
     !MISSION_POOL.some((m) => m.id.includes("exchange")),
     "Forced Exchange는 타입·설정·후보 추첨 어디에도 없어야 한다(§19)",
@@ -245,8 +246,8 @@ function award(players: PlayerState[], pots: Pot[]) {
   }, {});
   assert.deepEqual(
     byCategory,
-    { mission: 9, trigger: 3, enhancement: 2 },
-    "미션형 9(Parasite 포함) / 발동형 3 / 강화형 2",
+    { mission: 7, trigger: 4, enhancement: 2 },
+    "미션형 7 / 발동형 4(Parasite 포함) / 강화형 2",
   );
 
   // 레거시 Mission id가 하나도 남아 있으면 안 된다(§24).

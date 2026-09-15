@@ -24,7 +24,6 @@ const ctxWith = (rank: number, extra = {}) =>
 // ── Maker 계열: 정확히 한 족보만 인정한다 ──
 {
   const cases: [string, number][] = [
-    ["maker_set", HAND_RANK.TRIPS],
     ["maker_straight", HAND_RANK.STRAIGHT],
     ["maker_flush", HAND_RANK.FLUSH],
   ];
@@ -71,9 +70,9 @@ const ctxWith = (rank: number, extra = {}) =>
 
 // ── 고정 보상 카드는 ctx와 무관하게 같은 값을 준다 ──
 {
-  const set = findMissionDef("maker_set")!;
-  assert.equal(resolveMissionReward(set, ctxWith(HAND_RANK.TRIPS)), set.reward);
-  assert.equal(resolveMissionReward(set, ctxWith(HAND_RANK.QUADS)), set.reward);
+  const straight = findMissionDef("maker_straight")!;
+  assert.equal(resolveMissionReward(straight, ctxWith(HAND_RANK.STRAIGHT)), straight.reward);
+  assert.equal(resolveMissionReward(straight, ctxWith(HAND_RANK.QUADS)), straight.reward);
 }
 
 // (Mission Breaker / Parasite의 상호작용은 verify-mystery-cards-trigger.ts에서 검증한다.)

@@ -6,7 +6,7 @@ import {
   mysteryHoldemReducer,
 } from "../src/mysteryHoldem/gameReducer";
 import { resolveMissionsForHand } from "../src/mysteryHoldem/missionResolver";
-import { PARASITE_MIN_REWARD, findMissionDef } from "../src/mysteryHoldem/mysteryMissions";
+import { PARASITE_BONUS_REWARD, findMissionDef } from "../src/mysteryHoldem/mysteryMissions";
 import {
   autoCompleteHandSetup,
   dispatch,
@@ -25,7 +25,7 @@ const COOLER = findMissionDef("cooler_insurance")!;
 const BREAKER = findMissionDef("card_breaker")!;
 const PARASITE = findMissionDef("parasite")!;
 const FLUSH_MAKER = findMissionDef("maker_flush")!; // 240
-const SET_MINER = findMissionDef("maker_set")!; // 120
+const STRAIGHT_MAKER = findMissionDef("maker_straight")!; // 180
 const FOUR_CARD = findMissionDef("four_card")!; // 강화형
 
 const hv = (rank: number) => ({ rank, kickers: [10, 9, 8, 7, 6] });
@@ -198,7 +198,7 @@ function parasiteScenario(targetCard: typeof FLUSH_MAKER, targetRank: number) {
 {
   // 대상의 점수를 그대로 복제한다.
   const rows = parasiteScenario(FLUSH_MAKER, HAND_RANK.FLUSH);
-  assert.equal(rows.find((r) => r.seat === 0)!.reward, FLUSH_MAKER.reward);
+  assert.equal(rows.find((r) => r.seat === 0)!.reward, FLUSH_MAKER.reward + PARASITE_BONUS_REWARD);
   // 복제일 뿐 강탈이 아니다 — 원본은 그대로 받는다.
   assert.equal(
     rows.find((r) => r.seat === 1)!.reward,
@@ -208,22 +208,26 @@ function parasiteScenario(targetCard: typeof FLUSH_MAKER, targetRank: number) {
 }
 
 {
-  // Set Miner가 120점으로 올라 최소 보상(100)을 넘으므로 복제값이 그대로 나온다.
-  const rows = parasiteScenario(SET_MINER, HAND_RANK.TRIPS);
+  // 복제액은 대상의 점수 + 고정 추가 점수다. 복제만으로는 원본과 같은 점수라
+  // "지정하고 쇼다운까지 간" 값을 치른 보람이 없다.
+  const rows = parasiteScenario(STRAIGHT_MAKER, HAND_RANK.STRAIGHT);
   assert.equal(
     rows.find((r) => r.seat === 0)!.reward,
-    Math.max(PARASITE_MIN_REWARD, SET_MINER.reward),
+    STRAIGHT_MAKER.reward + PARASITE_BONUS_REWARD,
   );
-  assert.equal(rows.find((r) => r.seat === 1)!.reward, SET_MINER.reward);
+  assert.equal(rows.find((r) => r.seat === 1)!.reward, STRAIGHT_MAKER.reward);
 }
 
 // ─────────────── §11 연쇄: A=Breaker→B, B=Parasite→C, C=Straight Maker ───────────────
+//
+// Parasite가 발동형이 되면서 Breaker는 Parasite를 막지 못한다 — Breaker는 **미션형** 결과만
+// 차단하기 때문이다("강화형·발동형 효과는 막지 못합니다"). 그래서 A는 실패하고 B는 복제액을
+// 그대로 받는다. 이 연쇄가 좌석 순서와 무관하게 같은 답을 낸다는 점은 그대로 확인한다.
 {
-  const STRAIGHT_MAKER = findMissionDef("maker_straight")!; // 180
   const entries = [
     {
       seat: 2, // C
-      mission: missionStateOf(STRAIGHT_MAKER, 3),
+      mission: missionStateOf(STRAIGHT_MAKER!, 3),
       ctx: makeMissionCtx({
         seat: 2,
         bestHandValue: hv(HAND_RANK.STRAIGHT),
@@ -256,8 +260,16 @@ function parasiteScenario(targetCard: typeof FLUSH_MAKER, targetRank: number) {
       STRAIGHT_MAKER.reward,
       "C는 Straight Maker 점수를 정상 획득",
     );
-    assert.equal(rows.find((r) => r.seat === 1)!.reward, 0, "B의 Parasite는 Break당해 0점");
-    assert.equal(rows.find((r) => r.seat === 0)!.reward, 150, "A는 Breaker 성공 +150");
+    assert.equal(
+      rows.find((r) => r.seat === 1)!.reward,
+      STRAIGHT_MAKER.reward + PARASITE_BONUS_REWARD,
+      "B의 Parasite는 발동형이라 Break당하지 않는다",
+    );
+    assert.equal(
+      rows.find((r) => r.seat === 0)!.reward,
+      0,
+      "A의 Breaker는 발동형(Parasite)을 지정했으므로 실패한다",
+    );
   };
 
   check(resolveMissionsForHand(entries));

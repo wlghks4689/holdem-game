@@ -9,15 +9,17 @@ import type { MissionEvalContext, MysteryMissionDef, Seat } from "./types";
  * 보상(reward/rewardFor)·교체 규칙(replacementRule)·부가 효과(onAchieved)를 들고 있는
  * 데이터 중심 설계다(§30).
  *
- * 기획서의 14장 중 Forced Exchange(§19)를 제외한 **13장이 모두 새 정의**다.
- * 미션형 8 / 발동형 3 / 강화형 2.
+ * 13장. 미션형 6 / 발동형 5 / 강화형 2.
+ *
+ * Set Miner는 삭제했다 — "정확히 트립스"라는 조건이 애매한 데다 기대 점수도 낮았다.
  */
 
 /**
- * Parasite 복제 하한(§11). 대상의 점수를 그대로 가져오되, 90점짜리 미션을 복제해도
- * "지정하고 쇼다운까지 간" 비용을 밑돌지 않도록 바닥을 둔다.
+ * Parasite 추가 점수(§11). 대상의 미션 점수를 그대로 복제한 뒤 이만큼 더 얹는다.
+ * 하한(최소 100점) 방식에서 바뀐 값이다 — 복제만으로는 "지정하고 쇼다운까지 간" 값을
+ * 치르고도 원본과 같은 점수라, 굳이 이 카드를 고를 이유가 없었다.
  */
-export const PARASITE_MIN_REWARD = 100;
+export const PARASITE_BONUS_REWARD = 150;
 
 /**
  * High-End Maker 보상표(§9). 기존 HAND_RANK_WEIGHT 기반의 "숨은 배수" 계산을 없애고
@@ -39,6 +41,9 @@ export const HIGH_END_REWARD_BY_HAND_RANK: Record<number, number> = {
  * 스트레이트 플러시만 예외다(includeStraightFlush). 스티플은 스트레이트이면서 플러시인데,
  * 이걸 실패로 처리하면 "노리던 것을 더 크게 만들었더니 미션이 깨지는" 함정이 된다.
  * 족보를 노리다 완성한 사람이 손해를 보는 규칙은 카드의 목적과 정면으로 어긋난다.
+ *
+ * 또한 **내 홀카드가 실제로 쓰인 족보**여야 한다(improvesOnBoard). 보드에 스트레이트가
+ * 깔려 모두가 그 보드를 그대로 쓰는 핸드에서는 아무것도 하지 않은 사람까지 성공해 버린다.
  */
 function exactMakerCard(opts: {
   id: string;
@@ -58,6 +63,7 @@ function exactMakerCard(opts: {
     trigger: "hand_result(showdown)",
     condition: (ctx) => {
       if (!ctx.wentToShowdown || ctx.bestHandValue == null) return false;
+      if (!ctx.improvesOnBoard) return false;
       const rank = ctx.bestHandValue.rank;
       if (rank === opts.rank) return true;
       return opts.includeStraightFlush === true && rank === HAND_RANK.STRAIGHT_FLUSH;
@@ -81,19 +87,11 @@ function wonAnyPotAsUnderdog(ctx: MissionEvalContext): boolean {
 export const MISSION_POOL: MysteryMissionDef[] = [
   // ─────────────── 미션형(§6~§9, §12~§13, §15~§16) ───────────────
   exactMakerCard({
-    id: "maker_set",
-    name: "SET MINER",
-    description: "쇼다운에서 최종 족보가 정확히 트립스면 성공합니다. 승패는 관계없습니다.",
-    shortDescription: "쇼다운에서 최종 족보를 정확히 트립스로 만드세요.",
-    rank: HAND_RANK.TRIPS,
-    reward: 120,
-  }),
-  exactMakerCard({
     id: "maker_straight",
     name: "STRAIGHT MAKER",
     description:
-      "쇼다운에서 최종 족보가 스트레이트면 성공합니다. 스트레이트 플러시도 인정합니다. 승패는 관계없습니다.",
-    shortDescription: "쇼다운에서 최종 족보를 스트레이트로 만드세요.",
+      "스트레이트 플러시 메이드 시에도 인정. 승패는 관계없이 최종 쇼다운에서 자신의 홀 카드를 사용한 최종 족보가 스트레이트면 성공합니다. (단 보드 플러시, 보드 풀 하우스 등 커뮤니티 카드의 더 높은 made가 완성되어 내 족보가 지워지는 경우는 인정되지 않습니다.)",
+    shortDescription: "스트레이트를 메이드 후 쇼다운 된 경우 성공",
     rank: HAND_RANK.STRAIGHT,
     reward: 180,
     includeStraightFlush: true,
@@ -102,8 +100,8 @@ export const MISSION_POOL: MysteryMissionDef[] = [
     id: "maker_flush",
     name: "FLUSH MAKER",
     description:
-      "쇼다운에서 최종 족보가 플러시면 성공합니다. 스트레이트 플러시도 인정합니다. 승패는 관계없습니다.",
-    shortDescription: "쇼다운에서 최종 족보를 플러시로 만드세요.",
+      "스트레이트 플러시 메이드 시에도 인정. 승패는 관계없이 최종 쇼다운에서 자신의 홀 카드를 사용한 최종 족보가 플러시면 성공합니다. (단 보드 풀 하우스, 보드 포카드 등 커뮤니티 카드의 더 높은 made가 완성되어 내 족보가 지워지는 경우는 인정되지 않습니다.)",
+    shortDescription: "플러시를 메이드 후 쇼다운 된 경우 성공",
     rank: HAND_RANK.FLUSH,
     reward: 240,
     includeStraightFlush: true,
@@ -136,7 +134,7 @@ export const MISSION_POOL: MysteryMissionDef[] = [
     category: "mission",
     description:
       "SB 또는 BB 포지션에서 팟을 승리합니다. 쇼다운 승리뿐 아니라 상대 전원 폴드로 얻은 팟도 인정합니다.",
-    shortDescription: "SB 또는 BB 포지션에서 팟을 이기세요. 상대 전원 폴드도 인정합니다.",
+    shortDescription: "SB 또는 BB 포지션에서 팟을 이기세요. 상대 전원 폴드도 성공.",
     trigger: "hand_result(win)",
     condition: (ctx) => (ctx.position === "SB" || ctx.position === "BB") && ctx.wonAnyPot,
     reward: 40,
@@ -150,8 +148,8 @@ export const MISSION_POOL: MysteryMissionDef[] = [
     name: "UNDERDOG",
     category: "mission",
     description:
-      "쇼다운 참가자 중 프리플랍 핸드 랭킹이 가장 낮은 상태로 팟을 승리합니다. 공동 최하위도 인정합니다.",
-    shortDescription: "쇼다운 참가자 중 프리플랍 핸드가 가장 약한 상태로 팟을 이기세요.",
+      "쇼다운 참가자 중 프리플랍 핸드 랭킹이 가장 낮은 상태로 팟을 승리합니다. 공동 최하위도 인정합니다. 게임 내 핸드 랭킹을 기준으로 합니다.",
+    shortDescription: "함께 쇼다운 된 핸드 중 프리플랍 핸드가 가장 약한 상태로 팟을 승리하면 성공",
     trigger: "hand_result(showdown+win)",
     condition: (ctx) => ctx.wentToShowdown && ctx.wonAnyPot && wonAnyPotAsUnderdog(ctx),
     reward: 120,
@@ -162,15 +160,17 @@ export const MISSION_POOL: MysteryMissionDef[] = [
     name: "ACE HIGH LIKE A BOSS",
     category: "mission",
     description:
-      "메이드 없이 하이카드 상태로 팟을 승리합니다. 상대 전원 폴드·쇼다운 승리·스플릿 모두 인정하지만, 커뮤니티 카드가 한 장도 열리지 않은 프리플랍 승리는 제외합니다.",
-    shortDescription: "메이드 없이 하이카드 상태로 팟을 이기세요.",
+      "메이드 없이 하이카드 상태로 팟을 승리합니다. 상대 전원 폴드·쇼다운 승리·스플릿 모두 인정하지만, 프리플랍 승리는 제외합니다. (보드 족보를 포함하지 않은 하이카드만 인정됩니다.)",
+    shortDescription: "메이드 없이 하이카드로 팟을 이기세요.",
     trigger: "hand_result(win)",
     condition: (ctx) =>
       ctx.wonAnyPot &&
       // 프리플랍 올폴드는 제외 — 최소 플랍까지는 봐야 "하이카드로 이겼다"고 말할 수 있다(§15).
       ctx.boardRevealed >= 3 &&
+      // 보드 하이카드를 그대로 쓴 경우는 제외한다 — 내 홀카드가 이긴 것이 아니다.
+      ctx.improvesOnBoard &&
       ctx.bestHandValue?.rank === HAND_RANK.HIGH_CARD,
-    reward: 600,
+    reward: 500,
     replacementRule: "on_success",
   },
   {
@@ -217,8 +217,9 @@ export const MISSION_POOL: MysteryMissionDef[] = [
     name: "MISSION BREAKER",
     category: "trigger",
     description:
-      "플랍에서 상대 한 명을 지정합니다. 둘 다 쇼다운까지 가고 그 상대가 미션형 카드를 성공하면, 그 점수를 무효화하고 보상을 받습니다. 강화형·발동형 효과는 막지 못합니다.",
-    shortDescription: "플랍에서 상대 한 명을 지정합니다. 그 상대의 미션형 카드 점수를 지웁니다.",
+      "플랍에서 상대 한 명을 지정합니다. 둘 다 쇼다운까지 가고 그 상대가 미션형 카드를 성공하면, 그 미션을 무효화하고 보상을 받습니다. 강화형·발동형 효과는 막지 못합니다.",
+    shortDescription:
+      "플랍에서 상대 한 명을 지정합니다. 지정한 상대가 미션을 성공한 경우 해당 플레이어의 점수 획득을 무효화하고 나만 점수를 획득합니다.",
     trigger: "hand_result(target_mission_achieved)",
     targetRule: "opponent_in_pot_at_flop",
     dependsOnOpponents: true,
@@ -240,10 +241,13 @@ export const MISSION_POOL: MysteryMissionDef[] = [
   {
     id: "parasite",
     name: "PARASITE",
-    category: "mission",
+    // Mission Breaker와 동작이 대칭인 지정형이라 같은 발동형으로 묶는다. 미션형으로 두면
+    // 다른 Parasite/Breaker가 이 카드를 "미션 성공"으로 보고 물어 가는 연쇄도 생긴다.
+    category: "trigger",
     description:
-      "플랍에서 상대 한 명을 지정합니다. 둘 다 쇼다운까지 가고 그 상대가 미션형 카드를 성공하면, 그 점수를 그대로 복제합니다(최소 100점).",
-    shortDescription: "플랍에서 상대 한 명을 지정합니다. 그 상대의 미션 점수를 그대로 복제합니다.",
+      "플랍에서 상대 한 명을 지정합니다. 둘 다 쇼다운까지 가고 그 상대가 미션형 카드를 성공한 경우, 그 점수를 동일하게 획득하고 추가 점수 150점을 얻습니다.",
+    shortDescription:
+      "상대 한 명을 지정합니다. 지정한 상대가 미션을 성공하는 경우 해당 미션 점수를 획득하고 추가 점수를 얻습니다.",
     trigger: "hand_result(target_mission_achieved)",
     targetRule: "opponent_in_pot_at_flop",
     dependsOnOpponents: true,
@@ -259,9 +263,9 @@ export const MISSION_POOL: MysteryMissionDef[] = [
       if (ctx.targetSeat == null) return;
       // rewardOf는 언제나 무효화 전 스냅샷을 읽는다. Breaker가 대상을 먼저 지웠더라도
       // Parasite가 보는 값은 "원래 받았을 점수"다(§11).
-      api.grantBonus(Math.max(PARASITE_MIN_REWARD, api.rewardOf(ctx.targetSeat)));
+      api.grantBonus(api.rewardOf(ctx.targetSeat) + PARASITE_BONUS_REWARD);
     },
-    replacementRule: "on_success",
+    replacementRule: "on_trigger",
   },
 
   {
@@ -269,8 +273,8 @@ export const MISSION_POOL: MysteryMissionDef[] = [
     name: "FORCED SPLIT",
     category: "trigger",
     description:
-      "쇼다운에 참가한 팟의 족보가 전부 플러시 이하라면 그 팟을 강제 스플릿합니다. 참가자 중 풀하우스 이상이 있으면 적용되지 않고, 이 카드를 가진 사람이 둘 이상이면 서로 상쇄되어 보유자들은 팟을 가져가지 못합니다.",
-    shortDescription: "쇼다운 참가자가 전부 플러시 이하면 그 팟을 강제로 나눠 갖게 만듭니다.",
+      "쇼다운에 참가한 플레이어의 족보가 전부 플러시 이하라면 그 팟을 강제 스플릿합니다. 참가자 중 풀하우스 이상이 있으면 적용되지 않고, 이 카드를 가진 사람이 둘 이상이면 서로 상쇄되어 보유자들은 팟을 가져가지 못합니다.",
+    shortDescription: "쇼다운 된 핸드가 모두 플러시 이하면 쇼다운 된 플레이어끼리 그 팟을 스플릿 합니다.",
     trigger: "pot_resolution(showdown)",
     potRule: "forced_split",
     // 판정은 showdown.ts의 팟 단계에서 끝난다. 여기서는 "실제로 결과가 바뀌었는가"만 읽는다.
@@ -284,14 +288,15 @@ export const MISSION_POOL: MysteryMissionDef[] = [
     name: "TRUE SIGHT",
     category: "enhancement",
     description:
-      "플랍에 진입하면 팟에 남아 있는 상대들의 Mystery Card가 나에게만 공개됩니다. 상대는 공개 사실조차 알 수 없습니다.",
-    shortDescription: "플랍에 진입하면 팟에 남은 상대들의 Mystery Card가 나에게만 보입니다.",
+      "플랍에 진입한 경우에만 발동됩니다. 상대는 공개 사실을 알 수 없습니다.",
+    shortDescription: "플랍에 진입하면 팟에 참여한 플레이어의 Mystery Card가 나에게만 보입니다.",
     trigger: "street(flop)",
     // 폴드하면 볼 것도 없다. 플랍을 봤다면 그 핸드에 1회 지급한다(§17).
     condition: (ctx) => !ctx.folded && ctx.boardRevealed >= 3,
     // 핵심 보상은 점수가 아니라 정보이므로 점수는 낮게 유지한다.
     reward: 30,
-    replacementRule: "on_pot_win",
+    // 정보를 한 번 보면 그 값어치는 다 쓴 것이다 — 팟 승패와 무관하게 교체한다.
+    replacementRule: "on_trigger",
   },
   {
     id: "four_card",
@@ -299,7 +304,8 @@ export const MISSION_POOL: MysteryMissionDef[] = [
     category: "enhancement",
     description:
       "핸드 선택 후 추가 홀카드 2장을 받아 4장을 보유합니다. 쇼다운에서는 홀카드 정확히 2장 + 커뮤니티 3장으로만 조합하며, 상대에게는 언제나 카드 뒷면 2장으로만 보입니다.",
-    shortDescription: "홀카드를 4장 받습니다. 쇼다운에는 그중 정확히 2장만 씁니다.",
+    shortDescription:
+      "핸드 선택 후 추가로 카드를 2장 딜링 받습니다. 쇼다운 시에는 두 장만 사용합니다.",
     trigger: "hand_setup(extra_deal)",
     // 규칙 변경 자체가 보상이다 — 별도 Mission Point는 없다(§18).
     condition: (ctx) => ctx.extraHandActive,

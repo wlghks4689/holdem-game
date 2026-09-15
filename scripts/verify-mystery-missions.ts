@@ -83,11 +83,11 @@ assert.deepEqual(MYSTERY_HOLDEM_CONFIG.missionChangeRounds, [1, 4, 7, 10, 13]);
 
 // Mission 성공 시 정규 변경 라운드가 아니어도 다음 핸드 전에 새 Mission을 받는다.
 {
-  const def = MISSION_POOL.find((m) => m.id === "maker_set")!;
+  const def = MISSION_POOL.find((m) => m.id === "maker_straight")!;
   const mission = missionStateOf(def, 2);
   const ctx = makeMissionCtx({
     round: 2,
-    bestHandValue: { rank: HAND_RANK.TRIPS, kickers: [10, 9, 8] },
+    bestHandValue: { rank: HAND_RANK.STRAIGHT, kickers: [10, 9, 8] },
     showdownOpponents: [1],
     myPreflopScore: 5,
   });

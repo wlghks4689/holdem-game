@@ -25,11 +25,11 @@ export function cardRewardLabel(def: MysteryMissionDef): { kind: "score" | "effe
     return { kind: "score", text: `Bounty Point ×${def.bountyMultiplier}` };
   }
   if (def.id === "maker_high_end") {
-    return { kind: "score", text: "풀하우스 300 / 포카드 600 / SF 1,200" };
+    return { kind: "score", text: "풀하우스 350 / 포카드 600 / SF 1,000" };
   }
   if (def.id === "blind_defender") return { kind: "score", text: "시작 인원 × 10 Mission Point" };
   // Parasite는 대상의 점수를 복제하므로 고정값이 없다 — 0점 카드로 보이면 안 된다.
-  if (def.id === "parasite") return { kind: "score", text: "대상의 미션 점수를 복제 (최소 100)" };
+  if (def.id === "parasite") return { kind: "score", text: "상대 미션 점수 + 150" };
   if (def.reward > 0) return { kind: "score", text: `+${def.reward} Mission Point` };
 
   // 점수가 없는 카드는 "교체 시점"이 아니라 "무엇을 하는 카드인가"를 적는다. 교체 규칙만
