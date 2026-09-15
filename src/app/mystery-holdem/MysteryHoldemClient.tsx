@@ -24,6 +24,7 @@ import {
   pickCardTargetForSeat,
 } from "@/mysteryHoldem/gameReducer";
 import { CARD_CATEGORY_LABEL, cardCategoryFromLegacy } from "@/mysteryHoldem/mysteryCard";
+import { MysteryCardPicker, cardRewardLabel } from "./MysteryCardPicker";
 import { positionLabelForSeat } from "@/mysteryHoldem/positions";
 import { scoreBreakdownForAll } from "@/mysteryHoldem/scoring";
 import {
@@ -36,7 +37,6 @@ import { computeBestHandForPlayer, showdownHoleCardsForPlayer } from "@/mysteryH
 import type {
   MysteryGameAction,
   MysteryGameState,
-  MysteryMissionDef,
   PlayerState,
   Seat,
 } from "@/mysteryHoldem/types";
@@ -424,16 +424,13 @@ export function MysteryHoldemClient() {
           ))}
         </div>
 
-        {heroNeedsHoleSelection || heroNeedsMission ? (
+        {heroNeedsHoleSelection ? (
           <HandSetupPanel
-            state={state}
             hero={hero}
             needsHole={heroNeedsHoleSelection}
-            needsMission={heroNeedsMission}
             keepPicks={keepPicks}
             setKeepPicks={setKeepPicks}
             onConfirmHole={(a, b) => dispatch({ type: "SELECT_HOLE_CARDS", seat: HERO_SEAT, keepIndexes: [a, b] })}
-            onConfirmMission={(id) => dispatch({ type: "SELECT_MISSION", seat: HERO_SEAT, missionId: id })}
           />
         ) : null}
 
@@ -472,6 +469,13 @@ export function MysteryHoldemClient() {
 
         <LogPanel state={state} />
       </div>
+
+      {heroNeedsMission && !heroNeedsHoleSelection ? (
+        <MysteryCardPicker
+          offers={state.missionOffers[HERO_SEAT] ?? []}
+          onConfirm={(id) => dispatch({ type: "SELECT_MISSION", seat: HERO_SEAT, missionId: id })}
+        />
+      ) : null}
     </div>
   );
 }
@@ -488,10 +492,10 @@ function LobbyScreen({
   return (
     <div className="flex min-h-dvh items-center justify-center bg-gradient-to-b from-zinc-900 via-zinc-900 to-zinc-950 px-4 text-zinc-50">
       <div className="w-full max-w-md rounded-2xl border border-fuchsia-700/50 bg-zinc-900/70 p-6 shadow-2xl">
-        <p className="mb-1 text-xs font-bold uppercase tracking-widest text-fuchsia-400">Mystery Mission Poker</p>
+        <p className="mb-1 text-xs font-bold uppercase tracking-widest text-fuchsia-400">Mystery Card Poker</p>
         <h1 className="mb-2 text-2xl font-bold">MysteryHoldem</h1>
         <p className="mb-6 text-sm leading-relaxed text-zinc-400">
-          3장 중 2장을 골라 시작하고, 비공개 Mystery Mission으로 추가 점수를 노리세요. Chip Point + Mission
+          3장 중 2장을 골라 시작하고, 비공개 Mystery Card로 추가 점수를 노리세요. Chip Point + Mission
           Point + Bounty Point 합산 Total Point 최고점이 15라운드 후 승리합니다.
         </p>
 
@@ -773,23 +777,6 @@ function CardTargetPanel({
   );
 }
 
-/**
- * 카드 하단에 한 줄로 붙는 보상/효과 문구(§23).
- *
- * 점수가 없는 카드에 "+0 Mission Point"를 띄우면 쓸모없는 카드처럼 보인다. 그런 카드의
- * 보상은 점수가 아니라 효과 자체이므로 효과 중심 문구로 바꾼다.
- */
-function cardRewardLabel(def: MysteryMissionDef): string {
-  if (def.bountyMultiplier != null) return `Bounty Point ×${def.bountyMultiplier}`;
-  if (def.id === "maker_high_end") return "풀하우스 300 / 포카드 600 / SF 1,200 Mission Point";
-  if (def.id === "blind_defender") return "시작 인원 × 10 Mission Point";
-  // Parasite는 대상의 점수를 그대로 복제하므로 고정값이 없다 — 0점 카드로 보이면 안 된다.
-  if (def.id === "parasite") return "대상의 미션 점수를 복제 (최소 100)";
-  if (def.reward <= 0) {
-    return def.replacementRule === "on_pot_win" ? "승리 시 Mystery Card 변경" : "효과 발동 시 Mystery Card 변경";
-  }
-  return `+${def.reward} Mission Point`;
-}
 
 /**
  * 내 Mystery Card 칩. 클릭하면 고정되고 마우스를 올리면 잠깐 뜨는 설명 팝오버를 단다.
@@ -827,7 +814,7 @@ function MysteryCardChip({ mission }: { mission: NonNullable<PlayerState["missio
         <p className="mt-0.5 text-sm font-bold text-zinc-50">{def.name}</p>
         <p className="mt-1.5 text-xs leading-relaxed text-zinc-300">{def.description}</p>
         {/* def.trigger는 기획 문서용 내부 문자열이라 노출하지 않는다 */}
-        <p className="mt-2 text-[11px] font-semibold text-amber-300">{cardRewardLabel(def)}</p>
+        <p className="mt-2 text-[11px] font-semibold text-amber-300">{cardRewardLabel(def).text}</p>
       </div>
     </div>
   );
@@ -915,23 +902,17 @@ function SeatView({
 }
 
 function HandSetupPanel({
-  state,
   hero,
   needsHole,
-  needsMission,
   keepPicks,
   setKeepPicks,
   onConfirmHole,
-  onConfirmMission,
 }: {
-  state: MysteryGameState;
   hero: PlayerState;
   needsHole: boolean;
-  needsMission: boolean;
   keepPicks: number[];
   setKeepPicks: React.Dispatch<React.SetStateAction<number[]>>;
   onConfirmHole: (a: number, b: number) => void;
-  onConfirmMission: (missionId: string) => void;
 }) {
   // 함수형 업데이트를 써야 한다. 두 장을 빠르게 연속 클릭하면 두 핸들러가 같은 렌더의
   // keepPicks(빈 배열)를 읽어 뒤 클릭이 앞 클릭을 덮어쓰고, 한 장만 선택된 채로 남는다.
@@ -972,28 +953,6 @@ function HandSetupPanel({
         </div>
       ) : null}
 
-      {needsMission ? (
-        <div>
-          <p className="mb-2 text-sm font-semibold text-zinc-200">Mystery Card를 선택하세요(비공개)</p>
-          <div className="grid gap-2 sm:grid-cols-3">
-            {(state.missionOffers[hero.seat] ?? []).map((m) => (
-              <button
-                key={m.id}
-                type="button"
-                onClick={() => onConfirmMission(m.id)}
-                className="flex flex-col gap-1 rounded-xl border border-zinc-700 bg-zinc-950/50 p-3 text-left transition hover:border-fuchsia-500/70 hover:bg-fuchsia-950/20"
-              >
-                <span className="text-[10px] font-bold tracking-wide text-fuchsia-400">
-                  [{CARD_CATEGORY_LABEL[cardCategoryFromLegacy(m.category)]}]
-                </span>
-                <span className="text-sm font-semibold text-zinc-100">{m.name}</span>
-                <span className="text-xs leading-snug text-zinc-400">{m.description}</span>
-                <span className="mt-1 text-[11px] font-semibold text-amber-300">{cardRewardLabel(m)}</span>
-              </button>
-            ))}
-          </div>
-        </div>
-      ) : null}
     </div>
   );
 }

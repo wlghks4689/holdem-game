@@ -98,6 +98,14 @@ export interface MysteryMissionDef {
   name: string;
   category: MissionCategory;
   description: string;
+  /**
+   * 카드 선택 화면에 먼저 보여 줄 2~3줄 요약(§23).
+   *
+   * description은 예외와 단서까지 담아야 해서 선택 순간에 읽기엔 길다. 3장을 나란히 놓고
+   * 비교하는 화면에서는 "무엇을 하면 되는가"만 보이면 충분하고, 세부 규칙은 툴팁으로 민다.
+   * 선언하지 않으면 description을 그대로 쓴다.
+   */
+  shortDescription?: string;
   /** 조건이 언제 평가되는지에 대한 설명(문서 목적, 로직은 missionResolver가 일괄 처리) */
   trigger: string;
   /** 순수 판정 함수 — true면 이번 핸드에서 조건 달성 */
