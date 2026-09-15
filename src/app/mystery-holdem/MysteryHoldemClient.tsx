@@ -82,16 +82,33 @@ function seatIsOnLowerHalf(indexFromHero: number, total: number): boolean {
 /**
  * 좌석에 공개되는 홀카드의 배율.
  *
- * 카드 크기를 하나로 고정하면 10인 테이블에서 이웃 좌석과 보드를 침범한다. 좌석이 늘수록
- * 한 좌석에 주어지는 원주가 짧아지므로 배율도 같이 줄인다. 읽을 수 있는 하한(0.62)은
- * 지켜서, 겹치지 않는 대신 숫자를 못 읽는 상태가 되지 않게 한다.
+ * 1.0이면 커뮤니티 카드와 크기·폰트가 정확히 같다(같은 board 규격을 쓴다). 좌석이 늘수록
+ * 한 좌석에 주어지는 원주가 짧아져 그 크기로는 이웃 좌석을 침범하므로, 겹침이 실제로
+ * 측정되는 지점부터만 배율을 내린다. 값은 전부 실측으로 정했다(1280×800 기준, 10개 좌석을
+ * 전부 공개한 최악의 경우로 계산):
+ *
+ *   6인 이하  1.00 — 겹침 0. 커뮤니티 카드와 동일.
+ *   8인       0.92 — 1.00에서는 좌우 좌석이 10px² 닿는다.
+ *   10인      0.58 — 0.64면 325px², 0.68이면 647px²가 겹친다.
+ *
+ * 10인만 뚝 떨어지는 이유는 카드를 프로필 박스 "위"로 통일했기 때문이다. 좌우에 세로로
+ * 늘어선 좌석들끼리 아래 좌석의 카드가 위 좌석의 박스를 밀고 올라온다. 10인에서 크기와
+ * 겹침을 동시에 만족시킬 수는 없어 겹치지 않는 쪽을 택했다.
  */
 function seatCardScale(seatCount: number): number {
-  if (seatCount <= 4) return 1;
-  if (seatCount <= 6) return 0.88;
-  if (seatCount <= 8) return 0.76;
-  return 0.68;
+  if (seatCount <= 6) return 1;
+  if (seatCount <= 8) return 0.92;
+  return 0.58;
 }
+
+/**
+ * 세로 화면에서 보드 전체에 걸리는 축소율.
+ *
+ * 좌석 카드도 같은 값을 그대로 쓴다. 세로 테이블은 3/4 비율이라 좌석당 세로 여유가 가로
+ * 화면보다 넉넉해서, 375px에서 2·4·6·8·10인을 전부 측정해도 축소가 필요 없었다. 곧 세로
+ * 화면에서는 **인원수와 무관하게 커뮤니티 카드와 크기·폰트가 정확히 같다**.
+ */
+const BOARD_PORTRAIT_SCALE = 0.72;
 
 /** 칩 수집 연출 길이 — globals.css의 .mystery-chip-collect와 맞춰야 한다 */
 const CHIP_COLLECT_MS = 560;
@@ -313,7 +330,7 @@ function HeroCardsWithMadeFx({
   fx,
 }: {
   cards: Card[];
-  size: "compact" | "hero";
+  size: "board" | "hero";
   fx: HeroMadeFx;
 }) {
   if (fx.tier <= 0) {
@@ -451,8 +468,13 @@ export function MysteryHoldemClient() {
           가로로 좁게 / 세로로 길게 바꾼다.
         */}
         <div
-          style={{ "--seat-card-scale": seatCardScale(state.seatCount) } as React.CSSProperties}
-          className="relative mx-auto my-14 aspect-[16/10] w-full max-w-3xl rounded-[999px] portrait:my-10 border-4 border-emerald-900/60 bg-gradient-to-b from-emerald-800/40 to-emerald-950/60 shadow-2xl [--bet-rx:31] [--bet-ry:25] [--seat-rx:53] [--seat-ry:52] portrait:aspect-[3/4] portrait:[--bet-rx:25] portrait:[--bet-ry:31] portrait:[--seat-rx:46] portrait:[--seat-ry:51]">
+          style={
+            {
+              "--seat-card-scale": seatCardScale(state.seatCount),
+              "--seat-card-scale-portrait": BOARD_PORTRAIT_SCALE,
+            } as React.CSSProperties
+          }
+          className="relative mx-auto my-14 mt-28 aspect-[16/10] w-full max-w-3xl rounded-[999px] portrait:my-10 portrait:mt-20 border-4 border-emerald-900/60 bg-gradient-to-b from-emerald-800/40 to-emerald-950/60 shadow-2xl [--bet-rx:31] [--bet-ry:25] [--seat-rx:45] [--seat-ry:45] portrait:aspect-[3/4] portrait:[--bet-rx:25] portrait:[--bet-ry:31] portrait:[--seat-rx:45] portrait:[--seat-ry:45]">
           <div className="absolute inset-[10%] rounded-[999px] border border-emerald-700/40 bg-emerald-900/30" />
 
           {/*
@@ -988,38 +1010,29 @@ function SeatView({
           배지는 제자리를 지킨다.
         */}
         {/*
-          카드·족보·칩은 **언제나 테이블 안쪽을 향한다**. 좌석이 펠트 바깥에 앉으므로,
-          위쪽 좌석의 카드가 위로 뻗으면 그대로 화면 상단바를 덮는다(실측 1,609px² 충돌).
-          안쪽으로 향하면 펠트의 빈 공간을 쓰게 되어 어느 좌석이든 밖으로 새지 않는다.
-          chipBelowBadge는 "이 좌석의 안쪽이 아래쪽인가"와 같은 뜻이라 그대로 재사용한다.
+          카드·족보는 좌석이 어디에 있든 **프로필 박스 위**에 고정한다.
+
+          한때는 테이블 안쪽을 향하게 뒀는데(위쪽 좌석은 아래로), 그러면 같은 정보가 좌석마다
+          다른 쪽에 나타나 쇼다운에서 눈이 매번 위아래를 더듬어야 했다. 좌석이 두 테두리 사이로
+          들어오면서 위쪽 좌석의 카드도 화면 상단바를 침범하지 않게 되어, 방향을 통일할 수 있다.
+
+          칩만 예전대로 안쪽을 향한다 — 팟으로 빨려 들어가는 연출의 출발점이라 방향에 의미가 있다.
         */}
-        <div
-          className={[
-            "absolute left-1/2 flex -translate-x-1/2 flex-col items-center gap-1",
-            chipBelowBadge ? "top-full mt-1" : "bottom-full mb-1",
-          ].join(" ")}
-        >
-          {/* 칩은 안쪽 끝(팟에 가장 가까운 쪽)에 둬야 팟으로 모이는 연출이 자연스럽다 */}
+        <div className="absolute bottom-full left-1/2 mb-1 flex -translate-x-1/2 flex-col items-center gap-1">
+          {/* 아래쪽 좌석은 안쪽이 위이므로, 칩이 카드보다 더 안쪽(위)에 온다 */}
           {!chipBelowBadge && chipAmount != null ? <BetChipStack amount={chipAmount} /> : null}
           {showCards ? (
             /*
-              배율은 테이블이 내려주는 --seat-card-scale을 따른다(좌석 수 기준). 세로 화면은
-              폭이 더 빠듯하므로 거기에 0.82를 더 곱한다. origin을 안쪽 방향으로 잡아야
-              줄어들 때 프로필 박스에서 멀어지지 않는다.
+              배율은 테이블이 내려주는 값을 따른다(가로/세로 각각 별도 사다리, 좌석 수 기준).
+              origin이 아래여야 줄어들 때 카드가 프로필 박스에 붙은 채로 작아진다.
             */
-            <div
-              className={[
-                "flex gap-0.5 scale-[var(--seat-card-scale)]",
-                "portrait:scale-[calc(var(--seat-card-scale)*0.82)]",
-                chipBelowBadge ? "origin-top" : "origin-bottom",
-              ].join(" ")}
-            >
+            <div className="flex origin-bottom gap-0.5 scale-[var(--seat-card-scale)] portrait:scale-[var(--seat-card-scale-portrait)]">
               {/*
                 쇼다운에서는 상대 좌석도 메이드 연출을 받는다. 누가 무엇으로 이겼는지가
                 카드 숫자를 읽기 전에 전달되는 것이 이 연출의 목적이다. heroFx는 히어로면
                 진행 중 연출, 상대면 공개 시점에 계산된 연출이 들어온다(없으면 NO_MADE_FX).
               */}
-              <HeroCardsWithMadeFx cards={revealedHole} size="compact" fx={heroFx} />
+              <HeroCardsWithMadeFx cards={revealedHole} size="board" fx={heroFx} />
             </div>
           ) : null}
           {/*
@@ -1034,7 +1047,6 @@ function SeatView({
               )}
             </span>
           ) : null}
-          {chipBelowBadge && chipAmount != null ? <BetChipStack amount={chipAmount} /> : null}
         </div>
 
         <div
@@ -1080,7 +1092,12 @@ function SeatView({
           ) : null}
         </div>
 
-
+        {/* 위쪽 좌석은 안쪽이 아래이므로 칩을 배지 아래에 단다 */}
+        {chipBelowBadge && chipAmount != null ? (
+          <div className="absolute left-1/2 top-full mt-1 -translate-x-1/2">
+            <BetChipStack amount={chipAmount} />
+          </div>
+        ) : null}
       </div>
     </div>
   );
