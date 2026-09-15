@@ -25,6 +25,8 @@ function rankDisplay(rank: number): string {
 const sizeFrames = {
   /** 쇼다운·상대 줄 등 — board보다 낮음 */
   compact: "h-[4.35rem] w-[3.15rem] shrink-0",
+  /** 통합 좌석 카드 — 모바일 board, 넓은 화면 compact 높이로 제한 */
+  seat: "h-[3.6rem] w-[2.6rem] shrink-0 sm:h-[4.35rem] sm:w-[3.15rem]",
   /** 모바일: 좁은 보드에서도 5장이 항상 한 줄 / sm+(640px+): 원래 크기 */
   board: "h-[3.6rem] w-[2.6rem] sm:h-[5.38rem] sm:w-[3.85rem] shrink-0",
   /** 보드·홀 카드 프레임을 동일하게 유지하며 기존 크기에서 10% 축소 */
@@ -38,6 +40,7 @@ export type CardSize = keyof typeof sizeFrames;
 
 const rankText: Record<CardSize, string> = {
   compact: "text-[1.3rem] font-bold leading-none tracking-tight",
+  seat: "text-[1.3rem] font-bold leading-none tracking-tight",
   board: "text-[1.42rem] font-bold leading-none tracking-tight sm:text-[1.62rem]",
   community: "text-[1.62rem] font-bold leading-none tracking-tight sm:text-[1.94rem]",
   showdown: "text-[1.62rem] font-bold leading-none tracking-tight sm:text-[1.94rem]",
@@ -47,7 +50,7 @@ const rankText: Record<CardSize, string> = {
 /** "10" 은 카드 폭이 좁아 약간 축소 */
 function rankClass(size: CardSize, narrow: boolean): string {
   if (!narrow) return rankText[size];
-  if (size === "compact") {
+  if (size === "compact" || size === "seat") {
     return "text-[1.13rem] font-bold leading-none tracking-tight";
   }
   if (size === "board") {
@@ -61,6 +64,7 @@ function rankClass(size: CardSize, narrow: boolean): string {
 
 const suitText: Record<CardSize, string> = {
   compact: "text-[1.94rem] leading-none",
+  seat: "text-[1.94rem] leading-none",
   board: "text-[2.15rem] leading-none sm:text-[2.59rem]",
   community: "text-[2.92rem] leading-none sm:text-[3.05rem]",
   showdown: "text-[2.92rem] leading-none sm:text-[3.05rem]",
@@ -69,6 +73,7 @@ const suitText: Record<CardSize, string> = {
 
 const contentOffset: Record<CardSize, string> = {
   compact: "translate-y-[2px]",
+  seat: "translate-y-[2px]",
   board: "translate-y-px sm:translate-y-[2px]",
   community: "translate-y-px sm:translate-y-[2px]",
   showdown: "translate-y-[2px]",
@@ -92,7 +97,7 @@ export function PlayingCard({
   const sym = SUIT_SYM[card.suit];
   const r = rankDisplay(card.rank);
   const narrow = r === "10";
-  const contentGap = size === "board" ? "gap-0 sm:gap-0.5" : "gap-0.5";
+  const contentGap = size === "board" || size === "seat" ? "gap-0 sm:gap-0.5" : "gap-0.5";
   const frame = `relative flex flex-col items-center justify-center ${contentGap} rounded-lg border bg-white shadow-sm ${sizeFrames[size]}`;
 
   return (
@@ -121,7 +126,7 @@ export function CardBack({ className = "", size = "board" }: CardBackProps) {
   const innerSym =
     size === "hero" || size === "showdown"
       ? "text-2xl sm:text-3xl"
-      : size === "compact"
+      : size === "compact" || size === "seat"
         ? "text-lg"
         : size === "community"
           ? "text-xl sm:text-3xl"

@@ -107,6 +107,8 @@ export type PlayAreaPotBettingProps = {
   state: GameState;
   viewer: PlayerIndex;
   playerNames: [string, string];
+  /** 타원형 테이블 중앙에 들어가는 투명·압축 표현 */
+  variant?: "panel" | "table";
 };
 
 /**
@@ -117,6 +119,7 @@ export function PlayAreaPotBetting({
   state,
   viewer,
   playerNames,
+  variant = "panel",
 }: PlayAreaPotBettingProps) {
   const { locale } = useHoldemI18n();
   const isEn = locale === "en";
@@ -339,8 +342,61 @@ export function PlayAreaPotBetting({
           strip.who === "hero" ? "내 액션" : "상대 액션"
         }: ${oneLineLabel(strip)}`;
 
+  if (String(variant) === "table") {
+    return (
+      <div
+        className="flex flex-col items-center justify-center"
+        data-pot-layout={variant}
+        aria-label={
+          isEn
+            ? `Pot: ${fmtChips(state.pot)} chips = ${potInBbCompact(state.pot, potBbUnit)}`
+            : `팟: ${fmtChips(state.pot)}칩 = ${potInBbCompact(state.pot, potBbUnit)}`
+        }
+      >
+        <div
+          key={potBumpKey}
+          className="relative h-9 w-16"
+          style={
+            potBumpKey > 0
+              ? { animation: "holdem-pot-bump 0.36s ease-out 1" }
+              : undefined
+          }
+          aria-hidden
+        >
+          {[0, 1, 2, 3, 4].map((chip) => (
+            <span
+              key={chip}
+              className="absolute left-1/2 h-5 w-5 rounded-full border-2 border-dashed border-amber-100/90 bg-gradient-to-br from-amber-300 via-amber-500 to-amber-700 shadow-[0_2px_5px_rgba(0,0,0,0.5),inset_0_0_0_2px_rgba(120,53,15,0.28)]"
+              style={{
+                bottom: `${chip * 3}px`,
+                animation:
+                  potBumpKey > 0
+                    ? `holdem-pot-chip-arrive-${chip % 2 === 0 ? "left" : "right"} 0.42s ${chip * 28}ms cubic-bezier(0.22,1,0.36,1) both`
+                    : undefined,
+                transform: "translateX(-50%)",
+              }}
+            />
+          ))}
+        </div>
+        <p className="-mt-0.5 rounded-full bg-black/45 px-2 py-0.5 text-[10px] font-bold tabular-nums text-amber-100 shadow-sm ring-1 ring-amber-400/20 sm:text-xs">
+          <span className="text-amber-400/80">{isEn ? "POT " : "팟 "}</span>
+          {fmtChips(state.pot)}{isEn ? " chips" : "칩"}
+          <span className="px-1 text-amber-200/35">·</span>
+          <span className="text-amber-200">{potInBbCompact(state.pot, potBbUnit)}</span>
+        </p>
+      </div>
+    );
+  }
+
   return (
-    <div className="rounded-xl border border-amber-900/45 bg-gradient-to-b from-zinc-900/80 to-zinc-800/90 px-3 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] sm:px-4 lg:border-amber-800/50">
+    <div
+      className={
+        String(variant) === "table"
+          ? "rounded-xl border border-black/25 bg-black/42 px-2 py-2 shadow-lg backdrop-blur-[2px] sm:px-3 sm:py-2.5"
+          : "rounded-xl border border-amber-900/45 bg-gradient-to-b from-zinc-900/80 to-zinc-800/90 px-3 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] sm:px-4 lg:border-amber-800/50"
+      }
+      data-pot-layout={variant}
+    >
       <div
         className="flex flex-wrap items-baseline justify-center gap-x-1.5 gap-y-0.5"
         aria-label={
@@ -349,12 +405,22 @@ export function PlayAreaPotBetting({
             : `팟: ${fmtChips(state.pot)}칩 = ${potInBbCompact(state.pot, potBbUnit)}`
         }
       >
-        <span className="text-xl font-bold uppercase leading-none tracking-wide text-amber-500/95 lg:text-2xl">
+        <span
+          className={
+            String(variant) === "table"
+              ? "text-sm font-bold uppercase leading-none tracking-wide text-amber-500/95 sm:text-base"
+              : "text-xl font-bold uppercase leading-none tracking-wide text-amber-500/95 lg:text-2xl"
+          }
+        >
           {isEn ? "POT:  " : "팟:  "}
         </span>
         <span
           key={potBumpKey}
-          className="inline-flex items-baseline gap-px font-sans text-xl font-bold leading-none tabular-nums lg:text-2xl"
+          className={
+            String(variant) === "table"
+              ? "inline-flex items-baseline gap-px font-sans text-sm font-bold leading-none tabular-nums sm:text-base"
+              : "inline-flex items-baseline gap-px font-sans text-xl font-bold leading-none tabular-nums lg:text-2xl"
+          }
           style={
             potBumpKey > 0
               ? { animation: "holdem-pot-bump 0.36s ease-out 1" }
@@ -379,22 +445,42 @@ export function PlayAreaPotBetting({
           </span>
         </span>
         <span
-          className="select-none text-xl font-bold leading-none text-amber-200/55 lg:text-2xl"
+          className={
+            String(variant) === "table"
+              ? "select-none text-sm font-bold leading-none text-amber-200/55 sm:text-base"
+              : "select-none text-xl font-bold leading-none text-amber-200/55 lg:text-2xl"
+          }
           aria-hidden
         >
           =
         </span>
-        <span className="font-sans text-xl font-bold tabular-nums leading-none text-amber-200 lg:text-2xl">
+        <span
+          className={
+            String(variant) === "table"
+              ? "font-sans text-sm font-bold tabular-nums leading-none text-amber-200 sm:text-base"
+              : "font-sans text-xl font-bold tabular-nums leading-none text-amber-200 lg:text-2xl"
+          }
+        >
           {potInBbCompact(state.pot, potBbUnit)}
         </span>
       </div>
-      <div className="mt-3 min-h-[3rem] border-t border-zinc-700/55 pt-3">
+      <div
+        className={
+          String(variant) === "table"
+            ? "mt-1.5 min-h-[2rem] border-t border-white/10 pt-1.5 sm:mt-2 sm:pt-2"
+            : "mt-3 min-h-[3rem] border-t border-zinc-700/55 pt-3"
+        }
+      >
         {strip != null ? (
           <>
             {previousStrip != null ? (
               <div
                 key={`prev-${previousStrip.id}`}
-                className="mb-1.5 flex flex-wrap items-center justify-center gap-1.5 opacity-45 saturate-[0.55]"
+                className={
+                  String(variant) === "table"
+                    ? "mb-1 flex flex-wrap items-center justify-center gap-1 opacity-40 saturate-[0.5]"
+                    : "mb-1.5 flex flex-wrap items-center justify-center gap-1.5 opacity-45 saturate-[0.55]"
+                }
                 aria-hidden
               >
                 <p className="text-[11px] font-medium leading-snug tabular-nums text-zinc-400 sm:text-xs">
@@ -413,7 +499,9 @@ export function PlayAreaPotBetting({
             <div
               key={strip.id}
               className={[
-                "rounded-lg px-3 py-2.5 text-center",
+                String(variant) === "table"
+                  ? "rounded-lg px-2 py-1.5 text-center"
+                  : "rounded-lg px-3 py-2.5 text-center",
                 strip.pressure ? "holdem-betting-pressure" : "animate-[holdem-opponent-action-in_0.28s_cubic-bezier(0.22,1,0.36,1)_both]",
                 stripBoxClass,
               ].join(" ")}
@@ -428,7 +516,13 @@ export function PlayAreaPotBetting({
               aria-live="polite"
               aria-label={stripAria}
             >
-              <div className="flex flex-wrap items-center justify-center gap-2">
+              <div
+                className={
+                  String(variant) === "table"
+                    ? "flex flex-wrap items-center justify-center gap-1.5"
+                    : "flex flex-wrap items-center justify-center gap-2"
+                }
+              >
                 <p
                   className={[
                     "font-semibold tabular-nums leading-snug",
@@ -439,7 +533,9 @@ export function PlayAreaPotBetting({
                 </p>
                 <span
                   className={[
-                    "holdem-betting-pressure-label rounded-md border px-2 py-0.5 text-xs font-black tracking-[0.08em] sm:text-sm",
+                    String(variant) === "table"
+                      ? "holdem-betting-pressure-label rounded-md border px-1.5 py-px text-[10px] font-black tracking-[0.08em] sm:text-xs"
+                      : "holdem-betting-pressure-label rounded-md border px-2 py-0.5 text-xs font-black tracking-[0.08em] sm:text-sm",
                     stripBadgeClass,
                   ].join(" ")}
                 >
@@ -460,7 +556,11 @@ export function PlayAreaPotBetting({
           </>
         ) : (
           <div
-            className="flex min-h-[2.75rem] items-center justify-center rounded-lg border border-dashed border-zinc-700/50 bg-zinc-900/25 text-[11px] text-zinc-500"
+            className={
+              String(variant) === "table"
+                ? "flex min-h-[1.75rem] items-center justify-center rounded-lg border border-dashed border-zinc-700/45 bg-zinc-900/20 px-2 text-[10px] text-zinc-500"
+                : "flex min-h-[2.75rem] items-center justify-center rounded-lg border border-dashed border-zinc-700/50 bg-zinc-900/25 text-[11px] text-zinc-500"
+            }
             aria-hidden
           >
             {isEn ? "Betting actions appear here" : "베팅 액션이 여기 표시됩니다"}

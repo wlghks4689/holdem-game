@@ -407,6 +407,36 @@ body {
   }
 }
 
+@keyframes holdem-pot-chip-arrive-left {
+  0% {
+    opacity: 0;
+    transform: translate(-190%, -12px) scale(0.7) rotate(-22deg);
+  }
+  72% {
+    opacity: 1;
+    transform: translate(-42%, 2px) scale(1.06) rotate(4deg);
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(-50%) scale(1) rotate(0deg);
+  }
+}
+
+@keyframes holdem-pot-chip-arrive-right {
+  0% {
+    opacity: 0;
+    transform: translate(90%, -12px) scale(0.7) rotate(22deg);
+  }
+  72% {
+    opacity: 1;
+    transform: translate(-58%, 2px) scale(1.06) rotate(-4deg);
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(-50%) scale(1) rotate(0deg);
+  }
+}
+
 /** 레이즈/베트 직후 팟 숫자 — 살짝 로즈 톤으로 강조 */
 @keyframes holdem-pot-aggro-color {
   0% {

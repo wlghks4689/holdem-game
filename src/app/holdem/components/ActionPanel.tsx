@@ -30,10 +30,6 @@ import {
 import { actionTimerLimitMs } from "@/holdem/actionTimer";
 import { resolveHandBlinds } from "@/holdem/blindLevels";
 import { chipsAsBbLabel } from "@/holdem/formatBb";
-import {
-  HU_DEALER_SB_LABEL,
-  headsUpPositionLabel,
-} from "@/holdem/headsUpLabels";
 import { useHoldemI18n } from "@/holdem/i18n/HoldemLocaleProvider";
 import type { GameAction, GameState, PlayerIndex } from "@/holdem/types";
 
@@ -727,9 +723,6 @@ export function ActionPanel({
     );
   }
 
-  const rawPosShort = headsUpPositionLabel(state, p);
-  const posShort =
-    isEn && rawPosShort === HU_DEALER_SB_LABEL ? "BTN · SB" : rawPosShort;
   // ── 프리플랍 레이즈 입력 블록 ─────────────────────────────────────────────
   const preflopRaiseBlock =
     showPreflopRaise && preflopRange != null && !hideReraiseStreet ? (
@@ -797,7 +790,7 @@ export function ActionPanel({
               <span className="mr-0.5" aria-hidden>
                 👉
               </span>
-              {isEn ? `${pl(p)} action` : `${pl(p)} 액션`} ({posShort})
+              {isEn ? `${pl(p)} action` : `${pl(p)} 액션`}
             </>
           )}
         </p>
