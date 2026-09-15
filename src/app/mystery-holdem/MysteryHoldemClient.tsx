@@ -398,6 +398,9 @@ export function MysteryHoldemClient() {
   const heroNeedsHoleSelection = state.awaitingHoleSelection.includes(HERO_SEAT);
   const heroNeedsMission = state.awaitingMissionSelection.includes(HERO_SEAT);
   const heroNeedsCardTarget = state.awaitingCardTarget.includes(HERO_SEAT);
+  // 탈락한 뒤에도 매치는 계속된다(라운드 종료 또는 Last Player Standing까지).
+  // 그동안 히어로는 관전자다 — 액션 패널 대신 관전 안내를 보여준다.
+  const heroIsOut = hero.busted && !hero.inHand;
 
   return (
     <div className="min-h-dvh bg-gradient-to-b from-zinc-900 via-zinc-900 to-zinc-950 text-zinc-50">
@@ -431,7 +434,15 @@ export function MysteryHoldemClient() {
             <PotBanners state={state} mainPot={pot} />
           </div>
 
-          {state.players.map((p) => {
+          {/*
+            탈락한 좌석은 테이블에서 치운다. 버스트 표시를 매치가 끝날 때까지 남겨 두면
+            빈 의자가 계속 쌓여 실제로 겨루는 사람이 누구인지 읽기 어려워진다.
+
+            단, 버스트가 일어난 그 핸드 동안에는 남겨 둔다(busted면서 inHand인 상태).
+            쇼다운에서 진 사람의 카드가 그 자리에서 사라지면 승부가 어떻게 끝났는지
+            읽을 수 없다. inHand는 다음 핸드가 시작될 때 false가 되므로 그때 사라진다.
+          */}
+          {state.players.filter((p) => !p.busted || p.inHand).map((p) => {
             const idx = (p.seat - HERO_SEAT + state.seatCount) % state.seatCount;
             return (
               <SeatView
@@ -469,7 +480,10 @@ export function MysteryHoldemClient() {
           />
         ) : null}
 
-        {["preflop", "flop", "turn", "river"].includes(state.phase) &&
+        {heroIsOut ? <SpectatorPanel state={state} /> : null}
+
+        {!heroIsOut &&
+        ["preflop", "flop", "turn", "river"].includes(state.phase) &&
         !heroNeedsHoleSelection &&
         !heroNeedsMission &&
         !heroNeedsCardTarget ? (
@@ -935,6 +949,36 @@ function SeatView({
         {/* 베팅 금액은 프로필 박스가 아니라 테이블 위 칩(BetChipStack)으로 보여준다 */}
       </div>
       {chipBelowBadge && chipAmount != null ? <BetChipStack amount={chipAmount} /> : null}
+    </div>
+  );
+}
+
+/**
+ * 히어로가 탈락한 뒤의 관전 안내.
+ *
+ * 탈락해도 매치는 끝나지 않는다(15라운드 종료 또는 Last Player Standing까지). 그동안
+ * 아무 안내 없이 빈 화면을 두면 게임이 멈춘 것처럼 보이므로, 지금 무엇을 보고 있는지와
+ * 최종 점수가 어떻게 남았는지를 알려준다.
+ */
+function SpectatorPanel({ state }: { state: MysteryGameState }) {
+  const hero = state.players.find((p) => p.seat === HERO_SEAT)!;
+  const alive = state.players.filter((p) => !p.busted).length;
+
+  return (
+    <div className="rounded-2xl border border-zinc-700/70 bg-zinc-900/60 p-4 text-center shadow-xl">
+      <p className="text-[11px] font-bold tracking-widest text-zinc-500">SPECTATING</p>
+      <p className="mt-1 text-sm font-semibold text-zinc-200">탈락했습니다 — 남은 승부를 지켜보세요</p>
+      <p className="mt-2 text-xs text-zinc-400">
+        남은 플레이어 {alive}명 · 매치는 {state.config.totalRounds}라운드까지 이어집니다
+      </p>
+      <p className="mt-2 text-xs text-zinc-400">
+        내 최종 점수{" "}
+        <span className="font-bold tabular-nums text-amber-300">{fmt(hero.totalPoint)}PT</span>
+        <span className="text-zinc-600">
+          {" "}
+          (Mission {fmt(hero.missionPoint)} · Bounty {fmt(hero.bountyPoint)})
+        </span>
+      </p>
     </div>
   );
 }
