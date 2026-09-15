@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
 const path = require("node:path");
-const { spawnSync } = require("node:child_process");
+const os = require("node:os");
+const { spawn } = require("node:child_process");
 
 const root = path.resolve(__dirname, "..");
 const typescriptRunner = path.join("scripts", "run-typescript-check.cjs");
@@ -103,35 +104,62 @@ const checks = [
   { group: "mystery", label: "MysteryHoldem full game loop", file: "scripts/verify-mystery-fullgame.ts" },
 ];
 
+/**
+ * 검증 스크립트는 서로 상태를 공유하지 않는 독립 프로세스라 병렬로 돌려도 안전하다.
+ * 직렬로 돌리면 코어 하나만 쓰면서 나머지가 놀기 때문에, CPU 수만큼 동시에 띄운다.
+ *
+ * 출력은 실행 순서가 아니라 **목록 순서대로** 모아서 찍는다. 병렬 실행의 출력이 뒤섞이면
+ * 어떤 테스트가 무엇을 출력했는지 읽을 수 없기 때문에, 각 프로세스의 출력을 버퍼에 담아
+ * 두었다가 순서대로 내보낸다.
+ */
 function runChecks(selectedChecks) {
-  for (const check of selectedChecks) {
-    console.log(`\n> ${check.label} (${check.file})`);
-    const args = check.file.endsWith(".ts")
-      ? [typescriptRunner, check.file]
-      : [check.file];
-    const result = spawnSync(process.execPath, args, {
-      cwd: root,
-      env: process.env,
-      stdio: "inherit",
-    });
+  const concurrency = Math.max(1, Math.min(os.cpus().length, selectedChecks.length));
+  const results = new Array(selectedChecks.length).fill(null);
+  let nextIndex = 0;
+  let failed = false;
 
-    if (result.error) {
-      console.error(`\nFAILED: ${check.label}`);
-      console.error(result.error);
-      process.exitCode = 1;
-      return false;
+  return new Promise((resolve) => {
+    function launchNext() {
+      if (nextIndex >= selectedChecks.length) {
+        if (results.every((r) => r != null)) finish();
+        return;
+      }
+      const index = nextIndex++;
+      const check = selectedChecks[index];
+      const args = check.file.endsWith(".ts") ? [typescriptRunner, check.file] : [check.file];
+      const child = spawn(process.execPath, args, { cwd: root, env: process.env });
+
+      let output = "";
+      child.stdout.on("data", (d) => (output += d));
+      child.stderr.on("data", (d) => (output += d));
+      child.on("error", (error) => {
+        results[index] = { check, output: String(error), status: 1 };
+        launchNext();
+      });
+      child.on("close", (status) => {
+        results[index] = { check, output, status };
+        launchNext();
+      });
     }
-    if (result.status !== 0) {
-      console.error(`\nFAILED: ${check.label} (${check.file})`);
-      process.exitCode = result.status ?? 1;
-      return false;
+
+    function finish() {
+      for (const { check, output, status } of results) {
+        console.log(`\n> ${check.label} (${check.file})`);
+        if (output) process.stdout.write(output.endsWith("\n") ? output : `${output}\n`);
+        if (status !== 0) {
+          console.error(`FAILED: ${check.label} (${check.file})`);
+          process.exitCode = status || 1;
+          failed = true;
+        } else {
+          console.log(`PASS: ${check.label}`);
+        }
+      }
+      if (!failed) console.log("\nAll holdem regression checks passed.");
+      resolve(!failed);
     }
 
-    console.log(`PASS: ${check.label}`);
-  }
-
-  console.log("\nAll holdem regression checks passed.");
-  return true;
+    for (let i = 0; i < concurrency; i++) launchNext();
+  });
 }
 
 function checksForGroup(group) {

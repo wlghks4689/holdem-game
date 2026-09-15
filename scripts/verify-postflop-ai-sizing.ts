@@ -59,8 +59,22 @@ const deepFacingRaise = postflopState({
 assert.equal(postflopRaiseTargetCappedByOpponent(deepFacingRaise), 200);
 assert.equal(postflopAiMaxRaiseTargetForActor(deepFacingRaise), 20);
 
+/**
+ * computeAIBettingAction은 무작위 요소가 있어, 상한 불변식이 "모든 경우에" 성립하는지
+ * 확인하려면 여러 번 표본을 뽑아야 한다.
+ *
+ * 표본 수는 실측으로 정했다. 각 시나리오에서 관심 있는 액션이 나오는 비율은
+ * deep raise 50.6% / deep bet 94.6% / short all-in 48.5%였다. 가장 낮은 48.5%를 기준으로
+ * 250회를 뽑으면 한 번도 나오지 않을 확률이 0.515^250 ≈ 10^-73이라, 분기 커버리지는
+ * 사실상 확정이다.
+ *
+ * 원래 값은 2,000회였는데 이 파일 하나가 전체 검증 스위트 181초 중 143초(79%)를 쓰고 있었다.
+ * 필요한 표본의 30배를 뽑고 있었던 셈이다. 250회로 줄여 스위트를 실용적인 길이로 되돌린다.
+ */
+const SAMPLES = 250;
+
 let deepRaiseCount = 0;
-for (let i = 0; i < 2_000; i++) {
+for (let i = 0; i < SAMPLES; i++) {
   const action = computeAIBettingAction(
     deepFacingRaise,
     1,
@@ -82,7 +96,7 @@ const deepOpen = postflopState({
 assert.equal(postflopAiMaxOpenBetForActor(deepOpen), 12);
 
 let deepBetCount = 0;
-for (let i = 0; i < 2_000; i++) {
+for (let i = 0; i < SAMPLES; i++) {
   const action = computeAIBettingAction(deepOpen, 1, "hard", aggressive);
   if (action?.type !== "POSTFLOP_BET") continue;
   deepBetCount++;
@@ -101,7 +115,7 @@ const shortFacingRaise = postflopState({
 assert.equal(postflopAiMaxRaiseTargetForActor(shortFacingRaise), 60);
 
 let shortAllInCount = 0;
-for (let i = 0; i < 2_000; i++) {
+for (let i = 0; i < SAMPLES; i++) {
   const action = computeAIBettingAction(
     shortFacingRaise,
     1,

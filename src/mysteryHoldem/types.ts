@@ -255,6 +255,8 @@ export type MysteryGameMessage =
       potAmount: number;
       winners: Seat[];
       desc: string;
+      /** 이 팟의 승자가 Forced Split 때문에 달라졌는가(§14) */
+      forcedSplit: boolean;
     }
   | {
       t: "mission_result";

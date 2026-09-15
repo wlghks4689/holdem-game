@@ -1,7 +1,11 @@
 import { MYSTERY_HOLDEM_CONFIG, bountyRewardForSeatCount } from "../src/mysteryHoldem/config";
-import { createInitialMysteryGameState, mysteryHoldemReducer } from "../src/mysteryHoldem/gameReducer";
+import {
+  autoAssignPendingCardTargets,
+  createInitialMysteryGameState,
+  mysteryHoldemReducer,
+} from "../src/mysteryHoldem/gameReducer";
 import { decideBotAction, pickHoleKeepIndexes, pickMissionId } from "../src/mysteryHoldem/bot/botPolicy";
-import { MISSION_POOL } from "../src/mysteryHoldem/mysteryMissions";
+import { CardMetrics } from "./simulateCardMetrics";
 import type { MysteryGameAction, MysteryGameState } from "../src/mysteryHoldem/types";
 
 /**
@@ -57,6 +61,8 @@ interface Totals {
   bustChipGain: number[];
 }
 
+const cardMetrics = new CardMetrics();
+
 const totals: Totals = {
   matches: 0,
   endReason: {},
@@ -90,6 +96,9 @@ function runMatch(seed: number): void {
   let state = dispatch(createInitialMysteryGameState(), { type: "START_MATCH", seatCount }, rng);
   let logCursor = 0;
   let guard = 0;
+  // 스냅샷은 라운드마다 정확히 한 번 잡는다. hand_setup 블록 안에서 잡으려 하면, 마지막
+  // SELECT_ 액션이 곧바로 preflop으로 넘겨 버리기 때문에 그 지점에 닿지 않는다.
+  let snapshotRound = 0;
 
   while (!state.matchEnded) {
     if (guard++ > 4000) throw new Error("match did not converge");
@@ -107,6 +116,18 @@ function runMatch(seed: number): void {
         state = dispatch(state, { type: "SELECT_MISSION", seat: missionSeat, missionId }, rng);
         continue;
       }
+    }
+
+    if (state.phase === "preflop" && snapshotRound !== state.round) {
+      // 카드·홀카드가 모두 확정된 시점 = 이 핸드의 "보유 카드"가 정해진 시점이다(§29).
+      snapshotRound = state.round;
+      cardMetrics.beginHand(state);
+    }
+
+    // 지정형 카드(Mission Breaker / Parasite)는 플랍에서 대상을 골라야 액션할 수 있다(§22).
+    if (state.awaitingCardTarget.length > 0) {
+      state = autoAssignPendingCardTargets(state, rng);
+      continue;
     }
 
     if (state.toActSeat != null) {
@@ -127,6 +148,7 @@ function runMatch(seed: number): void {
     }
 
     if (state.phase === "hand_over") {
+      cardMetrics.endHand(state, logCursor);
       logCursor = collectHandStats(state, logCursor);
       state = dispatch(state, { type: "START_NEXT_HAND" }, rng);
       continue;
@@ -135,6 +157,7 @@ function runMatch(seed: number): void {
     break;
   }
 
+  cardMetrics.endHand(state, logCursor);
   collectHandStats(state, logCursor);
 
   totals.matches++;
@@ -267,40 +290,28 @@ if (totals.winnerMissionShare.length > 0) {
   console.log(`  우승자의 Mission+Bounty 의존도 평균 ${(mean(totals.winnerMissionShare) * 100).toFixed(1)}%`);
 }
 
-console.log("\n── Mission별 실측 (핸드 단위 달성률 / 평균 지급) ──");
-const rows = MISSION_POOL.map((m) => {
-  const active = totals.missionActive[m.id] ?? 0;
-  const achieved = totals.missionAchieved[m.id] ?? 0;
-  const rewardTotal = totals.missionRewardTotal[m.id] ?? 0;
-  return {
-    id: m.id,
-    name: m.name,
-    active,
-    achieved,
-    rate: active === 0 ? 0 : achieved / active,
-    avgReward: achieved === 0 ? 0 : rewardTotal / achieved,
-    evPerHand: active === 0 ? 0 : rewardTotal / active,
-  };
-}).sort((a, b) => b.evPerHand - a.evPerHand);
-
-console.log(`  ${"Mission".padEnd(22)} ${"보유핸드".padStart(8)} ${"달성률".padStart(8)} ${"평균보상".padStart(9)} ${"핸드당EV".padStart(9)}`);
-for (const r of rows) {
-  console.log(
-    `  ${r.name.padEnd(22)} ${String(r.active).padStart(8)} ${(r.rate * 100).toFixed(1).padStart(7)}% ${r.avgReward.toFixed(1).padStart(9)} ${r.evPerHand.toFixed(2).padStart(9)}`,
-  );
-}
+console.log("\n── Mystery Card 카테고리별 실측(§29) ──");
+console.log(cardMetrics.report());
 
 if (totals.missionDeniedCount > 0) {
   const avgDenied = totals.missionDeniedByCounter / totals.missionDeniedCount;
   console.log(
-    `\n  Counter 계열이 지운 상대 점수: ${totals.missionDeniedCount}건 / 총 ${totals.missionDeniedByCounter.toFixed(0)}점 (건당 평균 ${avgDenied.toFixed(0)}점)`,
+    `\n  무효화로 사라진 점수: ${totals.missionDeniedCount}건 / ` +
+      `총 ${totals.missionDeniedByCounter.toFixed(0)}점 (건당 평균 ${avgDenied.toFixed(0)}점)`,
   );
-  console.log("  → Counter 미션의 실제 가치 = 위 표의 획득 EV + 이 '지운 점수'");
 }
 
-const evs = rows.filter((r) => r.active > 0).map((r) => r.evPerHand);
-if (evs.length > 1) {
-  const spread = Math.max(...evs) / Math.max(0.0001, Math.min(...evs));
-  console.log(`\n  Mission 간 EV 격차(최대/최소): ${spread.toFixed(1)}배`);
+// EV 격차는 미션형끼리만 비교한다. 강화형·발동형은 점수가 0에 가깝게 설계된 카드라
+// 함께 넣으면 격차가 무한대로 나오면서 아무 의미도 없는 숫자가 된다(§29).
+// Bounty Hunter는 미션형이지만 보상을 Bounty Point로 받도록 설계된 카드라 Mission EV가
+// 0이다. 격차 계산에 넣으면 분모가 0에 가까워져 "12만 배" 같은 무의미한 숫자가 나온다.
+const missionEvs = cardMetrics
+  .rows()
+  .filter((r) => r.category === "mission" && r.heldHands > 0 && r.bountyDelta === 0)
+  .map((r) => r.rewardTotal / r.heldHands);
+if (missionEvs.length > 1) {
+  const spread = Math.max(...missionEvs) / Math.max(0.0001, Math.min(...missionEvs));
+  console.log(`
+  미션형 카드 간 EV 격차(최대/최소): ${spread.toFixed(1)}배`);
 }
 console.log("");

@@ -744,7 +744,14 @@ function finishHandSettlement(
           return `#${seat} ${handValueSummaryKorean(hv)}`;
         })
         .join(" / ");
-      logs.push({ t: "showdown", potIndex: idx, potAmount: a.pot.amount, winners: a.winners, desc });
+      logs.push({
+        t: "showdown",
+        potIndex: idx,
+        potAmount: a.pot.amount,
+        winners: a.winners,
+        desc,
+        forcedSplit: a.forcedSplit,
+      });
     });
   }
 
