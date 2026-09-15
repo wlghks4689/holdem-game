@@ -160,7 +160,7 @@ export const MISSION_POOL: MysteryMissionDef[] = [
     name: "ACE HIGH LIKE A BOSS",
     category: "mission",
     description:
-      "메이드 없이 하이카드 상태로 팟을 승리합니다. 상대 전원 폴드·쇼다운 승리·스플릿 모두 인정하지만, 프리플랍 승리는 제외합니다. (보드 족보를 포함하지 않은 하이카드만 인정됩니다.)",
+      "메이드 없이 하이카드 상태로 팟을 승리합니다. 상대 전원 폴드·쇼다운 승리·스플릿 모두 인정하지만, 프리플랍 승리는 제외합니다. (보드 족보를 포함하지 않은 하이카드만 인정됩니다.) 보상은 시작 인원에 비례합니다.",
     shortDescription: "메이드 없이 하이카드로 팟을 이기세요.",
     trigger: "hand_result(win)",
     condition: (ctx) =>
@@ -170,7 +170,16 @@ export const MISSION_POOL: MysteryMissionDef[] = [
       // 보드 하이카드를 그대로 쓴 경우는 제외한다 — 내 홀카드가 이긴 것이 아니다.
       ctx.improvesOnBoard &&
       ctx.bestHandValue?.rank === HAND_RANK.HIGH_CARD,
-    reward: 500,
+    /*
+      고정 보상은 인원수에 따라 EV가 5.4배까지 벌어졌다(실측: 2인 12.4 / 10인 2.3).
+      인원이 적을수록 금방 헤즈업이 되어 하이카드로도 팟을 가져가기 쉽기 때문이다.
+      Blind Defender와 같은 방식으로 시작 인원에 비례시킨다 — 그 카드가 실측상 인원별
+      편차가 가장 작다(1.3배).
+
+      reward는 UI 대표값(기본 4인 기준)이고 실제 지급은 rewardFor가 정한다.
+    */
+    reward: 400,
+    rewardFor: (ctx) => ctx.initialSeatCount * 100,
     replacementRule: "on_success",
   },
   {

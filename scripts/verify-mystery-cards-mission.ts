@@ -256,7 +256,11 @@ import type { MysteryGameState, Seat } from "../src/mysteryHoldem/types";
     def.condition(makeMissionCtx({ wonAnyPot: false, boardRevealed: 5, bestHandValue: highCard })),
     false,
   );
-  assert.equal(def.reward, 500);
+  // 보상은 시작 인원에 비례한다 — 인원이 적을수록 하이카드로 이기기 쉬워 EV가 치솟았다.
+  assert.equal(def.reward, 400, "대표값은 기본 4인 기준");
+  assert.equal(def.rewardFor!(makeMissionCtx({ initialSeatCount: 2 })), 200);
+  assert.equal(def.rewardFor!(makeMissionCtx({ initialSeatCount: 6 })), 600);
+  assert.equal(def.rewardFor!(makeMissionCtx({ initialSeatCount: 10 })), 1000);
   // 보드 하이카드를 그대로 쓴 승리는 인정하지 않는다.
   assert.equal(
     def.condition(

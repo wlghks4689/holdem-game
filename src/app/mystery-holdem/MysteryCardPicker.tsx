@@ -28,6 +28,7 @@ export function cardRewardLabel(def: MysteryMissionDef): { kind: "score" | "effe
     return { kind: "score", text: "풀하우스 350 / 포카드 600 / SF 1,000" };
   }
   if (def.id === "blind_defender") return { kind: "score", text: "시작 인원 × 10 Mission Point" };
+  if (def.id === "high_card_boss") return { kind: "score", text: "시작 인원 × 100 Mission Point" };
   // Parasite는 대상의 점수를 복제하므로 고정값이 없다 — 0점 카드로 보이면 안 된다.
   if (def.id === "parasite") return { kind: "score", text: "상대 미션 점수 + 150" };
   if (def.reward > 0) return { kind: "score", text: `+${def.reward} Mission Point` };
