@@ -413,11 +413,23 @@ export function MysteryHoldemClient() {
         <TopBar state={state} />
 
         {/*
+          좌석은 펠트 **바깥 림**에 앉는다(가로 53/52, 세로 46/51 — 모두 반경 50 안팎).
+          예전에는 펠트 안에 두었는데, 중앙의 정보 스트립·커뮤니티 카드·팟 배너가 세로로 178px를
+          차지해 위아래로 각 120px밖에 남지 않았다. 10인에서는 그 안에 좌석을 넣으면 배지가
+          중앙 블록을 파고들거나(실측 355~2,410px²) 서로 겹쳤다(모바일 2,464px²). 바깥으로
+          빼면 원주가 길어져 자리 다툼 자체가 사라진다.
+
+          대신 카드·족보·칩은 언제나 테이블 안쪽을 향한다(SeatView 참고). 바깥을 향하면
+          위쪽 좌석의 카드가 화면 상단바를 덮는다.
+
+          my-14/my-10은 바깥으로 나간 위아래 좌석이 상단바·하단 패널과 부딪히지 않도록 확보한
+          여백이다.
+
           세로 화면(모바일·태블릿 세로)에서는 16:10 가로 테이블의 높이가 너무 낮아 좌석 배지와
           커뮤니티 카드가 서로 겹친다. 세로에서는 테이블 자체를 세로로 세우고 좌석 타원도
           가로로 좁게 / 세로로 길게 바꾼다.
         */}
-        <div className="relative mx-auto aspect-[16/10] w-full max-w-3xl rounded-[999px] border-4 border-emerald-900/60 bg-gradient-to-b from-emerald-800/40 to-emerald-950/60 shadow-2xl [--bet-rx:31] [--bet-ry:25] [--seat-rx:43] [--seat-ry:37] portrait:aspect-[3/4] portrait:[--bet-rx:25] portrait:[--bet-ry:31] portrait:[--seat-rx:39] portrait:[--seat-ry:41]">
+        <div className="relative mx-auto my-14 aspect-[16/10] w-full max-w-3xl rounded-[999px] portrait:my-10 border-4 border-emerald-900/60 bg-gradient-to-b from-emerald-800/40 to-emerald-950/60 shadow-2xl [--bet-rx:31] [--bet-ry:25] [--seat-rx:53] [--seat-ry:52] portrait:aspect-[3/4] portrait:[--bet-rx:25] portrait:[--bet-ry:31] portrait:[--seat-rx:46] portrait:[--seat-ry:51]">
           <div className="absolute inset-[10%] rounded-[999px] border border-emerald-700/40 bg-emerald-900/30" />
 
           {/* 커뮤니티 카드 + 팟 (진행 정보는 보드 바로 위에) */}
@@ -913,63 +925,96 @@ function SeatView({
   const chipAmount =
     showChip && player.streetContribution > 1e-9 && !player.busted ? player.streetContribution : null;
 
+  const showCards = revealCards && revealedHole.length > 0 && !player.folded;
+
   return (
-    <div
-      className="absolute flex -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-1"
-      style={style}
-    >
-      {/*
-        히어로의 홀카드는 하단 HeroPanel에 이미 표시되고, 상대 카드는 뒷면이어도 보드 카드와
-        자리가 겹치므로 플레이 중에는 좌석 위에 카드를 그리지 않는다. 쇼다운/핸드 종료 시에만
-        기존 좌석 위치에 실제 카드를 공개한다.
-      */}
-      {!chipBelowBadge && chipAmount != null ? <BetChipStack amount={chipAmount} /> : null}
-      {revealCards && revealedHole.length > 0 && !player.folded ? (
-        // 세로 화면에서는 공개 카드를 축소해 좁은 테이블 폭 안에 머물게 한다.
-        <div className="flex origin-bottom gap-0.5 portrait:scale-[0.72]">
+    /*
+      좌석의 기준점은 **프로필 박스**다. 예전에는 컬럼 전체를 타원 위에 중앙 정렬했는데,
+      그러면 카드가 열릴 때 컬럼이 길어지면서 배지가 아래로 밀려났다. 아래쪽 좌석은 그
+      밀림 때문에 안쪽 경계선 밖으로 나가고, 쇼다운마다 배지가 움직여 눈이 따라가기 어려웠다.
+
+      배지를 앵커로 삼고 카드·족보·칩은 absolute로 띄운다. 그러면 배지 위치가 카드 공개 여부와
+      무관하게 고정되고, 반경만으로 "박스를 경계선 안에 넣는" 배치를 정확히 맞출 수 있다.
+    */
+    <div className="absolute -translate-x-1/2 -translate-y-1/2" style={style}>
+      <div className="relative flex flex-col items-center">
+        {/*
+          히어로의 홀카드는 하단 HeroPanel에 이미 표시되고, 상대 카드는 뒷면이어도 보드 카드와
+          자리가 겹치므로 플레이 중에는 좌석 위에 카드를 그리지 않는다. 쇼다운/핸드 종료 시에만
+          기존 좌석 위치에 실제 카드를 공개한다.
+
+          배지 위로 떠 있는 영역: (칩) · 카드 · 족보. 레이아웃에 영향을 주지 않으므로
+          배지는 제자리를 지킨다.
+        */}
+        {/*
+          카드·족보·칩은 **언제나 테이블 안쪽을 향한다**. 좌석이 펠트 바깥에 앉으므로,
+          위쪽 좌석의 카드가 위로 뻗으면 그대로 화면 상단바를 덮는다(실측 1,609px² 충돌).
+          안쪽으로 향하면 펠트의 빈 공간을 쓰게 되어 어느 좌석이든 밖으로 새지 않는다.
+          chipBelowBadge는 "이 좌석의 안쪽이 아래쪽인가"와 같은 뜻이라 그대로 재사용한다.
+        */}
+        <div
+          className={[
+            "absolute left-1/2 flex -translate-x-1/2 flex-col items-center gap-1",
+            chipBelowBadge ? "top-full mt-1" : "bottom-full mb-1",
+          ].join(" ")}
+        >
+          {/* 칩은 안쪽 끝(팟에 가장 가까운 쪽)에 둬야 팟으로 모이는 연출이 자연스럽다 */}
+          {!chipBelowBadge && chipAmount != null ? <BetChipStack amount={chipAmount} /> : null}
+          {showCards ? (
+            // 세로 화면에서는 공개 카드를 축소해 좁은 테이블 폭 안에 머물게 한다.
+            <div className="flex origin-bottom gap-0.5 portrait:scale-[0.72]">
+              {/*
+                쇼다운에서는 상대 좌석도 메이드 연출을 받는다. 누가 무엇으로 이겼는지가
+                카드 숫자를 읽기 전에 전달되는 것이 이 연출의 목적이다. heroFx는 히어로면
+                진행 중 연출, 상대면 공개 시점에 계산된 연출이 들어온다(없으면 NO_MADE_FX).
+              */}
+              <HeroCardsWithMadeFx cards={revealedHole} size="compact" fx={heroFx} />
+            </div>
+          ) : null}
           {/*
-            쇼다운에서는 상대 좌석도 메이드 연출을 받는다. 누가 무엇으로 이겼는지가
-            카드 숫자를 읽기 전에 전달되는 것이 이 연출의 목적이다. heroFx는 히어로면
-            진행 중 연출, 상대면 공개 시점에 계산된 연출이 들어온다(없으면 NO_MADE_FX).
+            공개된 카드 아래에 족보를 적는다. 카드만 열리면 누가 무엇으로 이겼는지 읽으려고
+            숫자와 무늬를 직접 대조해야 하는데, 여러 좌석이 동시에 열리는 쇼다운에서는 그게
+            사실상 불가능하다. 좌석 폭을 넘기지 않도록 nowrap으로 두고 세로 화면에서는 줄인다.
           */}
-          <HeroCardsWithMadeFx cards={revealedHole} size="compact" fx={heroFx} />
+          {showCards ? (
+            <span className="whitespace-nowrap rounded bg-black/70 px-1.5 py-px text-[10px] font-bold leading-tight text-amber-200 shadow portrait:text-[8px]">
+              {handValueSummaryKorean(
+                computeBestHandForPlayer(player, state.board.slice(0, state.boardRevealed)),
+              )}
+            </span>
+          ) : null}
+          {chipBelowBadge && chipAmount != null ? <BetChipStack amount={chipAmount} /> : null}
         </div>
-      ) : null}
-      {/*
-        공개된 카드 아래에 족보를 적는다. 카드만 열리면 누가 무엇으로 이겼는지 읽으려고
-        숫자와 무늬를 직접 대조해야 하는데, 여러 좌석이 동시에 열리는 쇼다운에서는 그게
-        사실상 불가능하다. 좌석 폭을 넘기지 않도록 nowrap으로 두고 세로 화면에서는 줄인다.
-      */}
-      {revealCards && revealedHole.length > 0 && !player.folded ? (
-        <span className="whitespace-nowrap rounded bg-black/70 px-1.5 py-px text-[10px] font-bold leading-tight text-amber-200 shadow portrait:text-[8px]">
-          {handValueSummaryKorean(computeBestHandForPlayer(player, state.board.slice(0, state.boardRevealed)))}
-        </span>
-      ) : null}
-      <div
-        className={[
+
+        <div
+          className={[
           "flex min-w-[92px] flex-col items-center rounded-lg border px-2 py-1 text-center shadow portrait:min-w-[54px] portrait:px-1 portrait:py-0.5",
-          player.busted
-            ? "border-zinc-800 bg-zinc-900/70 opacity-50"
-            : isActing
-              ? "border-amber-400 bg-amber-950/50"
-              : player.folded
-                ? "border-zinc-700 bg-zinc-900/60 opacity-60"
-                : "border-zinc-600 bg-zinc-900/80",
-        ].join(" ")}
-      >
-        <span className="whitespace-nowrap text-[11px] font-semibold text-zinc-100 portrait:text-[10px]">
-          {player.name} {isHero ? "(you)" : ""}
-        </span>
-        <span className="whitespace-nowrap text-[10px] text-zinc-400 portrait:text-[9px]">
-          {pos} · {player.busted ? "Busted" : fmt(player.chips)}
-        </span>
-        {player.folded && !player.busted ? (
-          <span className="text-[10px] text-rose-400 portrait:text-[9px]">Fold</span>
-        ) : null}
-        {player.allIn ? <span className="text-[10px] text-amber-400 portrait:text-[9px]">All-In</span> : null}
-        {/* 베팅 금액은 프로필 박스가 아니라 테이블 위 칩(BetChipStack)으로 보여준다 */}
+            player.busted
+              ? "border-zinc-800 bg-zinc-900/70 opacity-50"
+              : isActing
+                ? "border-amber-400 bg-amber-950/50"
+                : player.folded
+                  ? "border-zinc-700 bg-zinc-900/60 opacity-60"
+                  : "border-zinc-600 bg-zinc-900/80",
+          ].join(" ")}
+        >
+          <span className="whitespace-nowrap text-[11px] font-semibold text-zinc-100 portrait:text-[10px]">
+            {player.name} {isHero ? "(you)" : ""}
+          </span>
+          <span className="whitespace-nowrap text-[10px] text-zinc-400 portrait:text-[9px]">
+            {pos} · {player.busted ? "Busted" : fmt(player.chips)}
+          </span>
+          {player.folded && !player.busted ? (
+            <span className="text-[10px] text-rose-400 portrait:text-[9px]">Fold</span>
+          ) : null}
+          {player.allIn ? (
+            <span className="text-[10px] text-amber-400 portrait:text-[9px]">All-In</span>
+          ) : null}
+          {/* 베팅 금액은 프로필 박스가 아니라 테이블 위 칩(BetChipStack)으로 보여준다 */}
+        </div>
+
+
       </div>
-      {chipBelowBadge && chipAmount != null ? <BetChipStack amount={chipAmount} /> : null}
     </div>
   );
 }
