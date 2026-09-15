@@ -41,31 +41,27 @@ export function cardRewardLabel(def: MysteryMissionDef): { kind: "score" | "effe
   return { kind: "effect", text: EFFECT_TEXT[def.id] ?? "규칙 변경 효과" };
 }
 
-function MysteryCardOption({
+/**
+ * Mystery Card 한 장의 앞면.
+ *
+ * 선택 화면(MysteryCardOption)과 **게임 중 내가 들고 있는 카드** 양쪽에서 같은 모양을 쓴다.
+ * 고르던 것과 들고 있는 것이 다르게 생기면 같은 카드인지 매번 이름을 읽어 확인해야 한다.
+ * 그래서 버튼(상호작용)에서 앞면(표현)만 떼어냈다.
+ */
+export function MysteryCardFace({
   def,
-  selected,
-  onSelect,
+  selected = false,
+  className = "",
 }: {
   def: MysteryMissionDef;
-  selected: boolean;
-  onSelect: () => void;
+  selected?: boolean;
+  className?: string;
 }) {
   const art = CARD_CATEGORY_ART[cardCategoryFromLegacy(def.category)];
   const reward = cardRewardLabel(def);
 
   return (
-    <button
-      type="button"
-      onClick={onSelect}
-      aria-pressed={selected}
-      className={[
-        "group flex w-full flex-col overflow-hidden rounded-2xl border-2 bg-zinc-950/80 text-left",
-        "transition duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/70",
-        selected
-          ? `${art.activeRing} -translate-y-1`
-          : `${art.idleBorder} hover:-translate-y-0.5 hover:bg-zinc-900/80`,
-      ].join(" ")}
-    >
+    <div className={["flex flex-col overflow-hidden rounded-2xl text-left", className].join(" ")}>
       {/* (1) 상단 아트 — 글을 읽기 전에 분류가 보이는 자리 */}
       <div
         className={`relative flex h-24 items-center justify-center bg-gradient-to-b sm:h-28 ${art.artBackground}`}
@@ -125,6 +121,35 @@ function MysteryCardOption({
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+function MysteryCardOption({
+  def,
+  selected,
+  onSelect,
+}: {
+  def: MysteryMissionDef;
+  selected: boolean;
+  onSelect: () => void;
+}) {
+  const art = CARD_CATEGORY_ART[cardCategoryFromLegacy(def.category)];
+
+  return (
+    <button
+      type="button"
+      onClick={onSelect}
+      aria-pressed={selected}
+      className={[
+        "group flex w-full rounded-2xl border-2 bg-zinc-950/80",
+        "transition duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/70",
+        selected
+          ? `${art.activeRing} -translate-y-1`
+          : `${art.idleBorder} hover:-translate-y-0.5 hover:bg-zinc-900/80`,
+      ].join(" ")}
+    >
+      <MysteryCardFace def={def} selected={selected} className="flex-1" />
     </button>
   );
 }

@@ -60,7 +60,7 @@ export interface MissionEvalContext {
   wonPots: WonPotInfo[];
   /**
    * 이번 핸드의 최종 족보. 쇼다운뿐 아니라 폴드 승리에서도(보드가 한 장이라도 열렸다면)
-   * 채워진다 — A High Like a Boss가 폴드 승리도 인정하기 때문이다.
+   * 채워진다 — Ace High Like a Boss가 폴드 승리도 인정하기 때문이다.
    */
   bestHandValue: HandValue | null;
   /** 이번 핸드에 이 좌석으로 귀속된 기본 Bounty Point(Bounty Hunter 배수 적용 전) */

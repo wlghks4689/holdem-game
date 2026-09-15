@@ -30,7 +30,7 @@ import {
 } from "@/mysteryHoldem/gameReducer";
 import { CARD_CATEGORY_LABEL, cardCategoryFromLegacy } from "@/mysteryHoldem/mysteryCard";
 import { missionSuccessSeatsFromLogs } from "@/mysteryHoldem/missionFeedback";
-import { MysteryCardPicker, cardRewardLabel } from "./MysteryCardPicker";
+import { MysteryCardFace, MysteryCardPicker, cardRewardLabel } from "./MysteryCardPicker";
 import { positionLabelForSeat } from "@/mysteryHoldem/positions";
 import { scoreBreakdownForAll, survivalRewardForRank } from "@/mysteryHoldem/scoring";
 import {
@@ -498,7 +498,7 @@ export function MysteryHoldemClient() {
         --chrome = 테이블을 뺀 나머지가 세로로 쓰는 양(상단바·카드 헤드룸·패널·간격).
         테이블 높이를 이 값으로 깎아 세로 스크롤 없이 한 화면에 들어가게 한다. 실측으로 정했다.
       */}
-      <div className="mx-auto flex max-w-5xl flex-col gap-2 px-3 pb-3 pt-3 [--chrome:25rem] portrait:[--chrome:21.5rem] sm:px-6">
+      <div className="mx-auto flex max-w-5xl flex-col gap-2 px-3 pb-3 pt-3 [--chrome:25rem] portrait:[--chrome:21.5rem] lg:[--chrome:20rem] sm:px-6">
         <TopBar state={state} />
 
         {/*
@@ -527,6 +527,13 @@ export function MysteryHoldemClient() {
           커뮤니티 카드가 서로 겹친다. 세로에서는 테이블 자체를 세로로 세우고 좌석 타원도
           가로로 좁게 / 세로로 길게 바꾼다.
         */}
+        {/*
+          넓은 화면에서는 테이블 오른쪽에 내 Mystery Card를 세운다. 아래로 쌓으면 그만큼
+          테이블 높이를 깎아먹는데(실측 78px), 가로 화면은 좌우가 500px 넘게 비어 있었다.
+          모양은 선택 화면과 **같은 카드 앞면**을 쓴다 — 고르던 것과 들고 있는 것이 다르게
+          생기면 같은 카드인지 이름을 읽어 대조해야 한다.
+        */}
+        <div className="flex items-center justify-center gap-3">
         <div
           ref={tableRef}
           style={
@@ -536,7 +543,7 @@ export function MysteryHoldemClient() {
               "--card-fit": cardFit,
             } as React.CSSProperties
           }
-          className="relative mx-auto mb-2 mt-28 aspect-[16/10] w-auto max-w-full rounded-[999px] h-[min(calc((100vw-1.5rem)*0.625),30rem,calc(100dvh-var(--chrome)))] min-h-[24rem] portrait:mb-1 portrait:mt-16 portrait:h-[min(calc((100vw-1.5rem)*1.3333),calc(100dvh-var(--chrome)))] portrait:min-h-[25rem] border-4 border-emerald-900/60 bg-gradient-to-b from-emerald-800/40 to-emerald-950/60 shadow-2xl [--bet-rx:31] [--bet-ry:25] [--seat-rx:45] [--seat-ry:45] portrait:aspect-[3/4] portrait:[--bet-rx:25] portrait:[--bet-ry:31] portrait:[--seat-rx:45] portrait:[--seat-ry:45]">
+          className="relative mx-auto mb-2 mt-28 aspect-[16/10] w-auto max-w-full rounded-[999px] h-[min(calc((100vw-1.5rem)*0.625),30rem,calc(100dvh-var(--chrome)))] min-h-[24rem] lg:h-[min(calc((100vw-19rem)*0.625),30rem,calc(100dvh-var(--chrome)))] portrait:mb-1 portrait:mt-16 portrait:h-[min(calc((100vw-1.5rem)*1.3333),calc(100dvh-var(--chrome)))] portrait:min-h-[25rem] border-4 border-emerald-900/60 bg-gradient-to-b from-emerald-800/40 to-emerald-950/60 shadow-2xl [--bet-rx:31] [--bet-ry:25] [--seat-rx:45] [--seat-ry:45] portrait:aspect-[3/4] portrait:[--bet-rx:25] portrait:[--bet-ry:31] portrait:[--seat-rx:45] portrait:[--seat-ry:45]">
           <div className="absolute inset-[10%] rounded-[999px] border border-emerald-700/40 bg-emerald-900/30" />
 
           {/*
@@ -613,6 +620,18 @@ export function MysteryHoldemClient() {
               <BetChipStack amount={b.amount} />
             </div>
           ))}
+        </div>
+
+        {/* 넓은 화면 전용 사이드 컬럼 — 좁은 화면에서는 테이블 아래 요약 상자가 대신한다 */}
+        <aside className="hidden w-60 shrink-0 lg:block">
+          {hero.mission ? (
+            <MysteryCardFace
+              def={hero.mission.def}
+              className="border-2 border-fuchsia-700/50 bg-zinc-950/80"
+            />
+          ) : null}
+          <TrueSightPanel state={state} />
+        </aside>
         </div>
 
         {heroNeedsCardTarget ? (
@@ -998,14 +1017,18 @@ function MysteryCardChip({ mission }: { mission: NonNullable<PlayerState["missio
   const def = mission.def;
 
   return (
-    <div className="relative max-w-[55%]">
+    /*
+      w-fit + mx-auto: 이름이 짧은 카드는 한 줄로 딱 맞게, 긴 카드는 max-w-full 안에서
+      줄바꿈된다. 예전에는 max-w-[55%] 고정 폭에 우측 정렬이라 상자 왼쪽에 쏠려 보였다.
+    */
+    <div className="relative mx-auto w-fit max-w-full">
       <button
         type="button"
         onClick={() => setPinned((v) => !v)}
         aria-expanded={pinned}
-        className="peer w-full rounded-lg border border-fuchsia-700/50 bg-fuchsia-950/20 px-3 py-1.5 text-right transition hover:border-fuchsia-400 hover:bg-fuchsia-900/30"
+        className="peer w-full rounded-lg border border-fuchsia-700/50 bg-fuchsia-950/20 px-3 py-1.5 text-center transition hover:border-fuchsia-400 hover:bg-fuchsia-900/30"
       >
-        <p className="flex items-center justify-end gap-1 text-[10px] font-bold uppercase tracking-wide text-fuchsia-400">
+        <p className="flex items-center justify-center gap-1 text-[10px] font-bold uppercase tracking-wide text-fuchsia-400">
           My Mystery Card
           <span className="rounded-full border border-fuchsia-500/60 px-1 text-[9px] leading-none text-fuchsia-300">?</span>
         </p>
@@ -1014,7 +1037,7 @@ function MysteryCardChip({ mission }: { mission: NonNullable<PlayerState["missio
 
       <div
         className={[
-          "absolute bottom-[calc(100%+0.375rem)] right-0 z-30 w-[min(18rem,calc(100vw-2rem))] rounded-xl border border-fuchsia-700/60 bg-zinc-900/95 p-3 text-left shadow-2xl backdrop-blur",
+          "absolute bottom-[calc(100%+0.375rem)] left-1/2 z-30 w-[min(18rem,calc(100vw-2rem))] -translate-x-1/2 rounded-xl border border-fuchsia-700/60 bg-zinc-900/95 p-3 text-left shadow-2xl backdrop-blur",
           // 클릭하면 고정, 아니면 호버/포커스에만 표시
           pinned ? "" : "hidden peer-hover:block peer-focus-visible:block",
         ].join(" ")}
@@ -1326,8 +1349,9 @@ function MysteryCardPanel({ hero, state }: { hero: PlayerState; state: MysteryGa
   const trueSight = trueSightRevealedCards(state, HERO_SEAT);
   if (hero.mission == null && trueSight.length === 0) return null;
 
+  // 넓은 화면에서는 테이블 옆 사이드 컬럼이 같은 내용을 카드 앞면 그대로 보여준다.
   return (
-    <div className="rounded-2xl border border-zinc-700/70 bg-zinc-900/70 p-3 shadow-xl">
+    <div className="rounded-2xl border border-zinc-700/70 bg-zinc-900/70 p-3 shadow-xl lg:hidden">
       {hero.mission ? <MysteryCardChip mission={hero.mission} /> : null}
       <TrueSightPanel state={state} />
     </div>

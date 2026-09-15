@@ -146,7 +146,7 @@ function missionBias_(player: PlayerState, state: MysteryGameState): {
   if (def.id === "underdog") {
     return { aggression: 0, callMargin: 0.025 };
   }
-  // A High Like a Boss: 메이드 없이 이겨야 하므로 블러프 쪽으로 기운다
+  // Ace High Like a Boss: 메이드 없이 이겨야 하므로 블러프 쪽으로 기운다
   if (def.id === "high_card_boss") {
     return { aggression: 0.06, callMargin: 0 };
   }

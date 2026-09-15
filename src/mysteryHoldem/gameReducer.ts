@@ -793,7 +793,7 @@ function finishHandSettlement(
     const p = players.find((x) => x.seat === seat)!;
     preflopScoreBySeat.set(seat, preflopScoreForHoleCards(p.holeCards));
   }
-  // 폴드 승리로 끝난 핸드에서도 남은 플레이어의 족보는 필요하다 — A High Like a Boss가
+  // 폴드 승리로 끝난 핸드에서도 남은 플레이어의 족보는 필요하다 — Ace High Like a Boss가
   // "그 시점까지 열린 보드 + 내 홀카드" 기준으로 하이카드 승리를 인정하기 때문이다(§15).
   const evaluableSeats = wasShowdown
     ? contestingSeats

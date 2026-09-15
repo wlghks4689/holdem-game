@@ -201,7 +201,7 @@ import type { MysteryGameState, Seat } from "../src/mysteryHoldem/types";
   );
 }
 
-// ─────────────── A High Like a Boss: 메이드 없이 하이카드로 승리 ───────────────
+// ─────────────── Ace High Like a Boss: 메이드 없이 하이카드로 승리 ───────────────
 {
   const def = findMissionDef("high_card_boss")!;
   const highCard = { rank: HAND_RANK.HIGH_CARD, kickers: [14, 12, 9, 7, 5] };

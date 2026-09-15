@@ -159,7 +159,7 @@ export const MISSION_POOL: MysteryMissionDef[] = [
   },
   {
     id: "high_card_boss",
-    name: "A HIGH LIKE A BOSS",
+    name: "ACE HIGH LIKE A BOSS",
     category: "mission",
     description:
       "메이드 없이 하이카드 상태로 팟을 승리합니다. 상대 전원 폴드·쇼다운 승리·스플릿 모두 인정하지만, 커뮤니티 카드가 한 장도 열리지 않은 프리플랍 승리는 제외합니다.",
