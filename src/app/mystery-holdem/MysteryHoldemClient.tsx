@@ -110,6 +110,52 @@ function seatCardScale(seatCount: number): number {
  */
 const BOARD_PORTRAIT_SCALE = 0.72;
 
+/**
+ * 좌석 배율을 실측해서 정한 **기준 테이블 크기**.
+ *
+ * 좌석 위치는 테이블 대비 %라 테이블이 줄면 같이 촘촘해지는데, 카드는 px 고정이라 그대로다.
+ * 그래서 테이블이 기준보다 작아지면 그 비율만큼 카드도 줄여야 겹침이 생기지 않는다.
+ * 가로/세로는 좌석 링 모양이 달라 기준도 따로 둔다(각각 1280×800, 375×812에서 측정한 값).
+ */
+const TABLE_REFERENCE = {
+  landscape: { w: 768, h: 480 },
+  portrait: { w: 351, h: 468 },
+} as const;
+
+/**
+ * 기준 대비 지금 테이블이 얼마나 작은지(≤ 1).
+ *
+ * 커뮤니티 카드와 좌석 홀카드에 **똑같이** 곱한다 — 한쪽만 줄이면 둘의 크기가 어긋난다.
+ * 화면 폭으로 미디어 쿼리를 걸어 봤지만, 테이블 크기가 이제 화면 **높이**에도 좌우되므로
+ * 폭만으로는 맞출 수 없다. 실제 렌더된 크기를 재는 쪽이 정확하다.
+ */
+function useTableCardFit(): { tableRef: (el: HTMLDivElement | null) => void; cardFit: number } {
+  const [cardFit, setCardFit] = React.useState(1);
+  const observer = React.useRef<ResizeObserver | null>(null);
+
+  /*
+    useRef + useEffect가 아니라 **콜백 ref**여야 한다. 테이블은 로비를 지나야 렌더되는데,
+    첫 마운트(로비) 시점에는 ref.current가 null이라 effect가 그냥 반환해 버리고,
+    의존성이 ref 하나뿐이라 테이블이 나타난 뒤에도 다시 붙지 않는다(실측: --card-fit이 1로 고정).
+  */
+  const tableRef = React.useCallback((el: HTMLDivElement | null) => {
+    observer.current?.disconnect();
+    observer.current = null;
+    if (el == null || typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(([entry]) => {
+      const { width, height } = entry!.contentRect;
+      if (width < 1 || height < 1) return;
+      const r = height > width ? TABLE_REFERENCE.portrait : TABLE_REFERENCE.landscape;
+      // 소수점 둘째 자리로 끊는다. 리사이즈마다 미세하게 바뀌면 렌더가 계속 돈다.
+      setCardFit(Math.round(Math.min(1, width / r.w, height / r.h) * 100) / 100);
+    });
+    ro.observe(el);
+    observer.current = ro;
+  }, []);
+
+  return { tableRef, cardFit };
+}
+
 /** 칩 수집 연출 길이 — globals.css의 .mystery-chip-collect와 맞춰야 한다 */
 const CHIP_COLLECT_MS = 560;
 
@@ -420,6 +466,7 @@ export function MysteryHoldemClient() {
   const chips = useBetChipCollect(state);
   const heroFx = useHeroMadeHandFx(state, hero);
   const showdownFx = useShowdownMadeFx(state, chips.revealCards);
+  const { tableRef, cardFit } = useTableCardFit();
   // 판정은 순수 함수(missionFeedback.ts)에 있다 — 성공률이 낮아 브라우저에서 우연히
   // 뜨기를 기다릴 수 없어 테스트로 고정했다.
   const missionSuccessSeats = React.useMemo(
@@ -447,7 +494,11 @@ export function MysteryHoldemClient() {
 
   return (
     <div className="min-h-dvh bg-gradient-to-b from-zinc-900 via-zinc-900 to-zinc-950 text-zinc-50">
-      <div className="mx-auto flex max-w-5xl flex-col gap-4 px-3 pb-3 pt-6 sm:px-6">
+      {/*
+        --chrome = 테이블을 뺀 나머지가 세로로 쓰는 양(상단바·카드 헤드룸·패널·간격).
+        테이블 높이를 이 값으로 깎아 세로 스크롤 없이 한 화면에 들어가게 한다. 실측으로 정했다.
+      */}
+      <div className="mx-auto flex max-w-5xl flex-col gap-2 px-3 pb-3 pt-3 [--chrome:25rem] portrait:[--chrome:21.5rem] sm:px-6">
         <TopBar state={state} />
 
         {/*
@@ -460,21 +511,32 @@ export function MysteryHoldemClient() {
           대신 카드·족보·칩은 언제나 테이블 안쪽을 향한다(SeatView 참고). 바깥을 향하면
           위쪽 좌석의 카드가 화면 상단바를 덮는다.
 
-          my-14/my-10은 바깥으로 나간 위아래 좌석이 상단바·하단 패널과 부딪히지 않도록 확보한
-          여백이다.
+          위쪽 여백(mt)은 **최상단 좌석의 홀카드가 쇼다운에서 올라갈 자리**다. 카드가 프로필
+          박스 위로 통일되어 있어 이 자리가 없으면 상단바를 덮는다. 아래쪽은 히어로 카드도
+          배지 위(=테이블 안쪽)로 뻗으므로 배지 높이만큼만 있으면 된다.
+
+          단, 하한(min-h)이 있다. 프로필 박스는 px 고정이라 테이블만 계속 줄이면 배지끼리
+          겹친다 — 1366×660에서 테이블이 416px까지 줄자 겹침이 1,448px²까지 올라갔다.
+          하한 아래로 짧은 화면에서는 세로 스크롤을 허용한다. 읽을 수 없는 테이블보다 낫다.
+
+          크기는 폭이 아니라 **남은 높이**로 정한다. 폭으로만 잡으면 노트북 가로 화면에서
+          테이블만 480px을 먹어 아래 패널이 화면 밖으로 밀렸다(실측 세로 초과 90px~160px).
+          aspect-ratio에 높이를 주고 너비를 auto로 두면 비율을 유지한 채 줄어든다.
 
           세로 화면(모바일·태블릿 세로)에서는 16:10 가로 테이블의 높이가 너무 낮아 좌석 배지와
           커뮤니티 카드가 서로 겹친다. 세로에서는 테이블 자체를 세로로 세우고 좌석 타원도
           가로로 좁게 / 세로로 길게 바꾼다.
         */}
         <div
+          ref={tableRef}
           style={
             {
               "--seat-card-scale": seatCardScale(state.seatCount),
               "--seat-card-scale-portrait": BOARD_PORTRAIT_SCALE,
+              "--card-fit": cardFit,
             } as React.CSSProperties
           }
-          className="relative mx-auto my-14 mt-28 aspect-[16/10] w-full max-w-3xl rounded-[999px] portrait:my-10 portrait:mt-20 border-4 border-emerald-900/60 bg-gradient-to-b from-emerald-800/40 to-emerald-950/60 shadow-2xl [--bet-rx:31] [--bet-ry:25] [--seat-rx:45] [--seat-ry:45] [--card-fit:1] max-[359px]:[--card-fit:0.84] portrait:aspect-[3/4] portrait:[--bet-rx:25] portrait:[--bet-ry:31] portrait:[--seat-rx:45] portrait:[--seat-ry:45]">
+          className="relative mx-auto mb-2 mt-28 aspect-[16/10] w-auto max-w-full rounded-[999px] h-[min(calc((100vw-1.5rem)*0.625),30rem,calc(100dvh-var(--chrome)))] min-h-[24rem] portrait:mb-1 portrait:mt-16 portrait:h-[min(calc((100vw-1.5rem)*1.3333),calc(100dvh-var(--chrome)))] portrait:min-h-[25rem] border-4 border-emerald-900/60 bg-gradient-to-b from-emerald-800/40 to-emerald-950/60 shadow-2xl [--bet-rx:31] [--bet-ry:25] [--seat-rx:45] [--seat-ry:45] portrait:aspect-[3/4] portrait:[--bet-rx:25] portrait:[--bet-ry:31] portrait:[--seat-rx:45] portrait:[--seat-ry:45]">
           <div className="absolute inset-[10%] rounded-[999px] border border-emerald-700/40 bg-emerald-900/30" />
 
           {/*
@@ -692,7 +754,7 @@ function TopBar({ state }: { state: MysteryGameState }) {
     <div className="flex items-center justify-between gap-2">
       <Link
         href="/"
-        className="flex items-center gap-1.5 rounded-lg border border-zinc-600 bg-zinc-800/80 px-3 py-1.5 text-xs font-semibold text-zinc-100 shadow transition hover:border-zinc-400 hover:bg-zinc-700"
+        className="flex shrink-0 items-center gap-1.5 rounded-lg border border-zinc-600 bg-zinc-800/80 px-3 py-1.5 text-xs font-semibold text-zinc-100 shadow transition hover:border-zinc-400 hover:bg-zinc-700"
       >
         <span aria-hidden>←</span> 홈
       </Link>
@@ -784,8 +846,13 @@ function ScoreboardDrawer({ state }: { state: MysteryGameState }) {
   return (
     // 펼쳤을 때 보드를 아래로 밀지 않도록, 패널을 absolute로 띄워 테이블 위에 겹쳐 보여준다.
     <details className="group relative">
-      <summary className="flex cursor-pointer list-none select-none items-center gap-1.5 rounded-lg border border-zinc-600 bg-zinc-800/80 px-3 py-1.5 text-xs shadow transition hover:border-zinc-400 hover:bg-zinc-700 [&::-webkit-details-marker]:hidden">
-        <span className="font-semibold text-zinc-100">점수표</span>
+      {/*
+        좁은 화면에서 이 버튼이 눌리면 "점수표"가 글자 단위로 쪼개져 세로로 쌓였다.
+        라벨에는 nowrap을 걸어 통째로 유지하고, 자리가 모자라면 flex-wrap으로 라벨과
+        순위 줄이 각각 한 줄씩 — 두 줄까지만 쓰도록 접는다.
+      */}
+      <summary className="flex cursor-pointer list-none select-none flex-wrap items-center justify-center gap-x-1.5 gap-y-0.5 rounded-lg border border-zinc-600 bg-zinc-800/80 px-3 py-1.5 text-xs shadow transition hover:border-zinc-400 hover:bg-zinc-700 [&::-webkit-details-marker]:hidden">
+        <span className="whitespace-nowrap font-semibold text-zinc-100">점수표</span>
         {leader ? (
           <span className="whitespace-nowrap text-zinc-300">
             1위
