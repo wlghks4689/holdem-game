@@ -22,7 +22,7 @@ import { resolveMissionsForHand, type MissionResolutionInput } from "./missionRe
 import { shouldReplaceCard } from "./mysteryCard";
 import { bbSeatFor, isActionable, isAllInRunoutSituation, isHandDecidedByFold, isInHandContesting, positionLabelForSeat, sbSeatFor } from "./positions";
 import { isLegalRaiseTarget } from "./potLimit";
-import { buildPots, totalPotAmount, type PotContributor } from "./pots";
+import { buildPots, totalPotAmount, withdrawUncalledExcess, type PotContributor, type UncalledRefund } from "./pots";
 import {
   chipPointFromChips,
   resolveLastPlayerStandingResult,
@@ -702,25 +702,28 @@ function totalAnteChips(players: readonly PlayerState[]): number {
 
 // ───────────────────────── 핸드 정산(쇼다운/폴드 승리) ─────────────────────────
 
-function settleHandByFold(state: MysteryGameState): MysteryGameState {
-  const winnerSeat = state.players.find((p) => isInHandContesting(p))!.seat;
-  const contributors: PotContributor[] = state.players
+/** 팟을 만들기 전에 매칭되지 않은 초과 베팅을 떼어낸다(§24) */
+function potsWithRefunds(state: MysteryGameState) {
+  const raw: PotContributor[] = state.players
     .filter((p) => p.inHand)
     .map((p) => ({ seat: p.seat, amount: p.handContribution, folded: p.folded }));
-  const pots = buildPots(contributors, totalAnteChips(state.players));
+  const { contributors, refunds } = withdrawUncalledExcess(raw);
+  return { pots: buildPots(contributors, totalAnteChips(state.players)), refunds };
+}
+
+function settleHandByFold(state: MysteryGameState): MysteryGameState {
+  const winnerSeat = state.players.find((p) => isInHandContesting(p))!.seat;
+  const { pots, refunds } = potsWithRefunds(state);
   const awards = awardAllPotsToSingleWinner(pots, winnerSeat);
   const amounts = mergeAwardAmounts(awards);
-  return finishHandSettlement(state, pots, awards, amounts, false);
+  return finishHandSettlement(state, pots, awards, amounts, false, refunds);
 }
 
 function resolveShowdown(state: MysteryGameState): MysteryGameState {
-  const contributors: PotContributor[] = state.players
-    .filter((p) => p.inHand)
-    .map((p) => ({ seat: p.seat, amount: p.handContribution, folded: p.folded }));
-  const pots = buildPots(contributors, totalAnteChips(state.players));
+  const { pots, refunds } = potsWithRefunds(state);
   const awards = awardPots(pots, state.players, state.board, state.buttonSeat, state.seatCount);
   const amounts = mergeAwardAmounts(awards);
-  return finishHandSettlement({ ...state, phase: "showdown" }, pots, awards, amounts, true);
+  return finishHandSettlement({ ...state, phase: "showdown" }, pots, awards, amounts, true, refunds);
 }
 
 function finishHandSettlement(
@@ -729,10 +732,13 @@ function finishHandSettlement(
   awards: readonly PotAward[],
   amounts: Map<Seat, number>,
   wasShowdown: boolean,
+  refunds: readonly UncalledRefund[] = [],
 ): MysteryGameState {
+  // 매칭되지 않은 초과분은 팟에 들어가지 않았으므로 주인에게 그대로 돌려준다.
+  const refundBySeat = new Map<Seat, number>(refunds.map((r) => [r.seat, r.amount]));
   let players = state.players.map((p) => {
     if (!p.inHand) return p;
-    const won = amounts.get(p.seat) ?? 0;
+    const won = round2((amounts.get(p.seat) ?? 0) + (refundBySeat.get(p.seat) ?? 0));
     return won > 1e-9 ? { ...p, chips: round2(p.chips + won) } : p;
   });
 
@@ -743,17 +749,22 @@ function finishHandSettlement(
   } else {
     awards.forEach((a, idx) => {
       if (a.winners.length === 0) return;
+      // 좌석 번호(#2)는 화면 어디에도 안 보이는 내부 값이라 읽는 사람이 대조할 수가 없다.
+      // 테이블·점수표에 쓰는 이름을 그대로 쓴다.
       const desc = a.winners
         .map((seat) => {
-          const hv = computeBestHandForPlayer(players.find((p) => p.seat === seat)!, state.board);
-          return `#${seat} ${handValueSummaryKorean(hv)}`;
+          const p = players.find((x) => x.seat === seat)!;
+          const hv = computeBestHandForPlayer(p, state.board);
+          return `${p.name} — ${handValueSummaryKorean(hv)}`;
         })
         .join(" / ");
       logs.push({
         t: "showdown",
         potIndex: idx,
+        potCount: awards.length,
         potAmount: a.pot.amount,
         winners: a.winners,
+        eligibleSeats: [...a.pot.eligibleSeats],
         desc,
         forcedSplit: a.forcedSplit,
       });

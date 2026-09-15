@@ -11,6 +11,7 @@ import {
   madeHandFxTier,
 } from "@/holdem/pokerEval";
 import type { MadeHandFxKind } from "@/holdem/pokerEval";
+import { HOLE_DIM_CLASS, NEUTRAL_FOCUS_GLOW } from "./showdownFocusStyles";
 import {
   HOLDEM_PREFS_CHANGED_EVENT,
   loadMadeHandFxEnabled,
@@ -621,11 +622,9 @@ export function HoleCards({
                                   showRing
                                     ? madeFxTier > 0
                                       ? madeFxCardClass
-                                      : "holdem-showdown-default-card-glow"
+                                      : NEUTRAL_FOCUS_GLOW
                                     : "",
-                                  dimNonMade
-                                    ? "opacity-35 brightness-[0.78] saturate-50 grayscale-[0.18]"
-                                    : "",
+                                  dimNonMade ? HOLE_DIM_CLASS : "",
                                 ]
                                   .filter(Boolean)
                                   .join(" ")}

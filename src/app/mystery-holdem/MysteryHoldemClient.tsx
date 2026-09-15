@@ -15,6 +15,20 @@ import {
 } from "@/mysteryHoldem/gameReducer";
 import { CARD_CATEGORY_LABEL, cardCategoryFromLegacy } from "@/mysteryHoldem/mysteryCard";
 import { findMissionDef } from "@/mysteryHoldem/mysteryMissions";
+import { cardKey } from "@/holdem/showdownFocus";
+import {
+  BOARD_DIM_CLASS,
+  BOARD_FOCUS_FILTER,
+  HOLE_DIM_CLASS,
+  NEUTRAL_FOCUS_GLOW,
+  SEAT_DIM_CLASS,
+  SHOWDOWN_BOARD_GLOW,
+} from "@/app/holdem/components/showdownFocusStyles";
+import {
+  mainPotResultFromLogs,
+  showdownFocusForMainPot,
+  type MainPotShowdownFocus,
+} from "@/mysteryHoldem/showdownFocus";
 import { missionSuccessSeatsFromLogs } from "@/mysteryHoldem/missionFeedback";
 import {
   HeroCardsWithMadeFx,
@@ -335,6 +349,20 @@ export function MysteryHoldemClient() {
   const heroFx = useHeroMadeHandFx(state, hero);
   const showdownFx = useShowdownMadeFx(state, chips.revealCards);
   const { tableRef, cardFit } = useTableCardFit();
+
+  /*
+    쇼다운 포커스. 보드 5장이 다 열리고 칩 회수가 끝난 뒤에만 켠다 — 런아웃 도중에 켜면
+    아직 공개되지 않은 결과를 미리 알려 주는 스포일러가 된다(§23).
+    폴드 승리에는 켜지 않는다. 겨룬 카드가 없으므로 강조할 BEST 5가 없다(§24).
+  */
+  const showdownFocus = React.useMemo(() => {
+    if (!chips.revealCards || state.boardRevealed < 5) return null;
+    return showdownFocusForMainPot(
+      mainPotResultFromLogs(state.logs),
+      state.players,
+      state.board.slice(0, 5),
+    );
+  }, [chips.revealCards, state.boardRevealed, state.logs, state.players, state.board]);
   // 판정은 순수 함수(missionFeedback.ts)에 있다 — 성공률이 낮아 브라우저에서 우연히
   // 뜨기를 기다릴 수 없어 테스트로 고정했다.
   const missionSuccessSeats = React.useMemo(
@@ -438,16 +466,33 @@ export function MysteryHoldemClient() {
               좌석 홀카드가 **같이** 줄어야 둘의 크기가 어긋나지 않는다.
             */}
             <div className="flex gap-1 [zoom:var(--card-fit)] portrait:[zoom:calc(0.72*var(--card-fit))] sm:gap-1.5">
-              {Array.from({ length: 5 }, (_, i) => (
-                <div key={i}>
-                  {i < state.board.length ? (
+              {Array.from({ length: 5 }, (_, i) => {
+                const c = state.board[i];
+                /*
+                  메인 팟 승자의 BEST 5에 들어간 카드만 밝히고 나머지는 누른다.
+                  클래스는 기존 Select Hold'em과 같은 값을 공유한다(showdownFocusStyles).
+                */
+                const used = c != null && (showdownFocus?.boardUsedKeys.has(cardKey(c)) ?? false);
+                const dimmed = c != null && showdownFocus != null && !used;
+                return (
+                <div key={i} className={used ? "z-10 scale-[1.04] transition-transform duration-300" : ""}>
+                  {c != null ? (
                     // 좁은 화면에서 5장이 항상 한 줄에 들어가는 board 규격을 쓴다.
-                    <PlayingCard card={state.board[i]!} size="board" />
+                    <PlayingCard
+                      card={c}
+                      size="board"
+                      className={[
+                        "transition-[opacity,filter] duration-300",
+                        used ? `${BOARD_FOCUS_FILTER} ${SHOWDOWN_BOARD_GLOW[showdownFocus!.fxKind]}` : "",
+                        dimmed ? BOARD_DIM_CLASS : "",
+                      ].join(" ")}
+                    />
                   ) : (
                     <div className="h-[3.6rem] w-[2.6rem] rounded-lg border border-dashed border-emerald-700/40 sm:h-[5.38rem] sm:w-[3.85rem]" />
                   )}
                 </div>
-              ))}
+                );
+              })}
             </div>
             <PotBanners state={state} mainPot={pot} />
           </div>
@@ -472,6 +517,7 @@ export function MysteryHoldemClient() {
                 heroFx={p.seat === HERO_SEAT ? heroFx : (showdownFx.get(p.seat) ?? NO_MADE_FX)}
                 revealCards={chips.revealCards}
                 missionSuccess={missionSuccessSeats.has(p.seat)}
+                focus={showdownFocus}
                 chipBelowBadge={!seatIsOnLowerHalf(idx, state.seatCount)}
                 showChip={chips.showSeatChips}
               />
@@ -928,6 +974,7 @@ function SeatView({
   style,
   isHero,
   missionSuccess,
+  focus,
   heroFx,
   revealCards,
   chipBelowBadge,
@@ -938,6 +985,8 @@ function SeatView({
   style: React.CSSProperties;
   isHero: boolean;
   missionSuccess: boolean;
+  /** 메인 팟 쇼다운 포커스 — 없으면(진행 중·폴드 승리) 아무것도 누르지 않는다 */
+  focus: MainPotShowdownFocus | null;
   heroFx: HeroMadeFx;
   /** 카드를 공개할 시점인지 — 쇼다운이어도 칩 회수 연출이 끝나기 전에는 false */
   revealCards: boolean;
@@ -969,6 +1018,16 @@ function SeatView({
   // 보드가 깔리기 전(프리플랍)에는 족보가 의미 없다. 쇼다운이거나 플랍 이후에만 적는다.
   const showHandLabel = showCards && state.boardRevealed >= 3;
 
+  /*
+    쇼다운 포커스에서 이 좌석의 위치.
+
+    메인 팟 승자가 아닌 좌석은 약하게만 누른다 — 완전히 지우면 사이드 팟 결과를 확인할 수
+    없다(§22). 승자는 자기 BEST 5에 쓰인 홀카드만 밝히고 나머지는 누른다.
+  */
+  const isMainWinner = focus?.winnerSeats.includes(player.seat) ?? false;
+  const winnerHoleKeys = focus?.holeUsedBySeat.get(player.seat);
+  const seatDimmed = focus != null && !isMainWinner;
+
   return (
     /*
       좌석의 기준점은 **프로필 박스**다. 예전에는 컬럼 전체를 타원 위에 중앙 정렬했는데,
@@ -979,7 +1038,12 @@ function SeatView({
       무관하게 고정되고, 반경만으로 "박스를 경계선 안에 넣는" 배치를 정확히 맞출 수 있다.
     */
     <div className="absolute -translate-x-1/2 -translate-y-1/2" style={style}>
-      <div className="relative flex flex-col items-center">
+      <div
+        className={[
+          "relative flex flex-col items-center transition-[opacity,filter] duration-300",
+          seatDimmed ? SEAT_DIM_CLASS : "",
+        ].join(" ")}
+      >
         {/*
           히어로의 홀카드는 하단 HeroPanel에 이미 표시되고, 상대 카드는 뒷면이어도 보드 카드와
           자리가 겹치므로 플레이 중에는 좌석 위에 카드를 그리지 않는다. 쇼다운/핸드 종료 시에만
@@ -1014,7 +1078,36 @@ function SeatView({
                 카드 숫자를 읽기 전에 전달되는 것이 이 연출의 목적이다. heroFx는 히어로면
                 진행 중 연출, 상대면 공개 시점에 계산된 연출이 들어온다(없으면 NO_MADE_FX).
               */}
-              <HeroCardsWithMadeFx cards={shownCards} size="board" fx={heroFx} />
+              {/*
+                포커스가 켜진 동안에는 메이드 연출(heroFx)을 끈다. 승자 BEST 5 강조와
+                메이드 글로우가 같은 카드에 겹치면 어느 쪽 신호인지 구분되지 않는다.
+              */}
+              {focus != null ? (
+                <div className="flex gap-1.5">
+                  {shownCards.map((c, i) => {
+                    const used = winnerHoleKeys?.has(cardKey(c)) ?? false;
+                    return (
+                      <PlayingCard
+                        key={i}
+                        card={c}
+                        size="board"
+                        className={[
+                          "transition-[opacity,filter] duration-300",
+                          used
+                            ? focus.forcedSplit
+                              ? NEUTRAL_FOCUS_GLOW
+                              : SHOWDOWN_BOARD_GLOW[focus.fxKind]
+                            : "",
+                          // 승자의 미사용 홀카드만 누른다. 패자는 좌석 전체가 이미 눌려 있다.
+                          isMainWinner && !used ? HOLE_DIM_CLASS : "",
+                        ].join(" ")}
+                      />
+                    );
+                  })}
+                </div>
+              ) : (
+                <HeroCardsWithMadeFx cards={shownCards} size="board" fx={heroFx} />
+              )}
             </div>
           ) : null}
           {/*
@@ -1064,6 +1157,13 @@ function SeatView({
             "미션 성공" 라벨. absolute라 박스 높이를 밀지 않으므로 레이아웃이 흔들리지 않는다.
             세로 화면에서는 더 작게 — 모바일에서 이 라벨이 이웃 좌석까지 넘어가면 안 된다.
           */}
+          {/* 이 핸드의 주인공. 사이드 팟 승자와 헷갈리지 않도록 메인 팟임을 밝힌다 */}
+          {isMainWinner ? (
+            <span className="pointer-events-none absolute -bottom-2 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full bg-emerald-400 px-1.5 py-px text-[9px] font-black leading-tight text-zinc-950 shadow-lg portrait:text-[8px]">
+              {focus!.forcedSplit ? "MAIN SPLIT" : "MAIN POT"}
+            </span>
+          ) : null}
+
           {missionSuccess ? (
             <span
               className="mystery-mission-success-label pointer-events-none absolute -top-2 left-1/2 whitespace-nowrap rounded-full bg-amber-400 px-1.5 py-px text-[9px] font-black leading-tight text-zinc-950 shadow-lg portrait:text-[8px]"
@@ -1606,9 +1706,19 @@ function describeLog(l: MysteryGameState["logs"][number]): string {
       return `${l.street} 오픈 (Pot ${fmt(l.pot)})`;
     case "fold_win":
       return `Seat ${l.winner} 폴드 승리 (Pot ${fmt(l.pot)})`;
-    case "showdown":
-      // "Pot #1 / #2"는 사이드 팟이 왜 생겼는지 모르는 사람에게 의미가 전달되지 않는다.
-      return `${l.potIndex === 0 ? "메인 팟" : `사이드 팟 ${l.potIndex}`} ${fmt(l.potAmount)} → ${l.desc}`;
+    case "showdown": {
+      /*
+        팟이 하나뿐인 핸드에서 "메인 팟"이라고 부르면, 있지도 않은 사이드 팟이 어딘가
+        있는 것처럼 읽힌다. 실제로 나뉜 핸드에서만 메인/사이드를 구분해 부른다.
+        사이드 팟은 "왜 따로 생겼는가"가 핵심이라 자격자 수를 함께 적는다.
+      */
+      if (l.potCount <= 1) return `팟 ${fmt(l.potAmount)} → ${l.desc}`;
+      const label =
+        l.potIndex === 0
+          ? `메인 팟 ${fmt(l.potAmount)}`
+          : `사이드 팟 ${l.potIndex} ${fmt(l.potAmount)} (자격 ${l.eligibleSeats.length}명)`;
+      return `${label} → ${l.desc}`;
+    }
     case "mission_result":
     {
       // 지정형 카드는 핸드가 끝난 뒤에 대상을 공개한다(§22).

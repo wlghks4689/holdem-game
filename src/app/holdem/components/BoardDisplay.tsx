@@ -9,7 +9,11 @@ import {
   compareHandValue,
   madeHandFxKind,
 } from "@/holdem/pokerEval";
-import type { MadeHandFxKind } from "@/holdem/pokerEval";
+import {
+  BOARD_DIM_CLASS,
+  BOARD_FOCUS_FILTER,
+  SHOWDOWN_BOARD_GLOW,
+} from "./showdownFocusStyles";
 import { useHoldemMotionMode } from "../HoldemMotionRuntime";
 import { CardBack, PlayingCard } from "./Card";
 import {
@@ -39,15 +43,6 @@ const TURN_RIVER_STAGGER_MS = 80;
 
 const BOARD_GAP = "gap-px sm:gap-5 lg:gap-7";
 
-const SHOWDOWN_BOARD_GLOW: Record<MadeHandFxKind, string> = {
-  none: "holdem-showdown-default-card-glow",
-  straight: "holdem-made-card-glow-t1",
-  flush: "holdem-made-card-glow-t2",
-  "full-house": "holdem-made-card-glow-t3",
-  quads: "holdem-preview-quads-coral-card",
-  "straight-flush": "holdem-preview-straight-flush-rainbow-card",
-  "royal-flush": "holdem-preview-royal-flush-card",
-};
 
 function rabbitSlotLabel(
   i: number,
@@ -384,12 +379,8 @@ export function BoardDisplay({
                   size={cardSize}
                   className={[
                     showdown ? "drop-shadow-sm" : "drop-shadow-md",
-                    madeOnWinner
-                      ? `brightness-[1.16] contrast-[1.1] saturate-[1.12] ${showdownGlowClass}`
-                      : "",
-                    dimNonMade
-                      ? "opacity-20 brightness-[0.48] contrast-75 saturate-[0.28] grayscale-[0.58]"
-                      : "",
+                    madeOnWinner ? `${BOARD_FOCUS_FILTER} ${showdownGlowClass}` : "",
+                    dimNonMade ? BOARD_DIM_CLASS : "",
                     hasEnterDeal ? "opacity-0" : "opacity-100",
                   ].join(" ")}
                 />
@@ -412,12 +403,8 @@ export function BoardDisplay({
                         size={cardSize}
                         className={[
                           "drop-shadow-lg",
-                          madeOnWinner
-                            ? `brightness-[1.16] contrast-[1.1] saturate-[1.12] ${showdownGlowClass}`
-                            : "",
-                          dimNonMade
-                            ? "opacity-20 brightness-[0.48] contrast-75 saturate-[0.28] grayscale-[0.58]"
-                            : "",
+                          madeOnWinner ? `${BOARD_FOCUS_FILTER} ${showdownGlowClass}` : "",
+                          dimNonMade ? BOARD_DIM_CLASS : "",
                         ].join(" ")}
                       />
                     </div>

@@ -7,6 +7,51 @@ export interface PotContributor {
   folded: boolean;
 }
 
+export interface UncalledRefund {
+  seat: Seat;
+  amount: number;
+}
+
+/**
+ * 아무도 매칭하지 않은 초과 베팅을 팟 구성 **전에** 떼어낸다(§24).
+ *
+ * 최고 기여자가 두 번째 기여자보다 많이 넣었다면, 그 차액은 겨룰 상대가 없는 돈이다.
+ * 그대로 두면 "자기 혼자만 참가 자격이 있는 사이드 팟"이 생겨, UI에 있지도 않은 승부가
+ * 하나 더 있는 것처럼 보인다(실측: 5,000/8,000 올인 상대로 15,000을 넣으면 7,000짜리
+ * 1인 사이드 팟이 생겼다).
+ *
+ * 폴드한 플레이어가 넣은 돈도 "이미 매칭된 돈"으로 친다 — 팟에 남아야 하기 때문이다.
+ * 최고액이 동률이면 서로가 서로를 매칭한 것이므로 반환할 초과분이 없다.
+ */
+export function withdrawUncalledExcess(contributors: readonly PotContributor[]): {
+  contributors: PotContributor[];
+  refunds: UncalledRefund[];
+} {
+  const live = contributors.filter((c) => c.amount > 1e-9);
+  if (live.length < 2) {
+    // 기여자가 하나뿐이면 매칭한 상대가 아예 없다 — 전액이 초과분이다.
+    const only = live[0];
+    if (only == null) return { contributors: contributors.map((c) => ({ ...c })), refunds: [] };
+    return {
+      contributors: contributors.map((c) => (c.seat === only.seat ? { ...c, amount: 0 } : { ...c })),
+      refunds: [{ seat: only.seat, amount: round2(only.amount) }],
+    };
+  }
+
+  const sorted = [...live].sort((a, b) => b.amount - a.amount);
+  const top = sorted[0]!;
+  const second = sorted[1]!;
+  const excess = round2(top.amount - second.amount);
+  if (excess <= 1e-9) return { contributors: contributors.map((c) => ({ ...c })), refunds: [] };
+
+  return {
+    contributors: contributors.map((c) =>
+      c.seat === top.seat ? { ...c, amount: round2(c.amount - excess) } : { ...c },
+    ),
+    refunds: [{ seat: top.seat, amount: excess }],
+  };
+}
+
 /**
  * 플레이어별 핸드 기여액을 기준으로 Main Pot / Side Pot들을 만든다(§24).
  *

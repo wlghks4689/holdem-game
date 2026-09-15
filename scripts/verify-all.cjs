@@ -97,6 +97,16 @@ const checks = [
     label: "MysteryHoldem board-play exclusion",
     file: "scripts/verify-mystery-board-play.ts",
   },
+  {
+    group: "mystery",
+    label: "MysteryHoldem showdown focus",
+    file: "scripts/verify-mystery-showdown-focus.ts",
+  },
+  {
+    group: "mystery",
+    label: "MysteryHoldem multi-way all-in",
+    file: "scripts/verify-mystery-multiway-allin.ts",
+  },
   { group: "mystery", label: "MysteryHoldem four card", file: "scripts/verify-mystery-fourcard.ts" },
   { group: "mystery", label: "MysteryHoldem pot-limit", file: "scripts/verify-mystery-potlimit.ts" },
   {

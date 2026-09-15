@@ -33,31 +33,34 @@ export function bestHandExactUse(
 }
 
 /**
- * bestHandExactUse와 같은 계산이지만 "실제로 사용한 홀카드"까지 돌려준다.
+ * bestHandExactUse와 같은 계산이지만 **실제로 사용한 5장**까지 돌려준다.
  *
- * 쇼다운 UI에서 홀 4장을 전부 보여주면 4장을 다 쓴 것처럼 보이므로(실제로는 정확히 2장만
- * 쓴다) 사용한 카드만 공개하는 데 쓴다.
+ * 쇼다운 UI가 "승부에 쓰인 카드"를 강조하려면 홀뿐 아니라 보드 쪽도 알아야 한다.
+ * Four Card는 홀 정확히 2장 + 보드 정확히 3장이라, 일반 7장 평가기로 구한 best5를 쓰면
+ * 규칙에 없는 조합(홀 1장 + 보드 4장 등)이 강조되어 규칙과 화면이 어긋난다.
  */
 export function bestHandExactUseDetailed(
   hole: readonly Card[],
   board: readonly Card[],
   holeUse: number,
   boardUse: number,
-): { value: HandValue; holeUsed: Card[] } {
+): { value: HandValue; holeUsed: Card[]; boardUsed: Card[]; fiveCards: Card[] } {
   const holeCombos = combinations(hole, holeUse);
   const boardCombos = combinations(board, boardUse);
   let best: HandValue = { rank: 0, kickers: [] };
   let bestHole: Card[] = [];
+  let bestBoard: Card[] = [];
   for (const h of holeCombos) {
     for (const b of boardCombos) {
       const v = evaluate5([...h, ...b]);
       if (compareHandValue(v, best) > 0) {
         best = v;
         bestHole = h;
+        bestBoard = b;
       }
     }
   }
-  return { value: best, holeUsed: bestHole };
+  return { value: best, holeUsed: bestHole, boardUsed: bestBoard, fiveCards: [...bestHole, ...bestBoard] };
 }
 
 /** 일반 텍사스 홀덤(홀 2장, 보드와 자유 조합) 최선 5장 — 기존 best5Of7 재사용 */

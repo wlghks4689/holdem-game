@@ -279,8 +279,12 @@ export type MysteryGameMessage =
   | {
       t: "showdown";
       potIndex: number;
+      /** 이 핸드에서 만들어진 팟 개수 — 1개면 UI가 "메인/사이드"를 말할 이유가 없다 */
+      potCount: number;
       potAmount: number;
       winners: Seat[];
+      /** 이 팟을 겨룰 자격이 있던 좌석 — 사이드 팟이 왜 생겼는지 설명하는 데 쓴다 */
+      eligibleSeats: Seat[];
       desc: string;
       /** 이 팟의 승자가 Forced Split 때문에 달라졌는가(§14) */
       forcedSplit: boolean;
