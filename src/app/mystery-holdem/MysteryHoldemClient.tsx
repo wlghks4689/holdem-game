@@ -211,45 +211,80 @@ const NO_MADE_FX: HeroMadeFx = {
 };
 
 /**
- * 상대 카드가 보이지 않아도 "내 카드"가 메이드되면 기존 홀덤과 동일한 연출을 재생한다(§25 재사용).
- * 상대(봇) 좌석에는 절대 적용하지 않는다 — 이 연출은 본인 시야 전용이다.
+ * 한 플레이어의 현재 족보로 메이드 연출 설정을 만든다(§25 공용 모듈 재사용).
+ *
+ * 히어로의 진행 중 연출과 쇼다운에서의 상대 공개 연출이 같은 계산을 쓰도록 순수 함수로
+ * 분리했다. 다른 점은 "언제 부르는가"뿐이다 — 상대 것은 카드가 실제로 공개되는 순간에만
+ * 계산해야 한다. 플레이 중에 상대 좌석에 연출이 뜨면 비공개여야 할 패가 새어 나간다.
  */
+function buildMadeFx(
+  enabled: boolean,
+  player: PlayerState,
+  board: Card[],
+  keyPrefix: string,
+): HeroMadeFx {
+  if (!enabled || player.holeCards.length === 0) return NO_MADE_FX;
+  const value = computeBestHandForPlayer(player, board);
+  const tier = madeHandFxTier(value);
+  if (tier <= 0) return NO_MADE_FX;
+  const kind = madeHandFxKind(value);
+  const variant = MADE_FX_VARIANT_CLASSES[kind];
+  const cardClass = variant?.card ?? MADE_FX_CARD_GLOW[tier] ?? "";
+  const labelClass = variant?.label ?? `holdem-made-hand-label-t${tier}`;
+  const impactClass = MADE_FX_IMPACT_CLASS[kind] ?? "";
+  const outerFxClass = ["holdem-made-fx", `holdem-made-fx-t${tier}`, "overflow-visible", impactClass, variant?.fx ?? ""]
+    .filter(Boolean)
+    .join(" ");
+  const showBurst = shouldPlayMadeHandBurst({
+    madeFxTier: tier,
+    showdownReveal: false,
+    showdownResultGlow: false,
+    showdownRunoutFx: false,
+  });
+  return {
+    tier,
+    kind,
+    label: handValueDisplayPatternKorean(value),
+    cardClass,
+    labelClass,
+    outerFxClass,
+    cycleAuraClass: MADE_FX_CYCLE_AURA_CLASS[kind],
+    showBurst,
+    // 같은 라운드에서 족보 종류가 유지되는 동안은 재마운트하지 않고, 실제로 족보가
+    // 바뀔 때만(예: 트립스→풀하우스) 새 키를 받아 연출을 다시 재생한다.
+    replayKey: `${keyPrefix}-${kind}`,
+  };
+}
+
+/** 진행 중 "내 카드"의 메이드 연출. 상대 좌석에는 절대 쓰지 않는다. */
 function useHeroMadeHandFx(state: MysteryGameState, hero: PlayerState | undefined): HeroMadeFx {
   const enabled = useMadeHandFxEnabled();
   return React.useMemo(() => {
-    if (!enabled || hero == null || hero.holeCards.length === 0) return NO_MADE_FX;
+    if (hero == null) return NO_MADE_FX;
     const board = state.board.slice(0, state.boardRevealed);
-    const value = computeBestHandForPlayer(hero, board);
-    const tier = madeHandFxTier(value);
-    if (tier <= 0) return NO_MADE_FX;
-    const kind = madeHandFxKind(value);
-    const variant = MADE_FX_VARIANT_CLASSES[kind];
-    const cardClass = variant?.card ?? MADE_FX_CARD_GLOW[tier] ?? "";
-    const labelClass = variant?.label ?? `holdem-made-hand-label-t${tier}`;
-    const impactClass = MADE_FX_IMPACT_CLASS[kind] ?? "";
-    const outerFxClass = ["holdem-made-fx", `holdem-made-fx-t${tier}`, "overflow-visible", impactClass, variant?.fx ?? ""]
-      .filter(Boolean)
-      .join(" ");
-    const showBurst = shouldPlayMadeHandBurst({
-      madeFxTier: tier,
-      showdownReveal: false,
-      showdownResultGlow: false,
-      showdownRunoutFx: false,
-    });
-    return {
-      tier,
-      kind,
-      label: handValueDisplayPatternKorean(value),
-      cardClass,
-      labelClass,
-      outerFxClass,
-      cycleAuraClass: MADE_FX_CYCLE_AURA_CLASS[kind],
-      showBurst,
-      // 같은 라운드에서 족보 종류가 유지되는 동안은 재마운트하지 않고, 실제로 족보가
-      // 바뀔 때만(예: 트립스→풀하우스) 새 키를 받아 연출을 다시 재생한다.
-      replayKey: `mystery-made-fx-${state.round}-${kind}`,
-    };
+    return buildMadeFx(enabled, hero, board, `mystery-made-fx-${state.round}`);
   }, [enabled, hero, state.board, state.boardRevealed, state.round]);
+}
+
+/**
+ * 쇼다운에서 공개된 **상대 좌석**의 메이드 연출.
+ *
+ * 카드가 실제로 열린 뒤에만 계산한다(revealCards). 폴드한 좌석은 카드를 공개하지 않으므로
+ * 제외한다. 히어로는 진행 중 연출을 그대로 이어 쓰므로 여기서 다루지 않는다.
+ */
+function useShowdownMadeFx(state: MysteryGameState, revealCards: boolean): Map<Seat, HeroMadeFx> {
+  const enabled = useMadeHandFxEnabled();
+  return React.useMemo(() => {
+    const map = new Map<Seat, HeroMadeFx>();
+    if (!revealCards) return map;
+    const board = state.board.slice(0, state.boardRevealed);
+    for (const p of state.players) {
+      if (p.seat === HERO_SEAT || !p.inHand || p.folded) continue;
+      const fx = buildMadeFx(enabled, p, board, `mystery-showdown-fx-${state.round}-s${p.seat}`);
+      if (fx.tier > 0) map.set(p.seat, fx);
+    }
+    return map;
+  }, [enabled, revealCards, state.players, state.board, state.boardRevealed, state.round]);
 }
 
 function HeroCardsWithMadeFx({
@@ -345,8 +380,9 @@ export function MysteryHoldemClient() {
   // 로비 단계에도 훅 호출 순서를 동일하게 유지해야 하므로(Rules of Hooks),
   // hero가 아직 없을 수 있는 상태 그대로 무조건 호출한다.
   const hero = state.players.find((p) => p.seat === HERO_SEAT);
-  const heroFx = useHeroMadeHandFx(state, hero);
   const chips = useBetChipCollect(state);
+  const heroFx = useHeroMadeHandFx(state, hero);
+  const showdownFx = useShowdownMadeFx(state, chips.revealCards);
 
   if (state.phase === "lobby" || hero == null) {
     return <LobbyScreen seatCount={seatCount} onSeatCount={setSeatCount} onStart={() => dispatch({ type: "START_MATCH", seatCount })} />;
@@ -404,7 +440,7 @@ export function MysteryHoldemClient() {
                 state={state}
                 style={seatStyle(idx, state.seatCount)}
                 isHero={p.seat === HERO_SEAT}
-                heroFx={p.seat === HERO_SEAT ? heroFx : NO_MADE_FX}
+                heroFx={p.seat === HERO_SEAT ? heroFx : (showdownFx.get(p.seat) ?? NO_MADE_FX)}
                 revealCards={chips.revealCards}
                 chipBelowBadge={!seatIsOnLowerHalf(idx, state.seatCount)}
                 showChip={chips.showSeatChips}
@@ -423,16 +459,6 @@ export function MysteryHoldemClient() {
             </div>
           ))}
         </div>
-
-        {heroNeedsHoleSelection ? (
-          <HandSetupPanel
-            hero={hero}
-            needsHole={heroNeedsHoleSelection}
-            keepPicks={keepPicks}
-            setKeepPicks={setKeepPicks}
-            onConfirmHole={(a, b) => dispatch({ type: "SELECT_HOLE_CARDS", seat: HERO_SEAT, keepIndexes: [a, b] })}
-          />
-        ) : null}
 
         {heroNeedsCardTarget ? (
           <CardTargetPanel
@@ -469,6 +495,17 @@ export function MysteryHoldemClient() {
 
         <LogPanel state={state} />
       </div>
+
+      {heroNeedsHoleSelection ? (
+        <HoleCardPicker
+          hero={hero}
+          keepPicks={keepPicks}
+          setKeepPicks={setKeepPicks}
+          onConfirm={(a, b) =>
+            dispatch({ type: "SELECT_HOLE_CARDS", seat: HERO_SEAT, keepIndexes: [a, b] })
+          }
+        />
+      ) : null}
 
       {heroNeedsMission && !heroNeedsHoleSelection ? (
         <MysteryCardPicker
@@ -865,11 +902,12 @@ function SeatView({
       {revealCards && revealedHole.length > 0 && !player.folded ? (
         // 세로 화면에서는 공개 카드를 축소해 좁은 테이블 폭 안에 머물게 한다.
         <div className="flex origin-bottom gap-0.5 portrait:scale-[0.72]">
-          {isHero ? (
-            <HeroCardsWithMadeFx cards={revealedHole} size="compact" fx={heroFx} />
-          ) : (
-            revealedHole.map((c, i) => <PlayingCard key={i} card={c} size="compact" />)
-          )}
+          {/*
+            쇼다운에서는 상대 좌석도 메이드 연출을 받는다. 누가 무엇으로 이겼는지가
+            카드 숫자를 읽기 전에 전달되는 것이 이 연출의 목적이다. heroFx는 히어로면
+            진행 중 연출, 상대면 공개 시점에 계산된 연출이 들어온다(없으면 NO_MADE_FX).
+          */}
+          <HeroCardsWithMadeFx cards={revealedHole} size="compact" fx={heroFx} />
         </div>
       ) : null}
       <div
@@ -901,18 +939,24 @@ function SeatView({
   );
 }
 
-function HandSetupPanel({
+/**
+ * 홀카드 선택(3장 중 2장) 모달.
+ *
+ * 원래는 테이블 아래에 인라인으로 붙어 있었는데, 테이블이 화면을 거의 다 채우는 탓에
+ * 이 패널이 접힌 화면 밖으로 밀려나 "선택 단계가 나오지 않는" 것처럼 보였다
+ * (실측: 패널 top 784px / 뷰포트 694px, 스크롤 0). 게임이 멈춘 채 아무 안내도 없는
+ * 상태가 되므로, Mystery Card 선택과 똑같이 중앙 모달로 올려 반드시 눈에 들어오게 한다.
+ */
+function HoleCardPicker({
   hero,
-  needsHole,
   keepPicks,
   setKeepPicks,
-  onConfirmHole,
+  onConfirm,
 }: {
   hero: PlayerState;
-  needsHole: boolean;
   keepPicks: number[];
   setKeepPicks: React.Dispatch<React.SetStateAction<number[]>>;
-  onConfirmHole: (a: number, b: number) => void;
+  onConfirm: (a: number, b: number) => void;
 }) {
   // 함수형 업데이트를 써야 한다. 두 장을 빠르게 연속 클릭하면 두 핸들러가 같은 렌더의
   // keepPicks(빈 배열)를 읽어 뒤 클릭이 앞 클릭을 덮어쓰고, 한 장만 선택된 채로 남는다.
@@ -923,36 +967,65 @@ function HandSetupPanel({
   };
 
   return (
-    <div className="rounded-2xl border border-fuchsia-700/50 bg-zinc-900/70 p-4 shadow-xl">
-      {needsHole ? (
-        <div className="mb-4">
-          <p className="mb-2 text-sm font-semibold text-zinc-200">3장 중 2장을 선택하세요 (1장 버림)</p>
-          <div className="flex gap-3">
-            {hero.pendingDeal.map((c, idx) => (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-zinc-950/80 p-3 backdrop-blur-sm sm:p-6"
+      role="dialog"
+      aria-modal="true"
+      aria-label="홀카드 선택"
+    >
+      <div className="my-auto w-full max-w-lg">
+        <div className="mb-4 text-center sm:mb-5">
+          <h2 className="text-lg font-black tracking-wide text-zinc-50 sm:text-2xl">홀카드 선택</h2>
+          <p className="mt-1 text-xs text-zinc-400 sm:text-sm">
+            3장 중 2장을 고르세요. 고르지 않은 1장은 버려집니다.
+          </p>
+        </div>
+
+        <div className="flex justify-center gap-3 sm:gap-4">
+          {hero.pendingDeal.map((c, idx) => {
+            const picked = keepPicks.includes(idx);
+            return (
               <button
                 key={idx}
                 type="button"
                 onClick={() => toggle(idx)}
+                aria-pressed={picked}
                 className={[
-                  "rounded-lg p-1 transition",
-                  keepPicks.includes(idx) ? "ring-2 ring-fuchsia-400" : "opacity-70 hover:opacity-100",
+                  "relative rounded-xl p-1.5 transition duration-200",
+                  "focus:outline-none focus-visible:ring-2 focus-visible:ring-white/70",
+                  picked
+                    ? "-translate-y-2 bg-fuchsia-500/15 ring-2 ring-fuchsia-400"
+                    : "opacity-75 hover:-translate-y-1 hover:opacity-100",
                 ].join(" ")}
               >
                 <PlayingCard card={c} size="hero" />
+                {picked ? (
+                  <span
+                    className="absolute -right-1.5 -top-1.5 flex h-6 w-6 items-center justify-center rounded-full bg-white text-sm font-black text-zinc-900"
+                    aria-hidden
+                  >
+                    ✓
+                  </span>
+                ) : null}
               </button>
-            ))}
-          </div>
+            );
+          })}
+        </div>
+
+        <div className="mt-6 flex flex-col items-center gap-2">
           <button
             type="button"
             disabled={keepPicks.length !== 2}
-            onClick={() => onConfirmHole(keepPicks[0]!, keepPicks[1]!)}
-            className="mt-3 rounded-lg bg-fuchsia-600 px-4 py-2 text-xs font-bold uppercase text-white disabled:opacity-40"
+            onClick={() => onConfirm(keepPicks[0]!, keepPicks[1]!)}
+            className="w-full max-w-xs rounded-xl bg-fuchsia-600 px-6 py-3 text-sm font-black uppercase tracking-wide text-white shadow-lg transition hover:bg-fuchsia-500 disabled:cursor-not-allowed disabled:bg-zinc-700 disabled:text-zinc-500 disabled:shadow-none"
           >
             선택 확정
           </button>
+          <p className="h-4 text-[11px] text-zinc-500">
+            {keepPicks.length === 2 ? "2장 선택됨" : `${2 - keepPicks.length}장 더 선택하세요`}
+          </p>
         </div>
-      ) : null}
-
+      </div>
     </div>
   );
 }
