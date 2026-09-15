@@ -43,14 +43,33 @@ for (const seatCount of [2, 3, 4, 6]) {
     assert.equal(state.round, MYSTERY_HOLDEM_CONFIG.totalRounds);
   } else {
     assert.ok(state.round < MYSTERY_HOLDEM_CONFIG.totalRounds);
-    assert.equal(state.matchWinners!.length, 1, "Last Player Standing은 무승부가 없다");
+    // 최후 1인으로 끝나도 승자는 총점으로 가린다. 총점이 동률이면 무승부가 될 수 있다.
+    assert.ok(state.matchWinners!.length >= 1);
   }
 
-  // 모든 좌석의 Total Point가 세 항목의 합과 정확히 일치한다.
+  // 모든 좌석의 Total Point가 네 항목의 합과 정확히 일치한다.
   for (const p of state.players) {
     const chipPoint = p.chips / MYSTERY_HOLDEM_CONFIG.chipPointDivisor;
     assert.ok(Math.abs(p.chipPoint - chipPoint) < 1e-6);
-    assert.ok(Math.abs(p.totalPoint - (chipPoint + p.missionPoint + p.bountyPoint)) < 1e-6);
+    assert.ok(
+      Math.abs(p.totalPoint - (chipPoint + p.missionPoint + p.bountyPoint + p.survivalPoint)) < 1e-6,
+      `총점이 구성 항목의 합과 다릅니다: seat ${p.seat}`,
+    );
+  }
+
+  // 생존 점수는 살아남은 상위 3인에게만 간다.
+  {
+    const awarded = state.players.filter((p) => p.survivalPoint > 0);
+    assert.ok(awarded.length <= 3, `생존 점수를 받은 좌석이 ${awarded.length}명입니다`);
+    for (const p of awarded) {
+      assert.equal(p.busted, false, `버스트한 좌석 ${p.seat}이 생존 점수를 받았습니다`);
+    }
+    const survivors = state.players.filter((p) => !p.busted).length;
+    assert.equal(
+      awarded.length,
+      Math.min(3, survivors),
+      "생존자가 3명 미만이면 그 수만큼만 지급된다",
+    );
   }
 
   console.log(`OK: mystery full game loop (seatCount=${seatCount}, rounds=${state.round}, reason=${state.matchEndReason})`);

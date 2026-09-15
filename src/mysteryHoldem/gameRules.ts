@@ -34,6 +34,7 @@ function createPlayer(seat: Seat, name: string | undefined, config: MysteryHolde
     mission: null,
     missionPoint: 0,
     bountyPoint: 0,
+    survivalPoint: 0,
     chipPoint: config.startingChips / config.chipPointDivisor,
     totalPoint: config.startingChips / config.chipPointDivisor,
   };

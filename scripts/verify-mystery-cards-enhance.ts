@@ -67,6 +67,7 @@ function playerWith(seat: Seat, hole: Card[], cardId?: string): PlayerState {
     mission: def != null ? missionStateOf(def) : null,
     missionPoint: 0,
     bountyPoint: 0,
+    survivalPoint: 0,
     chipPoint: 0,
     totalPoint: 0,
   };

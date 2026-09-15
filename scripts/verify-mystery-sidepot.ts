@@ -41,6 +41,7 @@ function player(seat: number, hole: [ReturnType<typeof card>, ReturnType<typeof 
     mission: null,
     missionPoint: 0,
     bountyPoint: 0,
+    survivalPoint: 0,
     chipPoint: 0,
     totalPoint: 0,
   };

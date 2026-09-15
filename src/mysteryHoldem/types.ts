@@ -223,6 +223,14 @@ export interface PlayerState {
   mission: PlayerMissionState | null;
   missionPoint: number;
   bountyPoint: number;
+  /**
+   * 생존 점수. 매치가 끝날 때 한 번만 확정되며, 버스트한 플레이어는 받지 못한다.
+   *
+   * Chip/Mission/Bounty와 성격이 달라 합치지 않고 별도 항목으로 둔다 — 이 점수는 "플레이의
+   * 결과"가 아니라 "끝까지 남았는가"에 대한 보상이라, 섞어 놓으면 점수표에서 왜 올랐는지
+   * 설명할 수 없다.
+   */
+  survivalPoint: number;
   /** 마지막으로 확정된 chipPoint/totalPoint 캐시 — 매치 종료 시 scoring.ts가 채움 */
   chipPoint: number;
   totalPoint: number;
@@ -279,6 +287,7 @@ export type MysteryGameMessage =
     }
   | { t: "bounty_awarded"; seat: Seat; bustedSeat: Seat; reward: number }
   | { t: "player_busted"; seat: Seat }
+  | { t: "survival_awarded"; seat: Seat; reward: number }
   | { t: "match_over"; reason: "round_limit" | "last_player_standing"; winners: Seat[] };
 
 export interface Pot {
@@ -297,6 +306,12 @@ export interface MysteryHoldemConfig {
   /** 베트/레이즈 금액의 최소 단위 — 358, 512 같은 어중간한 금액이 나오지 않게 한다 */
   betStepUnit: number;
   chipPointDivisor: number;
+  /**
+   * 생존 점수(§21 개정): 매치가 끝난 시점에 **살아남은** 플레이어 중 상위 3명에게 주는 보너스.
+   * 여기 적는 값은 "시작 인원 1명당" 지급액이고, 실제 지급액은 시작 인원을 곱해 10단위로
+   * 반올림한 값이다 — 10인에서 가장 크고 인원이 적을수록 작아진다.
+   */
+  survivalRewardPerSeat: { first: number; second: number; third: number };
   /** 총 플레이어 수 → 버스트 1건당 Bounty Point (인원이 적을수록 높다) */
   bountyRewardBySeatCount: Record<number, number>;
   maxSeats: number;

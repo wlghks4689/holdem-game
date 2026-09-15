@@ -1,5 +1,12 @@
 import assert from "node:assert/strict";
-import { chipPointFromChips, resolveRoundLimitResult, resolveLastPlayerStandingResult } from "../src/mysteryHoldem/scoring";
+import {
+  chipPointFromChips,
+  resolveLastPlayerStandingResult,
+  resolveRoundLimitResult,
+  scoreBreakdownFor,
+  survivalPointsBySeat,
+  survivalRewardForRank,
+} from "../src/mysteryHoldem/scoring";
 import type { PlayerState } from "../src/mysteryHoldem/types";
 
 // Chip Point = Chips / 100 (§19-1)
@@ -24,6 +31,7 @@ function player(overrides: Partial<PlayerState>): PlayerState {
     mission: null,
     missionPoint: 0,
     bountyPoint: 0,
+    survivalPoint: 0,
     chipPoint: 0,
     totalPoint: 0,
     ...overrides,
@@ -62,16 +70,94 @@ function player(overrides: Partial<PlayerState>): PlayerState {
   assert.equal(result.isDraw, true);
 }
 
-// §21-B: Last Player Standing은 점수 비교 없이 즉시 승리(무승부 개념 없음).
+// 최후 1인이 남아 끝나도 자동 승리가 아니라 점수로 승자를 가린다.
+//
+// 예전에는 생존자가 점수와 무관하게 이겼다. 그러면 Mystery Card와 Bounty로 쌓은 점수가
+// "칩을 다 먹으면 어차피 무의미"해져 게임의 절반이 장식이 된다.
 {
   const players = [
-    player({ seat: 0, chips: 5_000, missionPoint: 500, bountyPoint: 500 }), // 점수는 낮지만 생존
-    player({ seat: 1, chips: 0, missionPoint: 0, bountyPoint: 0, busted: true }),
+    // 생존자지만 칩이 거의 없다(=다른 좌석의 칩이 아직 반영되지 않은 인위적 상황).
+    player({ seat: 0, chips: 5_000 }), // 50
+    player({ seat: 1, chips: 0, missionPoint: 500, bountyPoint: 500, busted: true }), // 1000
   ];
-  const result = resolveLastPlayerStandingResult(players, 0);
-  assert.deepEqual(result.winners, [0]);
-  assert.equal(result.isDraw, false);
+  const result = resolveLastPlayerStandingResult(players);
+  assert.deepEqual(result.winners, [1], "생존이 아니라 총점이 승자를 정한다");
   assert.equal(result.reason, "last_player_standing");
+}
+
+// 실제로는 최후 1인이 테이블의 칩을 전부 들고 있어 대개 그대로 1위가 된다.
+{
+  const players = [
+    player({ seat: 0, chips: 120_000 }), // 1200
+    player({ seat: 1, chips: 0, missionPoint: 300, bountyPoint: 200, busted: true }), // 500
+    player({ seat: 2, chips: 0, busted: true }),
+  ];
+  const result = resolveLastPlayerStandingResult(players);
+  assert.deepEqual(result.winners, [0]);
+}
+
+// ─────────────── 생존 점수 ───────────────
+
+// 시작 인원에 비례한다 — 10인에서 가장 크고 인원이 적을수록 작아진다.
+{
+  assert.equal(survivalRewardForRank(1, 10), 200);
+  assert.equal(survivalRewardForRank(2, 10), 100);
+  assert.equal(survivalRewardForRank(3, 10), 50);
+  assert.equal(survivalRewardForRank(1, 4), 80);
+  assert.equal(survivalRewardForRank(2, 4), 40);
+  assert.equal(survivalRewardForRank(3, 4), 20);
+
+  for (const rank of [1, 2, 3] as const) {
+    let prev = -1;
+    for (const n of [2, 3, 4, 6, 8, 10]) {
+      const v = survivalRewardForRank(rank, n);
+      assert.ok(v >= prev, `${rank}위 보상이 인원이 늘어나는데 줄었다: ${n}인 ${v}`);
+      assert.equal(v % 10, 0, "생존 점수는 10단위여야 한다");
+      prev = v;
+    }
+  }
+  // 등수가 낮을수록 적다.
+  for (const n of [4, 10]) {
+    assert.ok(survivalRewardForRank(1, n) > survivalRewardForRank(2, n));
+    assert.ok(survivalRewardForRank(2, n) > survivalRewardForRank(3, n));
+  }
+}
+
+// 생존자 상위 3인에게만, 생존 점수를 뺀 총점 순으로 지급한다.
+{
+  const players = [
+    player({ seat: 0, chips: 50_000 }), // 500 — 생존 1위
+    player({ seat: 1, chips: 40_000 }), // 400 — 생존 2위
+    player({ seat: 2, chips: 30_000 }), // 300 — 생존 3위
+    player({ seat: 3, chips: 20_000 }), // 200 — 생존 4위(지급 없음)
+    // 버스트한 좌석은 점수가 아무리 높아도 "생존" 점수를 받지 못한다.
+    player({ seat: 4, chips: 0, missionPoint: 900, bountyPoint: 900, busted: true }),
+  ];
+  const awards = survivalPointsBySeat(players, 5);
+  assert.equal(awards.get(0), survivalRewardForRank(1, 5));
+  assert.equal(awards.get(1), survivalRewardForRank(2, 5));
+  assert.equal(awards.get(2), survivalRewardForRank(3, 5));
+  assert.equal(awards.get(3), undefined, "4위는 생존 점수가 없다");
+  assert.equal(awards.get(4), undefined, "버스트한 좌석은 총점이 높아도 받지 못한다");
+}
+
+// 1위가 전원을 버스트시킨 경우 2·3위 몫은 자연히 사라진다.
+{
+  const players = [
+    player({ seat: 0, chips: 400_000 }),
+    player({ seat: 1, chips: 0, missionPoint: 500, busted: true }),
+    player({ seat: 2, chips: 0, missionPoint: 400, busted: true }),
+  ];
+  const awards = survivalPointsBySeat(players, 10);
+  assert.equal(awards.size, 1, "생존자가 하나뿐이면 1위 몫만 나간다");
+  assert.equal(awards.get(0), survivalRewardForRank(1, 10));
+}
+
+// 생존 점수는 Total Point에 합산된다.
+{
+  const p = player({ chips: 20_000, missionPoint: 100, bountyPoint: 50, survivalPoint: 200 });
+  assert.equal(scoreBreakdownFor(p).totalPoint, 200 + 100 + 50 + 200);
+  assert.equal(scoreBreakdownFor(p).survivalPoint, 200);
 }
 
 console.log("OK: mystery scoring");

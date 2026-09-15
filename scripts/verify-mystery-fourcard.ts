@@ -23,7 +23,8 @@ function withFourCards(hole: Card[], withRule: boolean): PlayerState {
     inHand: true, folded: false, allIn: false, busted: false,
     streetContribution: 0, handContribution: 0, anteContribution: 0,
     mission: withRule ? { def: def!, assignedRound: 1, achieved: false, shouldReplace: false, targetSeat: null } : null,
-    missionPoint: 0, bountyPoint: 0, chipPoint: 0, totalPoint: 0,
+    missionPoint: 0, bountyPoint: 0,
+    survivalPoint: 0, chipPoint: 0, totalPoint: 0,
   };
 }
 

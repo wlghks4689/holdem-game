@@ -26,7 +26,7 @@ import {
 import { CARD_CATEGORY_LABEL, cardCategoryFromLegacy } from "@/mysteryHoldem/mysteryCard";
 import { MysteryCardPicker, cardRewardLabel } from "./MysteryCardPicker";
 import { positionLabelForSeat } from "@/mysteryHoldem/positions";
-import { scoreBreakdownForAll } from "@/mysteryHoldem/scoring";
+import { scoreBreakdownForAll, survivalRewardForRank } from "@/mysteryHoldem/scoring";
 import {
   displayPotExcludingStreetBets,
   legalActionsForSeat,
@@ -720,6 +720,7 @@ function ScoreboardDrawer({ state }: { state: MysteryGameState }) {
               <th className="py-1 pr-2 text-right font-medium">스택 환산</th>
               <th className="py-1 pr-2 text-right font-medium">Mission</th>
               <th className="py-1 pr-2 text-right font-medium">Bounty</th>
+              <th className="py-1 pr-2 text-right font-medium">생존</th>
               <th className="py-1 text-right font-medium">Total</th>
             </tr>
           </thead>
@@ -741,6 +742,10 @@ function ScoreboardDrawer({ state }: { state: MysteryGameState }) {
                 <td className="py-1 pr-2 text-right tabular-nums">{fmt(score.chipPoint)}</td>
                 <td className="py-1 pr-2 text-right tabular-nums">{fmt(score.missionPoint)}</td>
                 <td className="py-1 pr-2 text-right tabular-nums">{fmt(score.bountyPoint)}</td>
+                {/* 생존 점수는 매치가 끝나야 확정되므로 진행 중에는 계속 0으로 보인다. */}
+                <td className="py-1 pr-2 text-right tabular-nums text-emerald-300">
+                  {score.survivalPoint > 0 ? fmt(score.survivalPoint) : "—"}
+                </td>
                 <td className="py-1 text-right font-bold tabular-nums text-amber-300">
                   {fmt(score.totalPoint)}
                 </td>
@@ -749,7 +754,8 @@ function ScoreboardDrawer({ state }: { state: MysteryGameState }) {
           </tbody>
         </table>
         <p className="mt-2 text-[10px] leading-relaxed text-zinc-500">
-          스택 환산 = 보유 칩 ÷ {state.config.chipPointDivisor} · Total = 세 점수의 합
+          스택 환산 = 보유 칩 ÷ {state.config.chipPointDivisor} · 생존 = 매치 종료 시 생존 상위 3인 ·
+          Total = 네 점수의 합
         </p>
       </div>
     </details>
@@ -1212,13 +1218,18 @@ function MatchOverPanel({ state, onPlayAgain }: { state: MysteryGameState; onPla
   return (
     <div className="rounded-2xl border border-fuchsia-700/60 bg-zinc-900/80 p-5 shadow-2xl">
       <p className="mb-1 text-lg font-bold text-fuchsia-300">
-        {state.matchEndReason === "last_player_standing" ? "Last Player Standing!" : "게임 종료"}
+        {state.matchEndReason === "last_player_standing" ? "최후의 1인 — 매치 종료" : "게임 종료"}
       </p>
       <p className="mb-4 text-xs text-zinc-400">
         {state.matchEndReason === "last_player_standing"
-          ? "한 명을 제외한 전원이 버스트되어 즉시 승리합니다."
-          : `${state.config.totalRounds}라운드가 종료되었습니다.`}
+          ? "한 명을 제외한 전원이 버스트되었습니다. 승자는 Total Point로 가립니다."
+          : `${state.config.totalRounds}라운드가 종료되었습니다. 승자는 Total Point로 가립니다.`}
         {state.matchWinners && state.matchWinners.length > 1 ? " (동점 — 무승부)" : ""}
+      </p>
+      <p className="mb-4 text-[11px] text-zinc-500">
+        생존 점수: 끝까지 남은 상위 3명에게 {survivalRewardForRank(1, state.seatCount)} /{" "}
+        {survivalRewardForRank(2, state.seatCount)} / {survivalRewardForRank(3, state.seatCount)}점
+        (시작 {state.seatCount}인 기준). 버스트한 좌석은 받지 못합니다.
       </p>
       <div className="mb-4 overflow-x-auto">
         <table className="w-full min-w-[420px] text-left text-xs">
@@ -1228,6 +1239,7 @@ function MatchOverPanel({ state, onPlayAgain }: { state: MysteryGameState; onPla
               <th className="py-1 pr-2">Chip Point</th>
               <th className="py-1 pr-2">Mission Point</th>
               <th className="py-1 pr-2">Bounty Point</th>
+              <th className="py-1 pr-2">생존</th>
               <th className="py-1 pr-2">Total</th>
             </tr>
           </thead>
@@ -1245,6 +1257,9 @@ function MatchOverPanel({ state, onPlayAgain }: { state: MysteryGameState; onPla
                   <td className="py-1 pr-2">{fmt(p.chipPoint)}</td>
                   <td className="py-1 pr-2">{fmt(p.missionPoint)}</td>
                   <td className="py-1 pr-2">{fmt(p.bountyPoint)}</td>
+                  <td className={`py-1 pr-2 ${isWinner ? "" : "text-emerald-300"}`}>
+                    {p.survivalPoint > 0 ? fmt(p.survivalPoint) : "—"}
+                  </td>
                   <td className="py-1 pr-2">{fmt(p.totalPoint)}</td>
                 </tr>
               );
@@ -1316,6 +1331,8 @@ function describeLog(l: MysteryGameState["logs"][number]): string {
       return `Seat ${l.seat} Bounty +${fmt(l.reward)}pt (버스트: Seat ${l.bustedSeat})`;
     case "player_busted":
       return `Seat ${l.seat} 버스트`;
+    case "survival_awarded":
+      return `Seat ${l.seat} 생존 점수 +${fmt(l.reward)}pt`;
     case "match_over":
       return `매치 종료 (${l.reason}) — 승자: ${l.winners.join(", ")}`;
     default:

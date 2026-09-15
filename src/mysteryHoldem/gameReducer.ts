@@ -23,7 +23,12 @@ import { shouldReplaceCard } from "./mysteryCard";
 import { bbSeatFor, isActionable, isAllInRunoutSituation, isHandDecidedByFold, isInHandContesting, positionLabelForSeat, sbSeatFor } from "./positions";
 import { isLegalRaiseTarget } from "./potLimit";
 import { buildPots, totalPotAmount, type PotContributor } from "./pots";
-import { chipPointFromChips, resolveLastPlayerStandingResult, resolveRoundLimitResult } from "./scoring";
+import {
+  chipPointFromChips,
+  resolveLastPlayerStandingResult,
+  resolveRoundLimitResult,
+  survivalPointsBySeat,
+} from "./scoring";
 import { awardAllPotsToSingleWinner, awardPots, computeBestHandForPlayer, mergeAwardAmounts, type PotAward } from "./showdown";
 import { specialRuleFor } from "./specialRules";
 import type {
@@ -141,14 +146,14 @@ function startNextHand(state: MysteryGameState, rng: () => number): MysteryGameS
   if (state.matchEnded) return state;
 
   const survivor = state.round > 0 ? survivorSeatIfLastStanding(state.players) : null;
-  if (survivor != null) return endMatchLastPlayerStanding(state, survivor);
+  if (survivor != null) return endMatchLastPlayerStanding(state);
   if (state.round > 0 && state.round >= state.config.totalRounds) return endMatchRoundLimit(state);
 
   const round = state.round + 1;
   const eligible = seatsEligibleForNextHand(state.players);
   if (eligible.length <= 1) {
     return eligible.length === 1
-      ? endMatchLastPlayerStanding(state, eligible[0]!)
+      ? endMatchLastPlayerStanding(state)
       : endMatchRoundLimit(state);
   }
 
@@ -919,7 +924,7 @@ function finishHandSettlement(
   // ── 게임 종료 조건(§21) ──
   const survivor = survivorSeatIfLastStanding(players);
   if (survivor != null) {
-    next = endMatchLastPlayerStanding(next, survivor);
+    next = endMatchLastPlayerStanding(next);
   } else if (state.round >= state.config.totalRounds) {
     next = endMatchRoundLimit(next);
   }
@@ -927,28 +932,58 @@ function finishHandSettlement(
   return next;
 }
 
-function endMatchLastPlayerStanding(state: MysteryGameState, survivorSeat: Seat): MysteryGameState {
-  const result = resolveLastPlayerStandingResult(state.players, survivorSeat);
+/**
+ * 매치 종료 처리.
+ *
+ * 생존 점수를 먼저 확정한 뒤에 승자를 가려야 한다. 순서가 바뀌면 생존 보너스가 반영되지
+ * 않은 순위로 승자가 정해져, 점수표에 적힌 총점과 발표된 승자가 어긋난다.
+ */
+function endMatch(state: MysteryGameState, reason: MysteryGameState["matchEndReason"]): MysteryGameState {
+  const awards = survivalPointsBySeat(state.players, state.seatCount, state.config);
+  let players = state.players.map((p) => {
+    const survival = awards.get(p.seat) ?? 0;
+    return survival > 0 ? { ...p, survivalPoint: round2(p.survivalPoint + survival) } : p;
+  });
+  // 표시용 총점 캐시도 생존 점수까지 반영해 다시 굳힌다.
+  players = players.map((p) => {
+    const chipPoint = chipPointFromChips(p.chips, state.config.chipPointDivisor);
+    return {
+      ...p,
+      chipPoint,
+      totalPoint: round2(chipPoint + p.missionPoint + p.bountyPoint + p.survivalPoint),
+    };
+  });
+
+  const withAwards: MysteryGameState = { ...state, players };
+  const result =
+    reason === "last_player_standing"
+      ? resolveLastPlayerStandingResult(players)
+      : resolveRoundLimitResult(players);
+
+  const logs: MysteryGameMessage[] = [...withAwards.logs];
+  for (const [seat, amount] of [...awards.entries()].sort((a, b) => b[1] - a[1])) {
+    logs.push({ t: "survival_awarded", seat, reward: amount });
+  }
+  logs.push({ t: "match_over", reason: reason ?? "round_limit", winners: result.winners });
+
   return {
-    ...state,
+    ...withAwards,
     phase: "match_over",
     matchEnded: true,
-    matchEndReason: "last_player_standing",
+    matchEndReason: reason,
     matchWinners: result.winners,
-    logs: [...state.logs, { t: "match_over", reason: "last_player_standing", winners: result.winners }],
+    logs,
   };
 }
 
+// 최후 1인이 남아도 승자는 점수로 가린다. 생존자가 누구인지는 더 이상 승패에 쓰이지 않으므로
+// 인자로 받지 않는다.
+function endMatchLastPlayerStanding(state: MysteryGameState): MysteryGameState {
+  return endMatch(state, "last_player_standing");
+}
+
 function endMatchRoundLimit(state: MysteryGameState): MysteryGameState {
-  const result = resolveRoundLimitResult(state.players);
-  return {
-    ...state,
-    phase: "match_over",
-    matchEnded: true,
-    matchEndReason: "round_limit",
-    matchWinners: result.winners,
-    logs: [...state.logs, { t: "match_over", reason: "round_limit", winners: result.winners }],
-  };
+  return endMatch(state, "round_limit");
 }
 
 function round2(n: number): number {
